@@ -1,0 +1,181 @@
+export const initialBookmarks = {
+  'https://greasyfork.org/scripts/460718': {
+    meta: {
+      title: 'Userscript - 🏷️ 小鱼标签 (UTags) - 为链接添加用户标签',
+      created: Date.now(),
+      updated: Date.now(),
+    },
+    tags: ['开源项目', 'Tools', '油猴脚本', 'userscript'],
+  },
+  'https://chromewebstore.google.com/detail/utags-add-usertags-to-lin/kofjcnaphffjoookgahgjidofbdplgig':
+    {
+      meta: {
+        title: 'Chrome extension - UTags - Add usertags to links',
+        created: Date.now() - 1000 - Math.floor(Math.random() * 3_600_000),
+        updated: Date.now() - 1000,
+      },
+      tags: ['浏览器扩展/chrome', '浏览器扩展', 'Tools', '开源项目'],
+    },
+  'https://microsoftedge.microsoft.com/addons/detail/utags-add-usertags-to-l/bhlbflbehfoccjjenpekilgabbjjnphe':
+    {
+      meta: {
+        title: 'Edge extension - UTags - Add usertags to links',
+        created: Date.now() - 2000 - Math.floor(Math.random() * 3_600_000),
+        updated: Date.now() - 2000,
+      },
+      tags: [
+        '浏览器扩展/edge',
+        '浏览器扩展',
+        'Productivity',
+        'Tools',
+        '开源项目',
+      ],
+    },
+  'https://addons.mozilla.org/firefox/addon/utags/': {
+    meta: {
+      title: 'Firefox extension - UTags - Add usertags to links',
+      created: Date.now() - 3000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 3000,
+    },
+    tags: [
+      '浏览器扩展/firefox',
+      '浏览器扩展',
+      '开源项目',
+      'Tools',
+      'Bookmarks',
+    ],
+  },
+  'https://github.com/utags/utags': {
+    meta: {
+      title: 'GitHub - utags/utags: 🏷️ 小鱼标签 (UTags) - 为链接添加用户标签',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['开源项目', '浏览器扩展', '油猴脚本', 'userscript'],
+  },
+  'https://www.v2ex.com/t/924103': {
+    meta: {
+      title: '小鱼标签（UTags）诞生记',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['开源项目', '浏览器扩展', '油猴脚本', 'userscript', '稍后阅读'],
+  },
+  'https://utags.link/ref/': {
+    meta: {
+      title: 'Quick Reference',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['速查表', '工具'],
+  },
+  'https://github.com/utags/utags-bookmarks': {
+    meta: {
+      title: 'UTags 书签管理器',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['开源项目', '书签', '书签管理器', '工具/免费'],
+  },
+  'https://utags.link/': {
+    meta: {
+      title: 'UTags 书签管理器',
+      description:
+        'UTags 书签管理器是一个现代化的书签管理工具，旨在帮助开发者和资深用户摆脱书签杂乱无章的困扰。它不同于传统的书签管理方式，采用了灵活的标签系统和强大的筛选功能，让用户能够更高效地管理和查找网络资源。',
+      note: `使用说明:
+- 可以给书签添加备注
+- 在设置里清空数据
+- 支持导入 Chrome/Edge/Firefox/Safari 的书签 HTML 文件
+      `,
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['开源项目', '书签', '书签管理器', '工具/免费', '稍后阅读'],
+  },
+  'https://tapmeplus1.com/zh': {
+    meta: {
+      title: '《点我加 1》的网页版小游戏',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['🎮 游戏', '小游戏/网页版'],
+  },
+  'https://svelte.dev/': {
+    meta: {
+      title: 'Svelte',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['技术栈', 'JavaScript', 'TypeScript', '开源项目'],
+  },
+  'https://tailwindcss.com/': {
+    meta: {
+      title: 'Tailwind CSS',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['技术栈', 'CSS', '开源项目'],
+  },
+  'https://lucide.dev/': {
+    meta: {
+      title: 'Lucide',
+      description: 'Beautiful & consistent icon toolkit made by the community.',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['技术栈', 'Icon', '开源项目'],
+  },
+  'https://www.typescriptlang.org/': {
+    meta: {
+      title: 'TypeScript',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['技术栈', 'TypeScript', '开源项目'],
+  },
+  'https://vite.dev/': {
+    meta: {
+      title: 'Vite | Next Generation Frontend Tooling',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['技术栈', 'TypeScript', 'JavaScript', 'tools/frontend', '开源项目'],
+  },
+  'https://vitest.dev/': {
+    meta: {
+      title: 'Vitest | Next Generation testing framework',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['技术栈', 'TypeScript', 'JavaScript', 'tools/frontend', '开源项目'],
+  },
+  'https://www.v2ex.com/': {
+    meta: {
+      title: 'V2EX - 创意工作者们的社区',
+      description:
+        '创意工作者的社区。讨论编程、设计、硬件、游戏等令人激动的话题。',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['论坛', '论坛/程序员', '💰 赞助商'],
+  },
+  'https://linux.do/': {
+    meta: {
+      title: 'LINUX DO',
+      description: 'Where possible begins.',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['论坛', '论坛/程序员', '💰 赞助商'],
+  },
+  'https://github.com/helloxz/linksumm': {
+    meta: {
+      title: 'LinkSumm',
+      description:
+        'LinkSumm 是一款使用 AI 大模型驱动的智能摘要提取器，您可以输入一个 URL 地址，让 AI 为您总结内容。',
+      created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 4000,
+    },
+    tags: ['工具/AI', '开源项目', '💰 赞助商'],
+  },
+}

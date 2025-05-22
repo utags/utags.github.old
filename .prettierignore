@@ -1,0 +1,13 @@
+node_modules/**
+LICENSE
+*.min.js
+pnpm-lock.yaml
+tsconfig.json
+tsconfig.tsbuildinfo
+._*
+dist/*
+coverage/*
+src/paraglide/**
+
+src/sync/**
+srs/sync2/**
