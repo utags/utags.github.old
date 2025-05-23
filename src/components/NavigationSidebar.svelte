@@ -81,7 +81,7 @@
         {
           name: m.READ_LATER(),
           icon: 'bookmark-plus',
-          href: `${base}?filter=read-later#`,
+          href: buildCollectionPath('read-later'),
         },
         { name: m.NOTES(), icon: 'note', href: `${base}?has_note#` },
         {
