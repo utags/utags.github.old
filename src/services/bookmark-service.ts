@@ -60,6 +60,7 @@ export class BookmarkService {
   private collectionId: string | undefined
   private visibility: string | undefined
   private apiBaseUrl = 'https://api.utags.link'
+  private apiSuffix = ''
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private constructor() {}
@@ -69,7 +70,15 @@ export class BookmarkService {
    * @param url Base URL for the API
    */
   public setApiBaseUrl(url: string): void {
-    this.apiBaseUrl = url
+    this.apiBaseUrl = url.replace(/\/$/, '')
+  }
+
+  /**
+   * Set API suffix for shared collections
+   * @param suffix Suffix for the API, e.g., 'json'
+   */
+  public setApiSuffix(suffix: string): void {
+    this.apiSuffix = suffix.replace(/^\./, '')
   }
 
   /**
@@ -155,8 +164,9 @@ export class BookmarkService {
     const requestVisibility = this.visibility
 
     try {
+      const apiSuffix = this.apiSuffix ? `.${this.apiSuffix}` : ''
       // Build API path based on visibility type
-      const apiUrl = `${this.apiBaseUrl}/${requestVisibility}/${this.collectionId}`
+      const apiUrl = `${this.apiBaseUrl}/${requestVisibility}/${this.collectionId}${apiSuffix}`
       console.log(`Fetching ${requestVisibility} collection from: ${apiUrl}`)
 
       const response = await fetch(apiUrl)

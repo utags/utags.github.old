@@ -1,8 +1,6 @@
 import { get } from 'svelte/store'
 import { initialBookmarks } from '../data/initial-bookmarks.js'
 import { initialBookmarks as initialBookmarksCN } from '../data/initial-bookmarks-zh-CN.js'
-import { releaseNotes } from '../data/release-notes.js'
-import { releaseNotes as releaseNotesCN } from '../data/release-notes-zh-CN.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { filters } from './saved-filters.js'
 import { getCollections } from './collections.js'
@@ -35,17 +33,6 @@ async function initializeBookmarks() {
   if (get(settings).isFirstRun) {
     // Initial bookmarks
     await bookmarkStorage.updateBookmarks(Object.entries(initialBookmarksCN))
-    // Release notes
-    await bookmarkStorage.updateBookmarks(Object.entries(releaseNotesCN))
-  }
-
-  // Add latest release notes
-  const releases = Object.entries(releaseNotesCN)
-  const latestReleaseBookmark = await bookmarkStorage.getBookmarksAsArrayByKeys(
-    [releases[0][0]]
-  )
-  if (latestReleaseBookmark.length === 0) {
-    await bookmarkStorage.updateBookmarks([releases[0]])
   }
 }
 

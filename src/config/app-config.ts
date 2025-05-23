@@ -1,8 +1,8 @@
-export const appConfig = {
+export const appConfig = Object.freeze({
   title: 'uTags', // 应用标题
   // 其他配置项...
   maxBookmarksPerPage: 100,
   preferQueryString: false,
-} as const
+} as const)
 
 export default appConfig

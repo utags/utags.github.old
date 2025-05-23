@@ -39,6 +39,9 @@
   let isViewingDeleted = $derived(
     getContext('sharedStatus').isViewingDeleted as boolean
   )
+  let isViewingSharedCollection = $derived(
+    getContext('sharedStatus').isViewingSharedCollection as boolean
+  )
 </script>
 
 <div
@@ -101,7 +104,7 @@
 
         <DropdownMenu
           bind:open={addMenuOpen}
-          items={isViewingDeleted
+          items={isViewingDeleted || isViewingSharedCollection
             ? [
                 { value: 'addBookmark', label: m.HEADER_MENU_ADD_BOOKMARK() },
                 // TODO: { value: 'editJustAddedBookmark', label: '编辑最近书签' },

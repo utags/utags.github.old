@@ -1,6 +1,5 @@
 import { get } from 'svelte/store'
 import { persisted, type Persisted } from 'svelte-persisted-store'
-import appConfig from '../config/app-config.js'
 import { STORAGE_KEY_COLLECTIONS } from '../config/constants.js'
 import {
   mergeHashFiltersIntoSearchParams,
@@ -204,10 +203,4 @@ export function getFilterStringByPathname(
   const $collections = get(getCollections())
   const collection = $collections.find((c) => c.pathname === pathname)
   return collection ? collection.filterString : undefined
-}
-
-export function getCollectionUrl(collction: Collection): string {
-  return appConfig.preferQueryString
-    ? `/?collection=${collction.pathname}`
-    : `/c/${collction.pathname}`
 }

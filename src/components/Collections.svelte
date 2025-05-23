@@ -14,11 +14,11 @@
   import InputField from './ui/InputField.svelte'
   import BaseInputField from './ui/BaseInputField.svelte'
   import ExpandIcon from './ui/ExpandIcon.svelte'
+  import { buildCollectionPath } from '../utils/url-utils.js'
   import {
     getCollections,
     deleteCollection,
     saveCollection,
-    getCollectionUrl,
   } from '../stores/collections.js'
   import { spaNavigateAttachment as spaNavigate } from '../actions/spa-navigate-attachment.js'
   import * as m from '../paraglide/messages'
@@ -34,6 +34,9 @@
   // Indicate if viewing deleted bookmarks
   let isViewingDeleted = $derived(
     getContext('sharedStatus').isViewingDeleted as boolean
+  )
+  let isViewingSharedCollection = $derived(
+    getContext('sharedStatus').isViewingSharedCollection as boolean
   )
 
   onMount(() => {
@@ -103,7 +106,7 @@
     role="button"
     tabindex="0">
     <span class="flex-1 text-left font-semibold">{m.COLLECTIONS_TITLE()}</span>
-    {#if !isViewingDeleted}
+    {#if !isViewingDeleted && !isViewingSharedCollection}
       <div class="group-title-button relative flex-none">
         <button
           class="absolute top-1/2 right-0 flex -translate-y-1/2 items-center justify-center rounded-lg p-1.5 text-indigo-600
@@ -138,7 +141,7 @@
         <li class="group pr-2">
           <div class="ml-3 flex items-center justify-between">
             <a
-              href={getCollectionUrl(collection)}
+              href={buildCollectionPath(collection.pathname)}
               {@attach spaNavigate}
               class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
               <span class="h-4 w-4">

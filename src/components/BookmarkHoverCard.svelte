@@ -48,6 +48,9 @@
   let isViewingDeleted = $derived(
     getContext('sharedStatus').isViewingDeleted as boolean
   )
+  let isViewingSharedCollection = $derived(
+    getContext('sharedStatus').isViewingSharedCollection as boolean
+  )
 
   /**
    * Calculate the optimal position for the hover card
@@ -154,7 +157,7 @@
         </h3>
       </div>
       <div class="flex gap-1">
-        {#if !isViewingDeleted}
+        {#if !isViewingDeleted && !isViewingSharedCollection}
           <button
             onclick={() => handleBookmarkEdit(href)}
             class="rounded p-1 text-gray-600 hover:bg-blue-50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"

@@ -8,6 +8,14 @@ import {
   isNonNullObject,
 } from './index.js'
 
+// Define a type for our mock location
+type MockLocation = {
+  href: string
+  origin: string
+  assign?: (url: string) => void // For fallback navigation spy
+}
+let mockLocation: MockLocation
+
 describe('formatDatetime', () => {
   /**
    * Store the original Date object to restore it after tests
@@ -176,6 +184,20 @@ describe('formatDatetime', () => {
 })
 
 describe('getFaviconUrl', () => {
+  beforeEach(() => {
+    mockLocation = {
+      href: 'http://localhost:3000/current-page',
+      origin: 'http://localhost:3000',
+      assign: vi.fn(), // Mock for location.assign for fallback
+    }
+
+    // Stub global objects. Vitest's `vi.stubGlobal` is preferred.
+    vi.stubGlobal('location', mockLocation)
+    // `window.location` should also point to `mockLocation`
+    vi.stubGlobal('window', {
+      location: mockLocation,
+    })
+  })
   /**
    * Test with default size parameter (16px)
    */

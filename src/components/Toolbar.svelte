@@ -27,6 +27,9 @@
   let isViewingDeleted = $derived(
     getContext('sharedStatus').isViewingDeleted as boolean
   )
+  let isViewingSharedCollection = $derived(
+    getContext('sharedStatus').isViewingSharedCollection as boolean
+  )
 
   let nestedFilterExpression: NestedFilterExpression = [
     [
@@ -223,9 +226,10 @@
         <MoreVertIcon />
       </button>
 
+      <!-- TODO: isViewingSharedCollection == true 时：显示打开全部，复制到我的书签，导出书签等菜单 -->
       <DropdownMenu
         bind:open={menuOpen}
-        items={isViewingDeleted
+        items={isViewingDeleted || isViewingSharedCollection
           ? [
               { value: 'selectMode', label: m.TOOLBAR_MENU_SELECT_MODE() },
               { value: 'openAll', label: m.TOOLBAR_MENU_OPEN_ALL_BOOKMARKS() },

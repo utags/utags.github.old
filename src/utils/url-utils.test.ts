@@ -1,5 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { FILTER_DELIMITER } from '../config/constants.js'
+import appConfig from '../config/app-config.js'
 import {
   getHostName,
   humanizeUrl,
@@ -13,7 +14,18 @@ import {
   appendSearchParams,
   removeSearchParams,
   buildTimeQuerySearchParams,
+  buildCollectionPath, // Added import for buildCollectionPath
 } from './url-utils.js'
+
+// Import appConfig to allow modification in tests
+
+// Mock appConfig before importing url-utils or appConfig itself
+vi.mock('../config/app-config.js', () => ({
+  __esModule: true, // Important for ES modules
+  default: {
+    preferQueryString: false, // Default mock value, can be changed per test
+  },
+}))
 
 /**
  * Tests for getHostName function
@@ -1399,5 +1411,96 @@ describe('buildTimeQuerySearchParams', () => {
     expect(result.toString()).toBe(
       'query=a%26b%3Dc&filter=active&time=created&period=7d'
     )
+  })
+})
+
+/**
+ * Tests for buildCollectionPath function
+ */
+describe('buildCollectionPath', () => {
+  // Test suite for preferQueryString = true
+  describe('when preferQueryString is true', () => {
+    beforeEach(() => {
+      // @ts-expect-error - allow modification for testing as it's a mock
+      appConfig.preferQueryString = true
+    })
+
+    it('should build query string with collectionId only', () => {
+      expect(buildCollectionPath('my-notes')).toBe('/?collection=my-notes')
+    })
+
+    it('should build query string with collectionId and valid visibility', () => {
+      expect(buildCollectionPath('shared-docs', 'shared')).toBe(
+        '/?collection=shared-docs&v=shared'
+      )
+      expect(buildCollectionPath('public-gallery', 'public')).toBe(
+        '/?collection=public-gallery&v=public'
+      )
+      expect(buildCollectionPath('private-stuff', 'private')).toBe(
+        '/?collection=private-stuff&v=private'
+      )
+    })
+
+    it('should build query string with collectionId and ignore invalid visibility', () => {
+      expect(buildCollectionPath('my-notes', 'invalid')).toBe(
+        '/?collection=my-notes'
+      )
+      expect(buildCollectionPath('my-notes', '')).toBe('/?collection=my-notes')
+    })
+
+    it('should URL-encode collectionId with special characters for query string', () => {
+      expect(buildCollectionPath('special/chars&id=val')).toBe(
+        '/?collection=specialcharsidval'
+      )
+      // URLSearchParams encodes space as '+'
+      expect(buildCollectionPath('id with spaces')).toBe(
+        '/?collection=idwithspaces'
+      )
+    })
+
+    it('should handle empty collectionId for query string', () => {
+      expect(buildCollectionPath('')).toBe('/')
+    })
+  })
+
+  // Test suite for preferQueryString = false
+  describe('when preferQueryString is false', () => {
+    beforeEach(() => {
+      // @ts-expect-error - allow modification for testing as it's a mock
+      appConfig.preferQueryString = false
+    })
+
+    it('should build path with collectionId only', () => {
+      expect(buildCollectionPath('my-work')).toBe('/c/my-work')
+    })
+
+    it('should build path with collectionId and valid visibility', () => {
+      expect(buildCollectionPath('project-alpha', 'private')).toBe(
+        '/c/private/project-alpha'
+      )
+      expect(buildCollectionPath('gallery-main', 'public')).toBe(
+        '/c/public/gallery-main'
+      )
+      expect(buildCollectionPath('team-files', 'shared')).toBe(
+        '/c/shared/team-files'
+      )
+    })
+
+    it('should build path with collectionId and ignore invalid visibility', () => {
+      expect(buildCollectionPath('my-work', 'other')).toBe('/c/my-work')
+      expect(buildCollectionPath('my-work', '')).toBe('/c/my-work')
+    })
+
+    it('should URL-encode collectionId with special characters for path', () => {
+      // encodeURIComponent encodes space as '%20'
+      expect(buildCollectionPath('another/id with spaces')).toBe(
+        '/c/anotheridwithspaces'
+      )
+      expect(buildCollectionPath('id&value=test')).toBe('/c/idvaluetest')
+    })
+
+    it('should handle empty collectionId for path', () => {
+      expect(buildCollectionPath('')).toBe('/')
+    })
   })
 })

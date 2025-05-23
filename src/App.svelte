@@ -55,6 +55,9 @@
   document.documentElement.lang = getLocale()
 
   const bookmarkService = BookmarkService.getInstance()
+  bookmarkService.setApiBaseUrl('https://utags.link/utags-public-collections')
+  bookmarkService.setApiSuffix('json')
+
   let store = $state(bookmarkService.getStore())
   let baseFilterSearchParams = $state('')
   let bookmarksArray = $derived(
@@ -96,6 +99,7 @@
   let editBookmarkData = $state(null)
   let sharedStatus = $state({
     isViewingDeleted: false,
+    isViewingSharedCollection: false,
     locationSearchString: '',
   })
 
@@ -131,10 +135,19 @@
       collectionId !== bookmarkService.getCollectionId() ||
       visibility !== bookmarkService.getVisibility()
     ) {
-      console.log('collection changed, updating bookmarks')
+      console.log(
+        'collection changed, updating bookmarks:',
+        collectionId,
+        visibility
+      )
       bookmarkService.initializeStore(collectionId, visibility)
       store = bookmarkService.getStore()
       sharedStatus.isViewingDeleted = collectionId === 'deleted'
+      sharedStatus.isViewingSharedCollection = bookmarkService.isShared()
+      console.log(
+        'collection changed: sharedStatus',
+        $state.snapshot(sharedStatus)
+      )
     }
 
     if (internalSearchString) {

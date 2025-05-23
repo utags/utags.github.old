@@ -25,6 +25,9 @@
   let isViewingDeleted = $derived(
     getContext('sharedStatus').isViewingDeleted as boolean
   )
+  let isViewingSharedCollection = $derived(
+    getContext('sharedStatus').isViewingSharedCollection as boolean
+  )
 
   $effect(() => {
     const scrollTopValue = scrollTop
@@ -223,6 +226,18 @@
     alert(m.FEATURE_COMING_SOON_ALERT())
   }
 
+  /**
+   * Start batch copying selected shared bookmarks to user's bookmarks.
+   * Dispatches an event to the parent component to handle copying.
+   */
+  function startBatchCopyToMyBookmarks() {
+    if (selectedBookmarkUrls.length === 0) return
+
+    dispatch('batchCopyToMyBookmarks', { selectedBookmarkUrls })
+    // For now, display a "feature coming soon" alert, similar to other new batch actions.
+    alert(m.FEATURE_COMING_SOON_ALERT())
+  }
+
   // Reset selection when filtered bookmarks change
   $effect(() => {
     console.log('reset selection when filtered bookmarks change')
@@ -278,6 +293,13 @@
             disabled={selectedCount === 0}
             onclick={startBatchPermanentDeleteBookmarks}>
             {m.BOOKMARK_LIST_PERMANENTLY_DELETE_BOOKMARKS()}
+          </button>
+        {:else if isViewingSharedCollection}
+          <button
+            class="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
+            disabled={selectedCount === 0}
+            onclick={startBatchCopyToMyBookmarks}>
+            {m.BOOKMARK_LIST_COPY_TO_MY_BOOKMARKS()}
           </button>
         {:else}
           <button

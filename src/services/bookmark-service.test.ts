@@ -243,6 +243,40 @@ describe('BookmarkService', () => {
       // @ts-expect-error - Accessing private property for testing
       expect(service.apiBaseUrl).toBe(newUrl)
     })
+
+    it('should remove trailing slash from API base URL', () => {
+      const newUrlWithSlash = 'https://api.example.com/bookmarks/'
+      const expectedUrl = 'https://api.example.com/bookmarks'
+      service.setApiBaseUrl(newUrlWithSlash)
+
+      // @ts-expect-error - Accessing private property for testing
+      expect(service.apiBaseUrl).toBe(expectedUrl)
+    })
+  })
+
+  describe('setApiSuffix', () => {
+    it('should update the API suffix', () => {
+      const newSuffix = 'json'
+      service.setApiSuffix(newSuffix)
+
+      // @ts-expect-error - Accessing private property for testing
+      expect(service.apiSuffix).toBe(newSuffix)
+    })
+
+    it('should remove leading dot from API suffix', () => {
+      const newSuffixWithDot = '.json'
+      const expectedSuffix = 'json'
+      service.setApiSuffix(newSuffixWithDot)
+
+      // @ts-expect-error - Accessing private property for testing
+      expect(service.apiSuffix).toBe(expectedSuffix)
+    })
+
+    it('should handle empty string for API suffix', () => {
+      service.setApiSuffix('')
+      // @ts-expect-error - Accessing private property for testing
+      expect(service.apiSuffix).toBe('')
+    })
   })
 
   describe('initializeStore', () => {
@@ -276,6 +310,19 @@ describe('BookmarkService', () => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `https://api.utags.link/shared/${collectionId}`
       )
+    })
+
+    it('should fetch data from API when initializing shared collection with suffix', () => {
+      const collectionId = 'test-collection'
+      const apiSuffix = 'json'
+      service.setApiSuffix(apiSuffix)
+      service.initializeStore(collectionId, 'shared')
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `https://api.utags.link/shared/${collectionId}.${apiSuffix}`
+      )
+      service.setApiSuffix('') // Reset for other tests
     })
 
     it('should not fetch data from API when initializing regular collection', () => {
@@ -484,6 +531,14 @@ describe('BookmarkService', () => {
 
       // Reset fetch mock to clear the call from initializeStore
       vi.resetAllMocks()
+      // Re-mock the fetch response as resetAllMocks clears it
+      mockFetchResponse({
+        data: { 'https://example.com': createTestBookmark() },
+        meta: {
+          databaseVersion: CURRENT_DATABASE_VERSION,
+          created: Date.now(),
+        },
+      })
 
       await service.fetchSharedCollection()
 
@@ -491,6 +546,32 @@ describe('BookmarkService', () => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
         `https://api.utags.link/shared/${collectionId}`
       )
+    })
+
+    it('should fetch data from API for shared collection with suffix', async () => {
+      const collectionId = 'test-collection'
+      const apiSuffix = 'json'
+      service.setApiSuffix(apiSuffix)
+      service.initializeStore(collectionId, 'shared')
+
+      // Reset fetch mock to clear the call from initializeStore
+      vi.resetAllMocks()
+      // Re-mock the fetch response
+      mockFetchResponse({
+        data: { 'https://example.com': createTestBookmark() },
+        meta: {
+          databaseVersion: CURRENT_DATABASE_VERSION,
+          created: Date.now(),
+        },
+      })
+
+      await service.fetchSharedCollection()
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        `https://api.utags.link/shared/${collectionId}.${apiSuffix}`
+      )
+      service.setApiSuffix('') // Reset for other tests
     })
 
     it('should not fetch data if not a shared collection', async () => {
@@ -509,10 +590,18 @@ describe('BookmarkService', () => {
 
       // Reset fetch mock to clear the call from initializeStore
       vi.resetAllMocks()
+      // Re-mock the fetch response as resetAllMocks clears it
+      mockFetchResponse({
+        data: { 'https://example.com': createTestBookmark() },
+        meta: {
+          databaseVersion: CURRENT_DATABASE_VERSION,
+          created: Date.now(),
+        },
+      })
 
       await service.fetchSharedCollection()
 
-      expect(listener).toHaveBeenCalledTimes(1)
+      expect(listener).toHaveBeenCalledTimes(2)
       expect(listener.mock.calls[0][0].detail).toEqual({
         isShared: true,
         collectionId,

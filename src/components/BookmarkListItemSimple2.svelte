@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getContext } from 'svelte'
   import * as m from '../paraglide/messages'
   import { type BookmarkListItemProps } from '../types/bookmarks'
   import { getHostName } from '../utils/url-utils.js'
@@ -19,6 +20,14 @@
     formatedUpdated,
     dateTitleText,
   }: BookmarkListItemProps = $props()
+
+  // Indicate if viewing deleted bookmarks
+  let isViewingDeleted = $derived(
+    getContext('sharedStatus').isViewingDeleted as boolean
+  )
+  let isViewingSharedCollection = $derived(
+    getContext('sharedStatus').isViewingSharedCollection as boolean
+  )
 </script>
 
 <div class="group bookmark-list-item relative w-full p-2 pr-5">
@@ -48,29 +57,31 @@
   </div>
   <div class="byline mt-1 flex flex-wrap items-center gap-1 truncate">
     <span class="datetime" title={dateTitleText}>{formatedUpdated}</span>
-    <span class="actions lowercase">
-      <a
-        href="#action=edit"
-        class="action"
-        onclick={(e) => {
-          e.preventDefault()
-          handleBookmarkEdit(href)
-        }}>{m.EDIT_BUTTON_TEXT()}</a>
-      <a
-        href="#action=delete"
-        class="action lowercase"
-        onclick={(e) => {
-          e.preventDefault()
-          handleBookmarkDelete(href)
-        }}>{m.DELETE_BUTTON_TEXT()}</a>
-      <!-- <a
+    {#if !isViewingDeleted && !isViewingSharedCollection}
+      <span class="actions lowercase">
+        <a
+          href="#action=edit"
+          class="action"
+          onclick={(e) => {
+            e.preventDefault()
+            handleBookmarkEdit(href)
+          }}>{m.EDIT_BUTTON_TEXT()}</a>
+        <a
+          href="#action=delete"
+          class="action lowercase"
+          onclick={(e) => {
+            e.preventDefault()
+            handleBookmarkDelete(href)
+          }}>{m.DELETE_BUTTON_TEXT()}</a>
+        <!-- <a
         href="#action=summarize"
         class="action"
         onclick={(e) => {
           e.preventDefault()
           handleAISummary(href)
         }}>summarize</a> -->
-    </span>
+      </span>
+    {/if}
   </div>
 </div>
 

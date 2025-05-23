@@ -1,6 +1,6 @@
 import Console from 'console-tagger'
 import { defaultFavicons } from '../config/constants.js'
-import { getLocale } from '../paraglide/runtime'
+import { getLocale } from '../paraglide/runtime.js'
 
 /**
  * Custom console instance for utils module
@@ -55,10 +55,15 @@ export function getFaviconUrl(href: string, size: 16 | 32 | 64 = 16) {
   // https://www.google.com/s2/favicons?domain=google.com&sz=64
   // https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://google.com&size=64
 
-  const domain = new URL(href).origin
-  const url = `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${domain}&size=${size}`
-  const wrapUrl = `https://wsrv.nl/?w=${size}&h=${size}&url=${encodeURIComponent(url)}&default=${defaultFavicons[size]}`
-  return wrapUrl
+  try {
+    const domain = new URL(href, location.origin).origin
+    const url = `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${domain}&size=${size}`
+    const wrapUrl = `https://wsrv.nl/?w=${size}&h=${size}&url=${encodeURIComponent(url)}&default=${defaultFavicons[size]}`
+    return wrapUrl
+  } catch (error) {
+    console.error('Error generating favicon URL:', error)
+    return decodeURIComponent(defaultFavicons[size])
+  }
 }
 
 /**

@@ -10,6 +10,9 @@
     Folder,
     NotebookPen,
     BookmarkPlus,
+    HelpCircle,
+    FileText,
+    Trash2,
   } from 'lucide-svelte'
 
   /**
@@ -86,6 +89,12 @@
               <NotebookPen size={16} />
             {:else if item.icon === 'bookmark-plus'}
               <BookmarkPlus size={16} />
+            {:else if item.icon === 'help-circle'}
+              <HelpCircle size={16} />
+            {:else if item.icon === 'file-text'}
+              <FileText size={16} />
+            {:else if item.icon === 'trash-2'}
+              <Trash2 size={16} />
             {:else}
               <Folder size={16} />
             {/if}

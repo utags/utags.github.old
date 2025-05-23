@@ -2,8 +2,11 @@
   import { getContext } from 'svelte'
   import { PanelLeftOpen, PanelLeftClose } from 'lucide-svelte'
   import * as m from '../paraglide/messages'
-  import appConfig from '../config/app-config.js'
-  import { buildTimeQuerySearchParams } from '../utils/url-utils.js'
+  import {
+    buildTimeQuerySearchParams,
+    buildCollectionPath,
+  } from '../utils/url-utils.js'
+  import { isChineseLocale } from '../utils/i18n-utils.js'
   import GroupSeparator from './ui/GroupSeparator.svelte'
   import NavigationGroup from './ui/NavigationGroup.svelte'
   import type { TagHierarchyItem } from '../types/bookmarks.js'
@@ -21,8 +24,6 @@
   let locationSearchString = $derived(
     getContext('sharedStatus').locationSearchString as string
   )
-
-  const preferQueryString = appConfig.preferQueryString
 
   // 导航组数据结构
   // 置顶 Collections (position: fixed or sticky)
@@ -122,11 +123,25 @@
     items: [
       {
         name: m.DELETED_BOOKMARKS(),
-        icon: 'list',
-        href: preferQueryString ? '?collection=deleted' : '/c/deleted',
+        icon: 'trash-2',
+        href: buildCollectionPath('deleted'),
       },
-      // { name: '更新日志', icon: 'star', href: '?collection=release-notes' },
-      { name: m.RELEASE_NOTES(), icon: 'star', href: '/?t=releas-notes' },
+      {
+        name: m.NAVIGATION_SIDEBAR_HELP_DOCS(),
+        icon: 'help-circle',
+        href: buildCollectionPath(
+          `help${isChineseLocale() ? '-zh' : ''}`,
+          'public'
+        ),
+      },
+      {
+        name: m.RELEASE_NOTES(),
+        icon: 'file-text',
+        href: buildCollectionPath(
+          `release-notes${isChineseLocale() ? '-zh' : ''}`,
+          'public'
+        ),
+      },
     ],
     open: false,
   })

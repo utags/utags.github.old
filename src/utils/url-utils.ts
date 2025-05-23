@@ -1,5 +1,6 @@
 import Console from 'console-tagger'
 import { splitTags, trimTitle } from 'utags-utils'
+import appConfig from '../config/app-config.js'
 import {
   HASH_DELIMITER,
   FILTER_DELIMITER,
@@ -371,6 +372,91 @@ export function transformCollectionPathToQueryParams(url: string): string {
 
   // If no match, return the original URL
   return url
+}
+
+/**
+ * Builds a URL path or query string for a collection.
+ *
+ * The `collectionId` is first sanitized by removing any characters that are not
+ * alphanumeric or hyphens (i.e., matching `/[^\w-]/g`). If the sanitized
+ * `collectionId` becomes empty as a result, this function returns `"/"`.
+ *
+ * The format of the returned string depends on the `appConfig.preferQueryString` setting:
+ * - If `true`, it returns a query string like `/?collection={sanitizedCollectionId}&v={visibility}`.
+ *   The `URLSearchParams` constructor automatically handles URL encoding for query parameters.
+ * - If `false`, it returns a path like `/c/{visibility}/{sanitizedCollectionId}` or `/c/{sanitizedCollectionId}`.
+ *   The sanitized `collectionId` is used directly as it only contains URL-safe characters for path segments.
+ *
+ * The `visibility` parameter is only included if it's one of 'shared', 'public', or 'private'.
+ *
+ * @param {string} collectionId - The ID of the collection. It will be sanitized.
+ * @param {string} [visibility] - Optional visibility of the collection ('shared', 'public', 'private').
+ * @returns {string} The constructed URL path or query string for the collection, or "/" if sanitized collectionId is empty.
+ *
+ * @example
+ * // Assuming appConfig.preferQueryString = true
+ * buildCollectionPath('my-notes')
+ * // Returns: "/?collection=my-notes"
+ *
+ * buildCollectionPath('shared-docs', 'shared')
+ * // Returns: "/?collection=shared-docs&v=shared"
+ *
+ * buildCollectionPath('special/chars&id=value!', 'public') // Sanitized to "specialcharsidvalue"
+ * // Returns: "/?collection=specialcharsidvalue&v=public"
+ *
+ * buildCollectionPath('id with spaces', 'public') // Sanitized to "idwithspaces"
+ * // Returns: "/?collection=idwithspaces&v=public"
+ *
+ * buildCollectionPath('') // Sanitized to ""
+ * // Returns: "/"
+ *
+ * buildCollectionPath('!@#$%^', 'private') // Sanitized to ""
+ * // Returns: "/"
+ *
+ * @example
+ * // Assuming appConfig.preferQueryString = false
+ * buildCollectionPath('my-work')
+ * // Returns: "/c/my-work"
+ *
+ * buildCollectionPath('project-alpha', 'private')
+ * // Returns: "/c/private/project-alpha"
+ *
+ * buildCollectionPath('another/id with spaces', 'public') // Sanitized to "anotheridwithspaces"
+ * // Returns: "/c/public/anotheridwithspaces"
+ *
+ * buildCollectionPath('!@#$', 'shared') // Sanitized to ""
+ * // Returns: "/"
+ */
+export function buildCollectionPath(
+  collectionId: string,
+  visibility?: string
+): string {
+  const collectionIdValue = collectionId.replaceAll(/[^\w-]/g, '')
+  if (!collectionIdValue) {
+    return '/'
+  }
+
+  const isValidVisibility =
+    visibility && ['shared', 'public', 'private'].includes(visibility)
+
+  if (appConfig.preferQueryString) {
+    const params = new URLSearchParams()
+    params.set('collection', collectionIdValue)
+    if (isValidVisibility) {
+      params.set('v', visibility)
+    }
+
+    return `/?${params.toString()}`
+  }
+
+  // Path-based construction
+  const pathSegments = ['c']
+  if (isValidVisibility) {
+    pathSegments.push(visibility)
+  }
+
+  pathSegments.push(collectionIdValue)
+  return `/${pathSegments.join('/')}`
 }
 
 /**
