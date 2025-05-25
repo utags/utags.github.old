@@ -133,6 +133,13 @@ Contributions through:
 
 Please follow our [contribution guidelines](CONTRIBUTING.md).
 
+## Instances
+
+- [https://utags.link](https://utags.link/)
+- [https://utags.top](https://utags.top/)
+- [https://utags-bookmarks.pages.dev](https://utags-bookmarks.pages.dev/)
+- [https://utags.github.io](https://utags.github.io/)
+
 ## 📄 License
 
 Copyright (c) 2025 [Pipecraft](https://www.pipecraft.net). Licensed under the [MIT License](LICENSE).
