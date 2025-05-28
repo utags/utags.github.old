@@ -145,7 +145,7 @@ ParaglideJS, in conjunction with the Inlang ecosystem, is utilized for managing 
 
 2. **Message Files**:
 
-   - Translations are stored in JSON files located at `messages/{languageTag}.json` (e.g., `messages/en.json`, `messages/zh-CN.json`).
+   - Translations are stored in JSON files located at `messages/{locale}.json` (e.g., `messages/en.json`, `messages/zh-CN.json`).
    - Messages should use the ICU Message Format to support complex translations, including plurals, gender, and interpolations.
    - Example `messages/en.json`:
      ```json
@@ -171,7 +171,7 @@ ParaglideJS, in conjunction with the Inlang ecosystem, is utilized for managing 
    - The generated files are typically placed in the `outdir` specified in `vite.config.ts` (e.g., `src/lib/paraglide`).
    - Key generated files include:
      - `messages.js` (or `.ts`): Contains functions for each message key (e.g., `m.APP_TITLE()`, `m.GREETING({ name: 'User' })`).
-     - `runtime.js` (or `.ts`): Provides runtime utilities for managing language state (e.g., `languageTag()`, `setLanguageTag()`, `onSetLanguageTag()`).
+     - `runtime.js` (or `.ts`): Provides runtime utilities for managing language state (e.g., `getLocale()`, `setLocale()`).
 
 4. **Usage in Svelte Components**:
 
@@ -181,30 +181,21 @@ ParaglideJS, in conjunction with the Inlang ecosystem, is utilized for managing 
    ```svelte
    <script lang="ts">
      // Import ParaglideJS generated files
-     import * as m from '$lib/paraglide/messages' // Adjust path based on your outdir
-     import {
-       languageTag,
-       setLanguageTag,
-       onSetLanguageTag,
-     } from '$lib/paraglide/runtime' // Adjust path
+     import * as m from '../paraglide/messages' // Adjust path based on your outdir
+     import { getLocale, setLocale } from '../paraglide/runtime' // Adjust path
 
      // Reactive state for the current language
-     let currentLanguage = $state(languageTag()) // Initialize with the current language
+     let currentLanguage = $state(getLocale()) // Initialize with the current language
 
      // Effect to update Paraglide's runtime and document lang attribute when currentLanguage changes
      $effect(() => {
-       setLanguageTag(currentLanguage)
+       setLocale(currentLanguage)
        document.documentElement.lang = currentLanguage
        // Optionally, persist the selected language to localStorage
        if (typeof localStorage !== 'undefined') {
          localStorage.setItem('app-locale', currentLanguage)
        }
      })
-
-     // Optional: Listen for external changes to languageTag if needed
-     // onSetLanguageTag((newLang) => {
-     //   currentLanguage = newLang;
-     // });
 
      /**
       * Switches the application language.
