@@ -213,7 +213,6 @@
   function startBatchRestoreBookmarks() {
     if (selectedBookmarkUrls.length === 0) return
     dispatch('batchRestoreBookmarks', { selectedBookmarkUrls })
-    alert(m.FEATURE_COMING_SOON_ALERT())
   }
 
   /**

@@ -72,7 +72,7 @@ describe('deleted-bookmarks', () => {
       ]
 
       // Act
-      const result = saveDeletedBookmarks(bookmark, { actionType: 'delete' })
+      const result = saveDeletedBookmarks(bookmark, { actionType: 'DELETE' })
 
       // Assert
       expect(result).toBe(true)
@@ -90,7 +90,7 @@ describe('deleted-bookmarks', () => {
       expect(savedData[0][0]).toBe('https://example.com')
       expect(savedData[0][1].tags).toEqual(['test', 'example'])
       expect(savedData[0][1].deletedMeta).toBeDefined()
-      expect(savedData[0][1].deletedMeta!.actionType).toBe('delete')
+      expect(savedData[0][1].deletedMeta!.actionType).toBe('DELETE')
       expect(savedData[0][1].deletedMeta!.deleted).toBeGreaterThan(0)
     })
 
@@ -123,7 +123,7 @@ describe('deleted-bookmarks', () => {
       ]
 
       // Act
-      const result = saveDeletedBookmarks(bookmarks, { actionType: 'import' })
+      const result = saveDeletedBookmarks(bookmarks, { actionType: 'IMPORT' })
 
       // Assert
       expect(result).toBe(true)
@@ -136,8 +136,8 @@ describe('deleted-bookmarks', () => {
       expect(savedData).toHaveLength(2)
       expect(savedData[0][0]).toBe('https://example1.com')
       expect(savedData[1][0]).toBe('https://example2.com')
-      expect(savedData[0][1].deletedMeta!.actionType).toBe('import')
-      expect(savedData[1][1].deletedMeta!.actionType).toBe('import')
+      expect(savedData[0][1].deletedMeta!.actionType).toBe('IMPORT')
+      expect(savedData[1][1].deletedMeta!.actionType).toBe('IMPORT')
     })
 
     /**
@@ -156,7 +156,7 @@ describe('deleted-bookmarks', () => {
             },
             deletedMeta: {
               deleted: 1_234_567_890,
-              actionType: 'delete',
+              actionType: 'DELETE',
             },
           },
         ],
@@ -179,7 +179,7 @@ describe('deleted-bookmarks', () => {
       ]
 
       // Act
-      const result = saveDeletedBookmarks(newBookmark, { actionType: 'sync' })
+      const result = saveDeletedBookmarks(newBookmark, { actionType: 'SYNC' })
 
       // Assert
       expect(result).toBe(true)
@@ -190,9 +190,9 @@ describe('deleted-bookmarks', () => {
       ) as BookmarkKeyValuePair[]
       expect(savedData).toHaveLength(2)
       expect(savedData[0][0]).toBe('https://existing.com')
-      expect(savedData[0][1].deletedMeta!.actionType).toBe('delete')
+      expect(savedData[0][1].deletedMeta!.actionType).toBe('DELETE')
       expect(savedData[1][0]).toBe('https://new.com')
-      expect(savedData[1][1].deletedMeta!.actionType).toBe('sync')
+      expect(savedData[1][1].deletedMeta!.actionType).toBe('SYNC')
     })
 
     /**
@@ -214,7 +214,7 @@ describe('deleted-bookmarks', () => {
             },
             deletedMeta: {
               deleted: 1_234_567_890 + i,
-              actionType: 'delete',
+              actionType: 'DELETE',
             },
           },
         ])
@@ -249,7 +249,7 @@ describe('deleted-bookmarks', () => {
 
       // Act
       const result = saveDeletedBookmarks(newBookmarks, {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -288,7 +288,7 @@ describe('deleted-bookmarks', () => {
       ]
 
       // Act
-      const result = saveDeletedBookmarks(bookmark, { actionType: 'delete' })
+      const result = saveDeletedBookmarks(bookmark, { actionType: 'DELETE' })
 
       // Assert
       expect(result).toBe(true)
@@ -326,7 +326,7 @@ describe('deleted-bookmarks', () => {
       ]
 
       // Act
-      const result = saveDeletedBookmarks(bookmark, { actionType: 'delete' })
+      const result = saveDeletedBookmarks(bookmark, { actionType: 'DELETE' })
 
       // Assert
       expect(result).toBe(false)
@@ -340,49 +340,49 @@ describe('deleted-bookmarks', () => {
      * Test case for different action types
      */
     it('should correctly set different action types', () => {
-      // Test for 'delete' action type
+      // Test for 'DELETE' action type
       saveDeletedBookmarks(
         [
           'https://delete.com',
           {
-            tags: ['delete'],
+            tags: ['DELETE'],
             meta: {
               created: 1_234_567_890,
               updated: 1_234_567_900,
             },
           },
         ],
-        { actionType: 'delete' }
+        { actionType: 'DELETE' }
       )
 
-      // Test for 'import' action type
+      // Test for 'IMPORT' action type
       saveDeletedBookmarks(
         [
           'https://import.com',
           {
-            tags: ['import'],
+            tags: ['IMPORT'],
             meta: {
               created: 1_234_567_891,
               updated: 1_234_567_901,
             },
           },
         ],
-        { actionType: 'import' }
+        { actionType: 'IMPORT' }
       )
 
-      // Test for 'sync' action type
+      // Test for 'SYNC' action type
       saveDeletedBookmarks(
         [
           'https://sync.com',
           {
-            tags: ['sync'],
+            tags: ['SYNC'],
             meta: {
               created: 1_234_567_892,
               updated: 1_234_567_902,
             },
           },
         ],
-        { actionType: 'sync' }
+        { actionType: 'SYNC' }
       )
 
       // Verify all action types were saved correctly
@@ -390,9 +390,9 @@ describe('deleted-bookmarks', () => {
         localStorageMock.getItem(STORAGE_KEY_BOOKMARKS_DELETED)!
       ) as BookmarkKeyValuePair[]
       expect(savedData).toHaveLength(3)
-      expect(savedData[0][1].deletedMeta!.actionType).toBe('delete')
-      expect(savedData[1][1].deletedMeta!.actionType).toBe('import')
-      expect(savedData[2][1].deletedMeta!.actionType).toBe('sync')
+      expect(savedData[0][1].deletedMeta!.actionType).toBe('DELETE')
+      expect(savedData[1][1].deletedMeta!.actionType).toBe('IMPORT')
+      expect(savedData[2][1].deletedMeta!.actionType).toBe('SYNC')
     })
 
     /**
@@ -403,7 +403,7 @@ describe('deleted-bookmarks', () => {
       const emptyArray: BookmarkKeyValuePair[] = []
 
       // Act
-      const result = saveDeletedBookmarks(emptyArray, { actionType: 'delete' })
+      const result = saveDeletedBookmarks(emptyArray, { actionType: 'DELETE' })
 
       // Assert
       expect(result).toBe(false)
@@ -422,7 +422,7 @@ describe('deleted-bookmarks', () => {
 
       // Act
       const result = saveDeletedBookmarks(undefinedInput, {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -441,7 +441,7 @@ describe('deleted-bookmarks', () => {
       const nullInput = null as unknown as BookmarkKeyValuePair[]
 
       // Act
-      const result = saveDeletedBookmarks(nullInput, { actionType: 'delete' })
+      const result = saveDeletedBookmarks(nullInput, { actionType: 'DELETE' })
 
       // Assert
       expect(result).toBe(false)
@@ -462,7 +462,7 @@ describe('deleted-bookmarks', () => {
 
       // Act
       const result = saveDeletedBookmarks(incompleteBookmark, {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -491,7 +491,7 @@ describe('deleted-bookmarks', () => {
 
       // Act
       const result = saveDeletedBookmarks(incompleteBookmark, {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -547,7 +547,7 @@ describe('deleted-bookmarks', () => {
 
       // Act
       const result = saveDeletedBookmarks(mixedBookmarks, {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -611,7 +611,7 @@ describe('deleted-bookmarks', () => {
      */
     it('should remove a single bookmark from deletion history', () => {
       // Arrange - Save bookmarks to deletion history first
-      saveDeletedBookmarks(sampleBookmarks, { actionType: 'delete' })
+      saveDeletedBookmarks(sampleBookmarks, { actionType: 'DELETE' })
 
       // Verify bookmarks were saved
       const savedData = JSON.parse(
@@ -621,7 +621,7 @@ describe('deleted-bookmarks', () => {
 
       // Act - Remove one bookmark
       const result = removeDeletedBookmarks(['https://example.com'], {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -640,13 +640,13 @@ describe('deleted-bookmarks', () => {
      */
     it('should remove multiple bookmarks from deletion history', () => {
       // Arrange - Save bookmarks to deletion history first
-      saveDeletedBookmarks(sampleBookmarks, { actionType: 'delete' })
+      saveDeletedBookmarks(sampleBookmarks, { actionType: 'DELETE' })
 
       // Act - Remove multiple bookmarks
       const result = removeDeletedBookmarks(
         ['https://example.com', 'https://test.com'],
         {
-          actionType: 'delete',
+          actionType: 'DELETE',
         }
       )
 
@@ -665,14 +665,14 @@ describe('deleted-bookmarks', () => {
      */
     it('should only remove bookmarks with matching action type', () => {
       // Arrange - Save bookmarks with different action types
-      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'delete' })
-      saveDeletedBookmarks([sampleBookmarks[1]], { actionType: 'import' })
+      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'DELETE' })
+      saveDeletedBookmarks([sampleBookmarks[1]], { actionType: 'IMPORT' })
 
       // Act - Remove bookmark with specific action type
       const result = removeDeletedBookmarks(
         ['https://example.com', 'https://test.com'],
         {
-          actionType: 'delete',
+          actionType: 'DELETE',
         }
       )
 
@@ -685,7 +685,7 @@ describe('deleted-bookmarks', () => {
       ) as BookmarkKeyValuePair[]
       expect(updatedData).toHaveLength(1)
       expect(updatedData[0][0]).toBe('https://test.com')
-      expect(updatedData[0][1].deletedMeta!.actionType).toBe('import')
+      expect(updatedData[0][1].deletedMeta!.actionType).toBe('IMPORT')
     })
 
     /**
@@ -693,11 +693,11 @@ describe('deleted-bookmarks', () => {
      */
     it('should handle removing non-existent bookmarks gracefully', () => {
       // Arrange - Save bookmarks to deletion history first
-      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'delete' })
+      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'DELETE' })
 
       // Act - Remove non-existent bookmark
       const result = removeDeletedBookmarks(['https://nonexistent.com'], {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -717,7 +717,7 @@ describe('deleted-bookmarks', () => {
     it('should handle removing from empty history gracefully', () => {
       // Act - Remove from empty history
       const result = removeDeletedBookmarks(['https://example.com'], {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -732,13 +732,13 @@ describe('deleted-bookmarks', () => {
      */
     it('should remove only the most recent bookmark when duplicates exist', () => {
       // Arrange - Save the same bookmark multiple times
-      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'delete' })
+      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'DELETE' })
 
       // Wait a moment to ensure different timestamps
       vi.advanceTimersByTime(1000)
 
       // Save the same bookmark again
-      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'delete' })
+      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'DELETE' })
 
       // Verify we have two entries for the same bookmark
       const savedData = JSON.parse(
@@ -750,7 +750,7 @@ describe('deleted-bookmarks', () => {
 
       // Act - Remove the bookmark once
       const result = removeDeletedBookmarks(['https://example.com'], {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -774,7 +774,7 @@ describe('deleted-bookmarks', () => {
      */
     it('should handle localStorage errors gracefully', () => {
       // Arrange - Save bookmarks to deletion history first
-      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'delete' })
+      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'DELETE' })
 
       // Mock localStorage.setItem to throw an error
       localStorageMock.setItem.mockImplementationOnce(() => {
@@ -783,7 +783,7 @@ describe('deleted-bookmarks', () => {
 
       // Act - Try to remove bookmark
       const result = removeDeletedBookmarks(['https://example.com'], {
-        actionType: 'delete',
+        actionType: 'DELETE',
       })
 
       // Assert
@@ -801,9 +801,9 @@ describe('deleted-bookmarks', () => {
      */
     it('should use default action type when not specified', () => {
       // Arrange - Save bookmarks with specific action type
-      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'delete' })
+      saveDeletedBookmarks([sampleBookmarks[0]], { actionType: 'DELETE' })
 
-      // Act - Remove without specifying action type (should default to 'delete')
+      // Act - Remove without specifying action type (should default to 'DELETE')
       const result = removeDeletedBookmarks(['https://example.com'])
 
       // Assert

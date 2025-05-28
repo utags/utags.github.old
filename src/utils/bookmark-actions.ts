@@ -1,84 +1,128 @@
 import { get } from 'svelte/store'
-import { type BookmarkKeyValuePair } from '../types/bookmarks.js'
-import { bookmarks } from '../stores/stores.js'
+import * as m from '../paraglide/messages.js'
 import {
-  saveDeletedBookmarks,
-  removeDeletedBookmarks,
-} from '../stores/deleted-bookmarks.js'
+  type BookmarkKeyValuePair,
+  type BookmarkTagsAndMetadata,
+  type DeleteActionType,
+} from '../types/bookmarks.js'
+import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
+import { bookmarks } from '../stores/stores.js'
+import { commandManager } from '../stores/command-store.js'
+import {
+  AddTagCommand,
+  RemoveTagCommand,
+  type CommandExecutionResult,
+} from '../lib/tag-commands.js'
+import { bookmarkStorage } from '../lib/bookmark-storage.js'
+import { addTags, removeTags } from './bookmarks.js'
 
 /**
- * Delete one or multiple bookmarks with confirmation dialog and undo capability
+ * Batch adds tags to selected bookmarks.
+ * @param selectedBookmarkUrls An array of URLs of the bookmarks to update.
+ * @param tagsToAdd An array of tags to add.
+ * @returns A promise that resolves to the number of bookmarks actually affected.
+ * @throws Error if no tags are provided or no bookmarks are selected, or if adding tags fails.
+ */
+export async function batchAddTagsToBookmarks(
+  selectedBookmarkUrls: string[],
+  tagsToAdd: string[]
+): Promise<CommandExecutionResult | undefined> {
+  if (tagsToAdd.length === 0) {
+    throw new Error(m.BOOKMARK_FORM_TAGS_ERROR_EMPTY())
+  }
+
+  if (selectedBookmarkUrls.length === 0) {
+    throw new Error(m.BATCH_TAG_ADD_MODAL_ERROR_NO_BOOKMARKS_SELECTED())
+  }
+
+  try {
+    const bookmarksToUpdate =
+      await bookmarkStorage.getBookmarksAsArrayByKeys(selectedBookmarkUrls)
+    const addTagCommand = new AddTagCommand(bookmarksToUpdate, tagsToAdd)
+    await commandManager.executeCommand(addTagCommand, bookmarksToUpdate)
+    return addTagCommand.getExecutionResult()
+  } catch (error) {
+    throw new Error(
+      m.BATCH_TAG_ADD_MODAL_ERROR_ADD_FAILED({
+        errorDetails: error instanceof Error ? error.message : String(error),
+      })
+    )
+  }
+}
+
+/**
+ * Batch removes tags from selected bookmarks.
+ * @param selectedBookmarkUrls An array of URLs of the bookmarks to update.
+ * @param tagsToRemove An array of tags to remove.
+ * @returns A promise that resolves to the number of bookmarks actually affected.
+ * @throws Error if no tags are provided or no bookmarks are selected, or if removing tags fails.
+ */
+export async function batchRemoveTagsFromBookmarks(
+  selectedBookmarkUrls: string[],
+  tagsToRemove: string[]
+): Promise<CommandExecutionResult | undefined> {
+  if (tagsToRemove.length === 0) {
+    throw new Error(m.BATCH_TAG_REMOVE_MODAL_ERROR_NO_TAGS_SELECTED())
+  }
+
+  if (selectedBookmarkUrls.length === 0) {
+    throw new Error(m.BATCH_TAG_ADD_MODAL_ERROR_NO_BOOKMARKS_SELECTED())
+  }
+
+  try {
+    const bookmarksToUpdate =
+      await bookmarkStorage.getBookmarksAsArrayByKeys(selectedBookmarkUrls)
+    const removeTagCommand = new RemoveTagCommand(
+      bookmarksToUpdate,
+      tagsToRemove
+    )
+    await commandManager.executeCommand(removeTagCommand, bookmarksToUpdate)
+    return removeTagCommand.getExecutionResult()
+  } catch (error) {
+    throw new Error(
+      m.BATCH_TAG_REMOVE_MODAL_ERROR_REMOVE_FAILED({
+        errorDetails: error instanceof Error ? error.message : String(error),
+      })
+    )
+  }
+}
+
+/**
+ * Batches the deletion of bookmarks by marking them with a DELETED_BOOKMARK_TAG.
+ * This is a "soft delete" operation. The bookmarks are not removed from the store
+ * but are tagged as deleted and associated metadata is added.
  *
- * This function handles both single bookmark deletion and batch deletion scenarios.
- * It provides user confirmation, error handling, and the ability to undo the deletion.
- *
- * Features:
- * - Supports both single URL string or array of URLs
- * - Provides confirmation dialog (can be skipped)
- * - Creates an undo function for restoring deleted bookmarks
- * - Handles error cases gracefully
- * - Updates bookmark store and saves deleted bookmarks
- *
- * @param bookmarkUrls - Single bookmark URL or array of bookmark URLs to delete
- * @param options - Configuration options for the deletion process
- * @param options.skipConfirmation - Whether to skip the confirmation dialog (default: false)
- * @param options.actionType - The type of action that caused the deletion (default: 'delete')
- * @param options.onSuccess - Callback function called on successful deletion, receives undo function and deleted count
- * @param options.onError - Callback function called when an error occurs
- * @returns Promise with operation result and undo function if successful
+ * @param bookmarkUrls - A single URL string or an array of URL strings for the bookmarks to be "deleted".
+ * @param options - Optional parameters for the operation.
+ * @param options.skipConfirmation - If true, skips the confirmation dialog. Defaults to false.
+ * @param options.actionType - Describes the context of the deletion (e.g., 'DELETE', 'SYNC', 'BATCH_DELETE_BOOKMARKS'). Defaults to 'DELETE'.
+ * @param options.onSuccess - Callback function executed on successful "deletion".
+ *                            Receives an undo function and the count of "deleted" bookmarks.
+ * @param options.onError - Callback function executed if an error occurs.
+ * @returns A promise that resolves with an object containing the success status,
+ *          an optional undo function, the count of "deleted" bookmarks, and an optional error.
  *
  * @example
- * // Delete a single bookmark
- * batchDeleteBookmarks('https://example.com')
- *   .then(result => {
- *     if (result.success && result.undo) {
- *       // Show undo button
- *     }
- *   });
+ * ```typescript
+ * await batchDeleteBookmarks('https://example.com/bookmark1');
  *
- * @example
- * // Delete multiple bookmarks with custom options
- * batchDeleteBookmarks(['https://example1.com', 'https://example2.com'], {
+ * await batchDeleteBookmarks(['https://example.com/bookmark1', 'https://example.com/bookmark2'], {
  *   skipConfirmation: true,
- *   actionType: 'batch-delete-bookmarks',
- *   onSuccess: (undoFn, deletedCount) => {
- *     if (deletedCount > 0) {
- *       showUndoNotification(`Deleted ${deletedCount} bookmarks`, undoFn);
- *     } else {
- *       showNotification('No bookmarks were deleted');
- *     }
+ *   onSuccess: (undo, count) => {
+ *     console.log(`${count} bookmarks marked as deleted.`);
+ *     // Optionally, provide a way to call undo()
+ *   },
+ *   onError: (error) => {
+ *     console.error('Failed to mark bookmarks as deleted:', error);
  *   }
  * });
- *
- * @example
- * // Complete error handling and success handling example
- * batchDeleteBookmarks(urls)
- *   .then(result => {
- *     if (!result.success) {
- *       // Handle error case
- *       if (result.error) {
- *         console.error('Failed to delete bookmarks:', result.error.message);
- *         // Can handle different types of errors based on error type or message
- *       }
- *     } else {
- *       // Handle success case
- *       console.log(`Successfully deleted ${result.deletedCount} bookmarks`);
- *       if (result.undo) {
- *         // Show undo button
- *       }
- *     }
- *   });
+ * ```
  */
 export async function batchDeleteBookmarks(
   bookmarkUrls: string | string[],
   options: {
     skipConfirmation?: boolean
-    actionType?:
-      | 'delete'
-      | 'import'
-      | 'sync'
-      | 'batch-delete-bookmarks'
-      | 'batch-delete-tags'
+    actionType?: DeleteActionType
     onSuccess?: (undoFn: (() => void) | undefined, deletedCount: number) => void
     onError?: (error: Error) => void
   } = {}
@@ -88,120 +132,103 @@ export async function batchDeleteBookmarks(
   deletedCount: number
   error?: Error
 }> {
-  // Convert single bookmark to array format
   const urlsArray = Array.isArray(bookmarkUrls) ? bookmarkUrls : [bookmarkUrls]
-
-  // Set default actionType
-  const actionType = options.actionType || 'delete'
+  const {
+    skipConfirmation = false,
+    actionType = 'DELETE',
+    onSuccess,
+    onError,
+  } = options
 
   if (urlsArray.length === 0) {
-    // No bookmarks to delete, call onSuccess with undefined undo function and 0 count
-    if (options.onSuccess) {
-      options.onSuccess(undefined, 0)
-    }
-
+    onSuccess?.(undefined, 0)
     return { success: true, deletedCount: 0 }
   }
 
-  // Show confirmation dialog if not skipped
-  if (!options.skipConfirmation) {
+  if (!skipConfirmation) {
     const confirmMessage =
       urlsArray.length === 1
         ? 'Are you sure you want to delete this bookmark?'
         : `Are you sure you want to delete these ${urlsArray.length} bookmarks?`
-
     // eslint-disable-next-line no-alert
-    if (!confirm(confirmMessage)) return { success: false, deletedCount: 0 }
+    if (!confirm(confirmMessage)) {
+      return { success: false, deletedCount: 0 }
+    }
   }
 
   try {
     const $bookmarks = get(bookmarks)
-    const deletedBookmarks: BookmarkKeyValuePair[] = []
+    const modifiedBookmarksForUndo: BookmarkKeyValuePair[] = []
+    const deletionTimestamp = Date.now()
 
-    // Delete each selected bookmark
     for (const url of urlsArray) {
-      if ($bookmarks.data[url]) {
-        // Save the deleted bookmark for potential restoration
-        deletedBookmarks.push([url, $bookmarks.data[url]])
-        // Remove from bookmarks store
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete $bookmarks.data[url]
+      const item = $bookmarks.data[url]
+      if (item && !item.tags?.includes(DELETED_BOOKMARK_TAG)) {
+        // Store a deep copy of the original item state for undo
+        modifiedBookmarksForUndo.push([
+          url,
+          structuredClone(item), // Simple deep copy for plain objects
+        ])
+
+        // Add the deleted tag
+        item.tags = addTags(item.tags, DELETED_BOOKMARK_TAG)
+
+        // Add deletion metadata
+        item.deletedMeta = {
+          deleted: deletionTimestamp,
+          actionType,
+        }
+      } else if (item && item.tags?.includes(DELETED_BOOKMARK_TAG)) {
+        console.warn(`Bookmark ${url} is already marked as deleted.`)
       }
     }
 
-    // If no bookmarks were deleted, call onSuccess with undefined undo function and 0 count
-    if (deletedBookmarks.length === 0) {
-      if (options.onSuccess) {
-        options.onSuccess(undefined, 0)
-      }
-
+    if (modifiedBookmarksForUndo.length === 0) {
+      onSuccess?.(undefined, 0)
       return { success: true, deletedCount: 0 }
     }
 
-    // Create undo function for restoring deleted bookmarks
     let undoExecuted = false
     const undoFunction = () => {
-      // Prevent multiple executions
       if (undoExecuted) {
         return
       }
 
-      const currentBookmarks = get(bookmarks)
-
-      // Restore all deleted bookmarks
-      for (const [url, data] of deletedBookmarks) {
-        delete data.deletedMeta
-        currentBookmarks.data[url] = data
+      const currentBookmarksStore = get(bookmarks)
+      for (const [url, originalItemState] of modifiedBookmarksForUndo) {
+        const currentItem = currentBookmarksStore.data[url]
+        if (currentItem) {
+          // Restore original tags and remove deletedMeta
+          currentItem.tags = originalItemState.tags // originalItemState.tags is already a safe copy
+          delete currentItem.deletedMeta
+          // If other properties were modified, restore them here from originalItemState
+        } else {
+          // If the bookmark was permanently deleted by another process, we might re-add it
+          // or log a warning. For now, we log a warning.
+          // Alternatively, to re-add: currentBookmarksStore.data[url] = originalItemState;
+          console.warn(
+            `Bookmark ${url} no longer exists in the store. Cannot fully restore its previous state via undo.`
+          )
+        }
       }
 
-      // Update bookmarks store
-      bookmarks.set(currentBookmarks)
-
-      // Trigger UI update
-      bookmarks.update((b) => b)
-
-      // Remove these bookmarks from deletion history
-      // Use the same actionType as when deleting to ensure correct removal
-      removeDeletedBookmarks(
-        deletedBookmarks.map(([url]) => url),
-        { actionType }
-      )
-
-      // Mark undo operation as executed
+      bookmarks.set(currentBookmarksStore)
       undoExecuted = true
     }
 
-    // Update bookmarks store
-    bookmarks.set($bookmarks)
+    bookmarks.set($bookmarks) // Update the store with the modified items
 
-    // Trigger UI update
-    bookmarks.update((b) => b)
-
-    // Return Promise to support async operation
-    return await new Promise((resolve) => {
-      // Save deleted bookmarks for history
-      const success = saveDeletedBookmarks(deletedBookmarks, {
-        actionType,
-      })
-
-      if (success) {
-        const deletedCount = deletedBookmarks.length
-        if (options.onSuccess) options.onSuccess(undoFunction, deletedCount)
-        resolve({ success: true, undo: undoFunction, deletedCount })
-      } else {
-        const error = new Error('Failed to save deleted bookmarks!')
-        if (options.onError) options.onError(error)
-        console.error(`Failed to save deleted bookmarks!`, error)
-        resolve({ success: false, deletedCount: 0, error })
-      }
-    })
+    const deletedCount = modifiedBookmarksForUndo.length
+    onSuccess?.(undoFunction, deletedCount)
+    return { success: true, undo: undoFunction, deletedCount }
   } catch (error) {
-    if (options.onError) options.onError(error as Error)
-    console.error(`Error occurred while deleting bookmarks:`, error)
+    const err = error instanceof Error ? error : new Error(String(error))
+    onError?.(err)
+    console.error(`Error occurred while marking bookmarks as deleted:`, err)
     return {
       success: false,
       deletedCount: 0,
-      error: error as Error,
+      error: err,
     }
   }
 }
@@ -211,7 +238,7 @@ export async function handleBookmarkDelete(href: string) {
   console.log('handleBookmarkDelete', result)
   if (result.success && result.undo) {
     // Show undo button
-    // TODO
+    // TODO: Show undo button
   }
 }
 

@@ -5,6 +5,7 @@ import {
   HASH_DELIMITER,
   FILTER_DELIMITER,
   OR_CONDITION_DELIMITER,
+  DELETED_BOOKMARK_TAG,
 } from '../config/constants.js'
 import { getFilterStringByPathname } from '../stores/collections.js'
 
@@ -494,7 +495,7 @@ export function convertCollectionToFilterParams(
 
   if (collectionId === 'deleted') {
     // Do not convert 'deleted' collection
-    newSearchParams.set('c', 'deleted')
+    newSearchParams.set('t', DELETED_BOOKMARK_TAG)
   } else if (
     collectionId &&
     visibility &&

@@ -186,7 +186,7 @@
     const newTags = [...tags]
     newTags[index] = trimmedValue
     // When editing tags, commas might be entered, requiring re-splitting of the tag string
-    tags = splitTags(newTags.join(','))
+    tags = splitTags(newTags)
     editingTagIndex = -1
   }
 

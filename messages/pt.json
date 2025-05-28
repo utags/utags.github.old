@@ -64,7 +64,34 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Dica: Use Enter ou vírgula para separar várias tags. As tags serão removidas apenas se todas as tags inseridas existirem em um marcador.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} tag removida com sucesso de {bookmarksCount} marcador, e {deletedBookmarksCount} marcador foi excluído como resultado.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} tag removida com sucesso de {bookmarksCount} marcador, e {deletedBookmarksCount} marcadores foram excluídos como resultado.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} tags removidas com sucesso de {bookmarksCount} marcador, e {deletedBookmarksCount} marcador foi excluído como resultado.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} tags removidas com sucesso de {bookmarksCount} marcador, e {deletedBookmarksCount} marcadores foram excluídos como resultado.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} tag removida com sucesso de {bookmarksCount} marcadores, e {deletedBookmarksCount} marcador foi excluído como resultado.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} tag removida com sucesso de {bookmarksCount} marcadores, e {deletedBookmarksCount} marcadores foram excluídos como resultado.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} tags removidas com sucesso de {bookmarksCount} marcadores, e {deletedBookmarksCount} marcador foi excluído como resultado.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} tags removidas com sucesso de {bookmarksCount} marcadores, e {deletedBookmarksCount} marcadores foram excluídos como resultado."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Dica: Use Enter ou vírgula para separar várias tags. As tags serão removidas apenas se todas as tags inseridas existirem em um marcador. Se todas as tags forem removidas, o marcador também será excluído.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Digite as tags a serem removidas, pressione Enter ou vírgula para adicionar várias tags",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Remover Tags em Lote",
   "BOOKMARKS_DELETED_SUCCESS": [

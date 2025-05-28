@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { get } from 'svelte/store'
 import { bookmarks } from '../stores/stores.js'
-import * as deletedBookmarksStore from '../stores/deleted-bookmarks.js'
-import { type BookmarksStore } from '../types/bookmarks.js'
+import {
+  type BookmarksStore,
+  type BookmarkTagsAndMetadata,
+} from '../types/bookmarks.js'
+import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
 import { batchDeleteBookmarks } from './bookmark-actions.js'
 
 // Mock svelte/store's get function
@@ -14,14 +17,7 @@ vi.mock('svelte/store', () => ({
 vi.mock('../stores/stores', () => ({
   bookmarks: {
     set: vi.fn(),
-    update: vi.fn(),
   },
-}))
-
-// Mock the deleted-bookmarks module
-vi.mock('../stores/deleted-bookmarks', () => ({
-  saveDeletedBookmarks: vi.fn(),
-  removeDeletedBookmarks: vi.fn().mockReturnValue(true),
 }))
 
 // Mock globalThis.confirm
@@ -61,8 +57,8 @@ describe('batchDeleteBookmarks', () => {
   }
 
   // Create a deep copy for test assertions
-  let originalBookmarkData: typeof sampleBookmarks.data
-  let copyOfSampleBookmarks: typeof sampleBookmarks
+  let originalBookmarkData: BookmarksStore['data']
+  let copyOfSampleBookmarks: BookmarksStore
 
   beforeEach(() => {
     // Reset mocks before each test
@@ -78,19 +74,11 @@ describe('batchDeleteBookmarks', () => {
     // Mock get function to return sample data when called with bookmarks
     vi.mocked(get).mockImplementation((store) => {
       if (store === bookmarks) {
-        return { ...copyOfSampleBookmarks }
+        return copyOfSampleBookmarks // Return the mutable copy
       }
 
       return undefined
     })
-
-    // Mock saveDeletedBookmarks to return true by default
-    vi.mocked(deletedBookmarksStore.saveDeletedBookmarks).mockReturnValue(true)
-
-    // Mock removeDeletedBookmarks to return true by default
-    vi.mocked(deletedBookmarksStore.removeDeletedBookmarks).mockReturnValue(
-      true
-    )
   })
 
   afterEach(() => {
@@ -99,13 +87,16 @@ describe('batchDeleteBookmarks', () => {
   })
 
   /**
-   * Test case for deleting a single bookmark with confirmation
+   * Test case for soft deleting a single bookmark with confirmation
    */
-  it('should delete a single bookmark with confirmation', async () => {
+  it('should soft delete a single bookmark with confirmation', async () => {
     // Arrange
     const url = 'https://example.com'
     mockConfirm.mockReturnValueOnce(true)
     const onSuccess = vi.fn()
+    const initialBookmarkState = structuredClone(
+      copyOfSampleBookmarks.data[url]
+    )
 
     // Act
     const result = await batchDeleteBookmarks(url, { onSuccess })
@@ -114,21 +105,14 @@ describe('batchDeleteBookmarks', () => {
     expect(mockConfirm).toHaveBeenCalledWith(
       'Are you sure you want to delete this bookmark?'
     )
-    expect(bookmarks.set).toHaveBeenCalled()
-    expect(bookmarks.update).toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalledWith(
-      [[url, originalBookmarkData[url]]],
-      { actionType: 'delete' }
-    )
+    expect(bookmarks.set).toHaveBeenCalledTimes(1)
+    const updatedBookmarks = vi.mocked(bookmarks.set).mock.calls[0][0]
+    const deletedBookmark = updatedBookmarks.data[url]
 
-    // Verify that the bookmark was actually removed from storage
-    const mockGetCall = vi
-      .mocked(get)
-      .mock.calls.find((call) => call[0] === bookmarks)
-    expect(mockGetCall).toBeDefined()
-    const returnedBookmarks = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarks.data[url]).toBeUndefined()
+    expect(deletedBookmark.tags).toContain(DELETED_BOOKMARK_TAG)
+    expect(deletedBookmark.deletedMeta).toBeDefined()
+    expect(deletedBookmark.deletedMeta?.actionType).toBe('DELETE')
+    expect(deletedBookmark.deletedMeta?.deleted).toBeTypeOf('number')
 
     expect(result.success).toBe(true)
     expect(result.deletedCount).toBe(1)
@@ -137,9 +121,9 @@ describe('batchDeleteBookmarks', () => {
   })
 
   /**
-   * Test case for deleting multiple bookmarks with confirmation
+   * Test case for soft deleting multiple bookmarks with confirmation
    */
-  it('should delete multiple bookmarks with confirmation', async () => {
+  it('should soft delete multiple bookmarks with confirmation', async () => {
     // Arrange
     const urls = ['https://example.com', 'https://test.com']
     mockConfirm.mockReturnValueOnce(true)
@@ -152,21 +136,15 @@ describe('batchDeleteBookmarks', () => {
     expect(mockConfirm).toHaveBeenCalledWith(
       'Are you sure you want to delete these 2 bookmarks?'
     )
-    expect(bookmarks.set).toHaveBeenCalled()
-    expect(bookmarks.update).toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalledWith(
-      [
-        ['https://example.com', originalBookmarkData['https://example.com']],
-        ['https://test.com', originalBookmarkData['https://test.com']],
-      ],
-      { actionType: 'delete' }
-    )
+    expect(bookmarks.set).toHaveBeenCalledTimes(1)
+    const updatedBookmarks = vi.mocked(bookmarks.set).mock.calls[0][0]
 
-    // Verify that the bookmarks were actually removed from storage
-    const returnedBookmarks = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarks.data['https://example.com']).toBeUndefined()
-    expect(returnedBookmarks.data['https://test.com']).toBeUndefined()
+    for (const url of urls) {
+      const deletedBookmark = updatedBookmarks.data[url]
+      expect(deletedBookmark.tags).toContain(DELETED_BOOKMARK_TAG)
+      expect(deletedBookmark.deletedMeta).toBeDefined()
+      expect(deletedBookmark.deletedMeta?.actionType).toBe('DELETE')
+    }
 
     expect(result.success).toBe(true)
     expect(result.deletedCount).toBe(2)
@@ -191,8 +169,6 @@ describe('batchDeleteBookmarks', () => {
       'Are you sure you want to delete this bookmark?'
     )
     expect(bookmarks.set).not.toHaveBeenCalled()
-    expect(bookmarks.update).not.toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).not.toHaveBeenCalled()
     expect(result.success).toBe(false)
     expect(result.deletedCount).toBe(0)
     expect(result.undo).toBeUndefined()
@@ -215,9 +191,12 @@ describe('batchDeleteBookmarks', () => {
 
     // Assert
     expect(mockConfirm).not.toHaveBeenCalled()
-    expect(bookmarks.set).toHaveBeenCalled()
-    expect(bookmarks.update).toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalled()
+    expect(bookmarks.set).toHaveBeenCalledTimes(1)
+    const updatedBookmarks = vi.mocked(bookmarks.set).mock.calls[0][0]
+    const deletedBookmark = updatedBookmarks.data[url]
+    expect(deletedBookmark.tags).toContain(DELETED_BOOKMARK_TAG)
+    expect(deletedBookmark.deletedMeta).toBeDefined()
+
     expect(result.success).toBe(true)
     expect(result.deletedCount).toBe(1)
     expect(onSuccess).toHaveBeenCalledWith(expect.any(Function), 1)
@@ -229,20 +208,20 @@ describe('batchDeleteBookmarks', () => {
   it('should use custom actionType when provided', async () => {
     // Arrange
     const url = 'https://example.com'
-    mockConfirm.mockReturnValueOnce(true)
-    const actionType = 'batch-delete-tags'
+    mockConfirm.mockReturnValueOnce(true) // Still need confirm unless skipConfirmation is true
+    const actionType = 'BATCH_REMOVE_TAGS'
 
     // Act
     await batchDeleteBookmarks(url, {
       actionType,
-      skipConfirmation: true,
+      skipConfirmation: true, // Added to simplify test focus on actionType
     })
 
     // Assert
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalledWith(
-      [[url, sampleBookmarks.data[url]]],
-      { actionType }
-    )
+    expect(bookmarks.set).toHaveBeenCalledTimes(1)
+    const updatedBookmarks = vi.mocked(bookmarks.set).mock.calls[0][0]
+    const deletedBookmark = updatedBookmarks.data[url]
+    expect(deletedBookmark.deletedMeta?.actionType).toBe(actionType)
   })
 
   /**
@@ -259,8 +238,6 @@ describe('batchDeleteBookmarks', () => {
     // Assert
     expect(mockConfirm).not.toHaveBeenCalled()
     expect(bookmarks.set).not.toHaveBeenCalled()
-    expect(bookmarks.update).not.toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).not.toHaveBeenCalled()
     expect(result.success).toBe(true)
     expect(result.deletedCount).toBe(0)
     expect(result.undo).toBeUndefined()
@@ -280,11 +257,9 @@ describe('batchDeleteBookmarks', () => {
     const result = await batchDeleteBookmarks(urls, { onSuccess })
 
     // Assert
-    expect(mockConfirm).toHaveBeenCalled()
-    expect(bookmarks.set).not.toHaveBeenCalled()
-    expect(bookmarks.update).not.toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).not.toHaveBeenCalled()
-    expect(result.success).toBe(true)
+    expect(mockConfirm).toHaveBeenCalled() // Confirmation is still called
+    expect(bookmarks.set).not.toHaveBeenCalled() // set is not called if no bookmarks are modified
+    expect(result.success).toBe(true) // Success is true because the operation completed (no actual deletions to make)
     expect(result.deletedCount).toBe(0)
     expect(result.undo).toBeUndefined()
     expect(onSuccess).toHaveBeenCalledWith(undefined, 0)
@@ -304,19 +279,15 @@ describe('batchDeleteBookmarks', () => {
 
     // Assert
     expect(mockConfirm).toHaveBeenCalled()
-    expect(bookmarks.set).toHaveBeenCalled()
-    expect(bookmarks.update).toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalledWith(
-      [['https://example.com', originalBookmarkData['https://example.com']]],
-      { actionType: 'delete' }
-    )
+    expect(bookmarks.set).toHaveBeenCalledTimes(1)
+    const updatedBookmarks = vi.mocked(bookmarks.set).mock.calls[0][0]
+    const deletedBookmark = updatedBookmarks.data['https://example.com']
 
-    // Verify that existing bookmarks were removed from storage
-    const returnedBookmarks = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarks.data['https://example.com']).toBeUndefined()
-    // Non-existent bookmarks were not in storage to begin with
-    expect(returnedBookmarks.data['https://nonexistent.com']).toBeUndefined()
+    expect(deletedBookmark.tags).toContain(DELETED_BOOKMARK_TAG)
+    expect(deletedBookmark.deletedMeta).toBeDefined()
+    expect(updatedBookmarks.data['https://nonexistent.com']).toEqual(
+      originalBookmarkData['https://nonexistent.com']
+    ) // Should remain unchanged
 
     expect(result.success).toBe(true)
     expect(result.deletedCount).toBe(1)
@@ -325,32 +296,44 @@ describe('batchDeleteBookmarks', () => {
   })
 
   /**
-   * Test case for failed save operation
+   * Test case for already deleted bookmarks
    */
-  it('should handle failed save operation', async () => {
+  it('should not modify bookmarks already marked as deleted', async () => {
     // Arrange
     const url = 'https://example.com'
+    // Pre-mark the bookmark as deleted
+    copyOfSampleBookmarks.data[url].tags = [
+      ...(copyOfSampleBookmarks.data[url].tags || []),
+      DELETED_BOOKMARK_TAG,
+    ]
+    copyOfSampleBookmarks.data[url].deletedMeta = {
+      deleted: Date.now() - 1000,
+      // @ts-expect-error: actionType is not required for this test
+      actionType: 'previous-delete',
+    }
+    const originalDeletedMeta = structuredClone(
+      copyOfSampleBookmarks.data[url].deletedMeta
+    )
+
     mockConfirm.mockReturnValueOnce(true)
-    vi.mocked(deletedBookmarksStore.saveDeletedBookmarks).mockReturnValue(false)
     const onSuccess = vi.fn()
-    const onError = vi.fn()
 
     // Act
-    const result = await batchDeleteBookmarks(url, { onSuccess, onError })
+    const result = await batchDeleteBookmarks(url, {
+      onSuccess,
+      skipConfirmation: true,
+    })
 
     // Assert
-    expect(mockConfirm).toHaveBeenCalled()
-    expect(bookmarks.set).toHaveBeenCalled()
-    expect(bookmarks.update).toHaveBeenCalled()
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalled()
-    expect(result.success).toBe(false)
+    expect(bookmarks.set).not.toHaveBeenCalled() // set should not be called if no effective changes
+    const finalBookmarkState = copyOfSampleBookmarks.data[url] // Check the state from the mocked get(bookmarks)
+    expect(finalBookmarkState.tags).toContain(DELETED_BOOKMARK_TAG)
+    expect(finalBookmarkState.deletedMeta).toEqual(originalDeletedMeta) // Meta should not change
+
+    expect(result.success).toBe(true) // Operation is successful even if no changes made
     expect(result.deletedCount).toBe(0)
-    expect(result.undo).toBeUndefined()
-    expect(onSuccess).not.toHaveBeenCalled()
-    expect(onError).toHaveBeenCalledWith(expect.any(Error))
-    // Verify the returned error object
-    expect(result.error).toBeDefined()
-    expect(result.error?.message).toBe('Failed to save deleted bookmarks!')
+    expect(result.undo).toBeUndefined() // No undo if no changes
+    expect(onSuccess).toHaveBeenCalledWith(undefined, 0)
   })
 
   /**
@@ -367,12 +350,13 @@ describe('batchDeleteBookmarks', () => {
     const onError = vi.fn()
 
     // Act
-    const result = await batchDeleteBookmarks(url, { onError })
+    const result = await batchDeleteBookmarks(url, {
+      onError,
+      skipConfirmation: true,
+    })
 
     // Assert
-    expect(mockConfirm).toHaveBeenCalled()
     expect(onError).toHaveBeenCalledWith(error)
-    // Verify the returned error object
     expect(result.error).toBeDefined()
     expect(result.error).toBe(error)
     expect(result.success).toBe(false)
@@ -386,45 +370,36 @@ describe('batchDeleteBookmarks', () => {
   it('should restore bookmarks when undo function is called', async () => {
     // Arrange
     const url = 'https://example.com'
-    mockConfirm.mockReturnValueOnce(true)
+    const originalBookmarkState = structuredClone(
+      copyOfSampleBookmarks.data[url]
+    )
 
-    // Act
+    // Act: Soft delete the bookmark
     const result = await batchDeleteBookmarks(url, { skipConfirmation: true })
+    expect(result.success).toBe(true)
+    expect(result.deletedCount).toBe(1)
+    expect(result.undo).toBeDefined()
 
-    // Verify that the bookmark was actually removed from storage
-    const returnedBookmarksBeforeUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarksBeforeUndo.data[url]).toBeUndefined()
+    const bookmarksAfterDelete = vi.mocked(bookmarks.set).mock.calls[0][0]
+    expect(bookmarksAfterDelete.data[url].tags).toContain(DELETED_BOOKMARK_TAG)
+    expect(bookmarksAfterDelete.data[url].deletedMeta).toBeDefined()
 
     // Call the undo function
     if (result.undo) {
       result.undo()
     }
 
-    // Verify that the bookmark was actually restored to storage
-    const returnedBookmarksAfterUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarksAfterUndo.data[url]).toEqual(
-      originalBookmarkData[url]
-    )
+    // Assert: Check restoration
+    // bookmarks.set should be called twice: once for delete, once for undo.
+    expect(bookmarks.set).toHaveBeenCalledTimes(2)
+    const bookmarksAfterUndo = vi.mocked(bookmarks.set).mock.calls[1][0]
+    const restoredBookmark = bookmarksAfterUndo.data[url]
 
-    // Assert
-    expect(bookmarks.set).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-    expect(bookmarks.update).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-
-    // Verify removeDeletedBookmarks was called with correct parameters
-    expect(deletedBookmarksStore.removeDeletedBookmarks).toHaveBeenCalledWith(
-      [url],
-      { actionType: 'delete' }
-    )
-
-    // Check that the bookmark was restored
-    const setCall = vi.mocked(bookmarks.set).mock.calls[1][0]
-    expect(setCall.data['https://example.com']).toBeDefined()
-    expect(setCall.data['https://example.com'].tags).toEqual([
-      'example',
-      'test',
-    ])
+    expect(restoredBookmark.tags).not.toContain(DELETED_BOOKMARK_TAG)
+    expect(restoredBookmark.deletedMeta).toBeUndefined()
+    // Check if other properties are preserved (they should be, as soft delete only adds tags/meta)
+    expect(restoredBookmark.tags).toEqual(originalBookmarkState.tags)
+    expect(restoredBookmark.meta).toEqual(originalBookmarkState.meta)
   })
 
   /**
@@ -433,187 +408,151 @@ describe('batchDeleteBookmarks', () => {
   it('should restore multiple bookmarks when undo function is called', async () => {
     // Arrange
     const urls = ['https://example.com', 'https://test.com']
-    mockConfirm.mockReturnValueOnce(true)
+    const originalStates: Record<string, BookmarkTagsAndMetadata> = {}
+    for (const url of urls) {
+      originalStates[url] = structuredClone(copyOfSampleBookmarks.data[url])
+    }
 
-    // Act
+    // Act: Soft delete
     const result = await batchDeleteBookmarks(urls, { skipConfirmation: true })
+    expect(result.success).toBe(true)
+    expect(result.deletedCount).toBe(2)
+    expect(result.undo).toBeDefined()
 
-    // Verify that the bookmarks were actually removed from storage
-    const returnedBookmarksBeforeUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(
-      returnedBookmarksBeforeUndo.data['https://example.com']
-    ).toBeUndefined()
-    expect(returnedBookmarksBeforeUndo.data['https://test.com']).toBeUndefined()
-
-    // Call the undo function
+    // Call undo
     if (result.undo) {
       result.undo()
     }
 
-    // Verify that the bookmarks were actually restored to storage
-    const returnedBookmarksAfterUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarksAfterUndo.data['https://example.com']).toEqual(
-      originalBookmarkData['https://example.com']
-    )
-    expect(returnedBookmarksAfterUndo.data['https://test.com']).toEqual(
-      originalBookmarkData['https://test.com']
-    )
+    // Assert: Check restoration
+    expect(bookmarks.set).toHaveBeenCalledTimes(2)
+    const bookmarksAfterUndo = vi.mocked(bookmarks.set).mock.calls[1][0]
 
-    // Verify the bookmarks were restored
-    const setCall = vi.mocked(bookmarks.set).mock.calls[1][0]
-    expect(setCall.data['https://example.com']).toBeDefined()
-    expect(setCall.data['https://test.com']).toBeDefined()
-    expect(setCall.data['https://example.com'].tags).toEqual([
-      'example',
-      'test',
-    ])
-    expect(setCall.data['https://test.com'].tags).toEqual(['test'])
-
-    // Assert
-    expect(bookmarks.set).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-    expect(bookmarks.update).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-  })
-
-  /**
-   * Test case for undo functionality with custom action type
-   */
-  it('should restore bookmarks with custom action type when undo function is called', async () => {
-    // Arrange
-    const url = 'https://example.com'
-    const actionType = 'batch-delete-tags'
-    mockConfirm.mockReturnValueOnce(true)
-
-    // Act
-    const result = await batchDeleteBookmarks(url, {
-      skipConfirmation: true,
-      actionType,
-    })
-
-    // Verify that the bookmark was actually removed from storage
-    const returnedBookmarksBeforeUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarksBeforeUndo.data[url]).toBeUndefined()
-
-    // Verify that the custom actionType was used
-    expect(deletedBookmarksStore.saveDeletedBookmarks).toHaveBeenCalledWith(
-      [[url, originalBookmarkData[url]]],
-      { actionType }
-    )
-
-    // Call the undo function
-    if (result.undo) {
-      result.undo()
+    for (const url of urls) {
+      const restoredBookmark = bookmarksAfterUndo.data[url]
+      expect(restoredBookmark.tags).not.toContain(DELETED_BOOKMARK_TAG)
+      expect(restoredBookmark.deletedMeta).toBeUndefined()
+      expect(restoredBookmark.tags).toEqual(originalStates[url].tags)
     }
-
-    // Verify the bookmark was restored
-    const setCall = vi.mocked(bookmarks.set).mock.calls[1][0]
-    expect(setCall.data[url]).toBeDefined()
-    expect(setCall.data[url].tags).toEqual(['example', 'test'])
-
-    // Assert
-    expect(bookmarks.set).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-    expect(bookmarks.update).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-  })
-
-  /**
-   * Test case for undo functionality with onSuccess callback
-   */
-  it('should call onSuccess callback after undo function is called', async () => {
-    // Arrange
-    const url = 'https://example.com'
-    mockConfirm.mockReturnValueOnce(true)
-    const onSuccess = vi.fn()
-
-    // Act
-    const result = await batchDeleteBookmarks(url, {
-      skipConfirmation: true,
-      onSuccess,
-    })
-
-    // Verify onSuccess was called
-    expect(onSuccess).toHaveBeenCalledWith(expect.any(Function), 1)
-
-    // Verify that the bookmark was actually removed from storage
-    const returnedBookmarksBeforeUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarksBeforeUndo.data[url]).toBeUndefined()
-
-    // Reset onSuccess call records
-    onSuccess.mockReset()
-
-    // Call the undo function
-    if (result.undo) {
-      result.undo()
-    }
-
-    // Verify the bookmark was restored
-    const setCall = vi.mocked(bookmarks.set).mock.calls[1][0]
-    expect(setCall.data[url]).toBeDefined()
-
-    // Assert
-    expect(bookmarks.set).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-    expect(bookmarks.update).toHaveBeenCalledTimes(2) // Once for delete, once for undo
-    // Verify onSuccess is not called again after undo
-    expect(onSuccess).not.toHaveBeenCalled()
   })
 
   /**
    * Test case for multiple undo calls
    */
-  it('should handle multiple undo calls correctly', async () => {
+  it('should handle multiple undo calls correctly (only first call effective)', async () => {
     // Arrange
     const url = 'https://example.com'
-    mockConfirm.mockReturnValueOnce(true)
 
     // Act
     const result = await batchDeleteBookmarks(url, { skipConfirmation: true })
+    expect(result.undo).toBeDefined()
 
-    // Verify that the bookmark was actually removed from storage
-    const returnedBookmarksBeforeUndo = vi.mocked(get).mock.results[0]
-      .value as BookmarksStore
-    expect(returnedBookmarksBeforeUndo.data[url]).toBeUndefined()
-
-    // Call the undo function multiple times
+    // Call undo multiple times
     if (result.undo) {
-      result.undo()
+      result.undo() // First call
       result.undo() // Second call should have no effect
       result.undo() // Third call should have no effect
     }
 
     // Assert
-    expect(bookmarks.set).toHaveBeenCalledTimes(2) // Should still be called only twice
-    expect(bookmarks.update).toHaveBeenCalledTimes(2) // Should still be called only twice
+    // bookmarks.set should be called twice: once for delete, once for the first undo.
+    expect(bookmarks.set).toHaveBeenCalledTimes(2)
 
-    // Verify the bookmark was restored
-    const setCall = vi.mocked(bookmarks.set).mock.calls[1][0]
-    expect(setCall.data[url]).toBeDefined()
-    expect(setCall.data[url].tags).toEqual(['example', 'test'])
+    const bookmarksAfterUndo = vi.mocked(bookmarks.set).mock.calls[1][0]
+    const restoredBookmark = bookmarksAfterUndo.data[url]
+    expect(restoredBookmark.tags).not.toContain(DELETED_BOOKMARK_TAG)
+    expect(restoredBookmark.deletedMeta).toBeUndefined()
   })
 
   /**
    * Test case for undo after error
    */
-  it('should not provide undo function when deletion fails', async () => {
+  it('should not provide undo function when deletion fails due to error', async () => {
     // Arrange
     const url = 'https://example.com'
-    mockConfirm.mockReturnValueOnce(true)
-    const error = new Error('Test error')
+    const error = new Error('Set failed')
     vi.mocked(bookmarks.set).mockImplementationOnce(() => {
       throw error
     })
     const onError = vi.fn()
 
     // Act
-    const result = await batchDeleteBookmarks(url, { onError })
+    const result = await batchDeleteBookmarks(url, {
+      skipConfirmation: true,
+      onError,
+    })
 
     // Assert
-    expect(mockConfirm).toHaveBeenCalled()
     expect(onError).toHaveBeenCalledWith(error)
-    expect(result.error).toBeDefined()
     expect(result.success).toBe(false)
     expect(result.deletedCount).toBe(0)
     expect(result.undo).toBeUndefined() // No undo function should be provided
+  })
+
+  /**
+   * Test case for undo functionality when the bookmark was permanently deleted elsewhere
+   */
+  it('should handle undo when the soft-deleted bookmark was permanently deleted elsewhere', async () => {
+    // Arrange
+    const url = 'https://example.com'
+    const originalBookmarkState = structuredClone(
+      copyOfSampleBookmarks.data[url]
+    )
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      .mockImplementation(() => {}) // Spy on console.warn
+
+    // Act: Soft delete the bookmark
+    const result = await batchDeleteBookmarks(url, { skipConfirmation: true })
+    expect(result.success).toBe(true)
+    expect(result.undo).toBeDefined()
+
+    // Simulate permanent deletion of the bookmark from the store elsewhere
+    // This means when undo tries to access it via get(bookmarks), it won't be there.
+    // We can simulate this by modifying the behavior of the `get` mock for the undo call.
+    vi.mocked(get).mockImplementation((store) => {
+      if (store === bookmarks) {
+        const currentBookmarks = structuredClone(copyOfSampleBookmarks) // Get a fresh copy
+        // Remove the specific bookmark that was soft-deleted
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete currentBookmarks.data[url]
+        return currentBookmarks
+      }
+
+      return undefined
+    })
+
+    // Call the undo function
+    if (result.undo) {
+      result.undo()
+    }
+
+    // Assert
+    // bookmarks.set should be called once for the initial delete.
+    // It should NOT be called again for the undo if the bookmark is gone, as there's nothing to restore to its original state.
+    // However, the current implementation of undo *will* call set to remove the DELETED_BOOKMARK_TAG from a non-existent entry,
+    // which is fine, but the console.warn is the key check here.
+    // Let's verify the console.warn was called.
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `Bookmark ${url} no longer exists in the store. Cannot fully restore its previous state via undo.`
+    )
+
+    // The bookmarks.set for undo might still be called to update the overall store object,
+    // even if the specific entry is missing. The critical part is that the bookmark itself isn't recreated from scratch if it was truly gone.
+    // The current undo logic tries to remove the DELETED_BOOKMARK_TAG and deletedMeta.
+    // If the bookmark is gone, these operations on a non-existent key are effectively no-ops on the specific bookmark data.
+    // The store itself will be set with the (now missing) bookmark.
+
+    // Check that bookmarks.set was called for the delete, and then for the undo attempt.
+    expect(bookmarks.set).toHaveBeenCalledTimes(2)
+
+    const bookmarksAfterUndoAttempt = vi.mocked(bookmarks.set).mock.calls[1][0]
+
+    // The bookmark should still be absent from the data after the undo attempt
+    expect(bookmarksAfterUndoAttempt.data[url]).toBeUndefined()
+
+    // Restore the original get mock behavior for subsequent tests if necessary, though beforeEach handles this.
+    consoleWarnSpy.mockRestore() // Clean up the spy
   })
 })

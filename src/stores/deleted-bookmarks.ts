@@ -1,6 +1,9 @@
 import { get } from 'svelte/store'
 import { STORAGE_KEY_BOOKMARKS_DELETED } from '../config/constants.js'
-import { type BookmarkKeyValuePair } from '../types/bookmarks.js'
+import {
+  type BookmarkKeyValuePair,
+  type DeleteActionType,
+} from '../types/bookmarks.js'
 import { settings } from './stores.js'
 
 /**
@@ -48,12 +51,7 @@ function saveDeletedBookmarksToStorage(
 export function saveDeletedBookmarks(
   bookmarkKeyValuePairs: BookmarkKeyValuePair | BookmarkKeyValuePair[],
   options: {
-    actionType:
-      | 'delete'
-      | 'import'
-      | 'sync'
-      | 'batch-delete-bookmarks'
-      | 'batch-delete-tags'
+    actionType: DeleteActionType
   }
 ): boolean {
   const maxEntries = get(settings).maxDeletedBookmarks || 10_000
@@ -119,12 +117,7 @@ export function saveDeletedBookmarks(
 export function removeDeletedBookmarks(
   urls: string[],
   options: {
-    actionType?:
-      | 'delete'
-      | 'import'
-      | 'sync'
-      | 'batch-delete-bookmarks'
-      | 'batch-delete-tags'
+    actionType?: DeleteActionType
   } = {}
 ): boolean {
   try {
@@ -137,7 +130,7 @@ export function removeDeletedBookmarks(
     }
 
     // Default actionType
-    const actionType = options.actionType || 'delete'
+    const actionType = options.actionType || 'DELETE'
 
     // Remove specified bookmarks from history
     let found = false

@@ -1,8 +1,6 @@
 <script lang="ts">
   import * as m from '../paraglide/messages'
-  import { commandManager } from '../stores/command-store'
-  import { RemoveTagCommand } from '../lib/tag-commands'
-  import { bookmarkStorage } from '../lib/bookmark-storage'
+  import { batchRemoveTagsFromBookmarks } from '../utils/bookmark-actions'
   import TagInput from './TagInput.svelte'
   import Modal from './Modal.svelte'
 
@@ -40,9 +38,10 @@
   }
 
   /**
-   * Remove tags from selected bookmarks
+   * Remove tags from selected bookmarks using the extracted function
    */
-  async function removeTagsFromBookmarks() {
+  async function handleRemoveTagsFromBookmarks() {
+    // Basic validation remains in the component for immediate UI feedback
     if (tagsToRemove.length === 0) {
       errorMessage = m.BATCH_TAG_REMOVE_MODAL_ERROR_NO_TAGS_SELECTED()
       return
@@ -58,19 +57,33 @@
     successMessage = ''
 
     try {
-      const bookmarksToUpdate =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(selectedBookmarkUrls)
-      // Create and execute the remove tag command for each bookmark
-      const removeTagCommand = new RemoveTagCommand(
-        bookmarksToUpdate,
+      const result = await batchRemoveTagsFromBookmarks(
+        selectedBookmarkUrls,
         tagsToRemove
       )
-      await commandManager.executeCommand(removeTagCommand, bookmarksToUpdate)
 
-      successMessage = m.BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE({
-        bookmarksCount: selectedBookmarkUrls.length,
-        tagsCount: tagsToRemove.length,
-      })
+      if (!result) {
+        throw new Error(
+          m.BATCH_TAG_REMOVE_MODAL_ERROR_REMOVE_FAILED({
+            errorDetails: 'Unkown error',
+          })
+        )
+      }
+      const { affectedCount, deletedCount } = result
+
+      if (deletedCount > 0) {
+        successMessage =
+          m.BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS({
+            bookmarksCount: affectedCount,
+            tagsCount: tagsToRemove.length,
+            deletedBookmarksCount: deletedCount,
+          })
+      } else {
+        successMessage = m.BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE({
+          bookmarksCount: affectedCount,
+          tagsCount: tagsToRemove.length,
+        })
+      }
 
       // Reset tags input after successful operation
       tagsToRemove = []
@@ -78,11 +91,9 @@
       // Close modal after a short delay to show success message
       setTimeout(() => {
         closeModal()
-      }, 1500)
+      }, 2000)
     } catch (error) {
-      errorMessage = m.BATCH_TAG_REMOVE_MODAL_ERROR_REMOVE_FAILED({
-        errorDetails: error instanceof Error ? error.message : String(error),
-      })
+      errorMessage = error instanceof Error ? error.message : String(error)
     } finally {
       isProcessing = false
     }
@@ -96,7 +107,7 @@
     document.getElementById('tags-to-remove')?.focus()
   }}
   onClose={closeModal}
-  onConfirm={removeTagsFromBookmarks}
+  onConfirm={handleRemoveTagsFromBookmarks}
   disableConfirm={isProcessing || tagsToRemove.length === 0}
   confirmText={isProcessing
     ? m.PROCESSING_TEXT()

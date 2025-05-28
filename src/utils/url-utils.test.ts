@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { FILTER_DELIMITER } from '../config/constants.js'
+import { FILTER_DELIMITER, DELETED_BOOKMARK_TAG } from '../config/constants.js'
 import appConfig from '../config/app-config.js'
 import {
   getHostName,
@@ -963,9 +963,10 @@ describe('convertCollectionToFilterParams', () => {
     const result = convertCollectionToFilterParams(searchParams)
 
     // Verify no filter parameters are added
-    expect(result.has('t')).toBe(false)
+    expect(result.get('t')).toBe(DELETED_BOOKMARK_TAG)
     expect(result.has('d')).toBe(false)
     expect(result.has('q')).toBe(false)
+    expect(result.has('c')).toBe(false)
     expect(result.has('collection')).toBe(false)
   })
 
@@ -992,7 +993,7 @@ describe('convertCollectionToFilterParams', () => {
   it('should preserve shared parameter when processing collection', () => {
     // Create search params with collection and shared parameters
     const searchParams = new URLSearchParams(
-      'collection=my-collection&shared=true'
+      'collection=my-collection&v=shared'
     )
 
     // Convert collection to filter parameters
@@ -1002,7 +1003,8 @@ describe('convertCollectionToFilterParams', () => {
     // expect(result.get('t')).toBe('tag1,tag2')
     // expect(result.get('d')).toBe('example.com')
     // expect(result.get('q')).toBe('keyword')
-    expect(result.get('shared')).toBe('true')
+    expect(result.get('c')).toBe('my-collection')
+    expect(result.get('v')).toBe('shared')
     expect(result.has('collection')).toBe(false)
   })
 

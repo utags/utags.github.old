@@ -64,7 +64,34 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Hinweis: Verwenden Sie die Eingabetaste oder ein Komma, um mehrere Tags zu trennen. Tags werden nur entfernt, wenn alle eingegebenen Tags in einem Lesezeichen vorhanden sind.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} Tag erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurde.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} Tag erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurden.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} Tags erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurde.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} Tags erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurden.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} Tag erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurde.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} Tag erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurden.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} Tags erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurde.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} Tags erfolgreich von {bookmarksCount} Lesezeichen entfernt, wodurch {deletedBookmarksCount} Lesezeichen gelöscht wurden."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Hinweis: Verwenden Sie die Eingabetaste oder ein Komma, um mehrere Tags zu trennen. Tags werden nur entfernt, wenn alle eingegebenen Tags in einem Lesezeichen vorhanden sind. Wenn alle Tags entfernt werden, wird das Lesezeichen ebenfalls gelöscht.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Zu löschende Tags eingeben, Eingabetaste oder Komma drücken, um mehrere Tags hinzuzufügen",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Tags stapelweise entfernen",
   "BOOKMARKS_DELETED_SUCCESS": [

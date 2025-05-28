@@ -101,7 +101,7 @@ addEventListener(globalThis, 'updateBookmarksStore', async () => {
   }
 })
 
-export function exportData(bookmarksData: BookmarksData) {
+export function exportData(bookmarksData?: BookmarksData) {
   checkBookmarksDataReady()
 
   const now = new Date()

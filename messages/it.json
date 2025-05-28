@@ -64,7 +64,34 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Suggerimento: usa Invio o la virgola per separare più tag. I tag verranno rimossi solo se tutti i tag inseriti esistono in un segnalibro.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} tag rimosso con successo da {bookmarksCount} segnalibro e, di conseguenza, {deletedBookmarksCount} segnalibro è stato eliminato.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} tag rimosso con successo da {bookmarksCount} segnalibro e, di conseguenza, {deletedBookmarksCount} segnalibri sono stati eliminati.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} tag rimossi con successo da {bookmarksCount} segnalibro e, di conseguenza, {deletedBookmarksCount} segnalibro è stato eliminato.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} tag rimossi con successo da {bookmarksCount} segnalibro e, di conseguenza, {deletedBookmarksCount} segnalibri sono stati eliminati.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} tag rimosso con successo da {bookmarksCount} segnalibri e, di conseguenza, {deletedBookmarksCount} segnalibro è stato eliminato.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} tag rimosso con successo da {bookmarksCount} segnalibri e, di conseguenza, {deletedBookmarksCount} segnalibri sono stati eliminati.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} tag rimossi con successo da {bookmarksCount} segnalibri e, di conseguenza, {deletedBookmarksCount} segnalibro è stato eliminato.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} tag rimossi con successo da {bookmarksCount} segnalibri e, di conseguenza, {deletedBookmarksCount} segnalibri sono stati eliminati."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Suggerimento: usa Invio o la virgola per separare più tag. I tag verranno rimossi solo se tutti i tag inseriti esistono su un segnalibro. Se tutti i tag vengono rimossi, anche il segnalibro verrà eliminato.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Inserisci i tag da rimuovere, premi Invio o virgola per aggiungere più tag",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Rimuovi tag in blocco",
   "BOOKMARKS_DELETED_SUCCESS": [

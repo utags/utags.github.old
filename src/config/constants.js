@@ -25,3 +25,5 @@ export const defaultFavicons = {
 export const HASH_DELIMITER = '#'
 export const FILTER_DELIMITER = '/'
 export const OR_CONDITION_DELIMITER = ','
+
+export const DELETED_BOOKMARK_TAG = '._DELETED_'

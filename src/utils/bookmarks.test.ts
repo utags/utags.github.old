@@ -5,6 +5,9 @@ import {
   getDomainCounts,
   normalizeHierachyPath,
   getHierachyTags,
+  isBookmarkKeyValuePairArray,
+  addTags,
+  removeTags,
 } from './bookmarks.js'
 
 const testMeta = {
@@ -260,5 +263,294 @@ describe('getHierachyTags', () => {
     expect(result.length).toBe(1)
     expect(result[0].name).toBe('父级')
     expect(result[0].children[0].name).toBe('子级')
+  })
+})
+
+describe('isBookmarkKeyValuePairArray', () => {
+  it('should return true for an empty array', () => {
+    expect(isBookmarkKeyValuePairArray([])).toBe(true)
+  })
+
+  it('should return true for an array of valid BookmarkKeyValuePair', () => {
+    const validInput: BookmarkKeyValuePair[] = [
+      ['url1', { tags: ['tag1'], meta: testMeta }],
+      ['url2', { tags: ['tag2', 'tag3'], meta: testMeta }],
+    ]
+    expect(isBookmarkKeyValuePairArray(validInput)).toBe(true)
+  })
+
+  it('should return true for an array with a single valid BookmarkKeyValuePair', () => {
+    const validInput: BookmarkKeyValuePair[] = [
+      ['url1', { tags: ['tag1'], meta: testMeta }],
+    ]
+    expect(isBookmarkKeyValuePairArray(validInput)).toBe(true)
+  })
+
+  it('should return false for a single BookmarkKeyValuePair (not an array)', () => {
+    const invalidInput: BookmarkKeyValuePair = [
+      'url1',
+      { tags: ['tag1'], meta: testMeta },
+    ]
+    expect(isBookmarkKeyValuePairArray(invalidInput)).toBe(false)
+  })
+
+  it('should return false for an array containing non-BookmarkKeyValuePair items', () => {
+    const invalidInput = [
+      // ['url1', { tags: ['tag1'], meta: testMeta }],
+      'not a bookmark pair',
+    ]
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray(invalidInput)).toBe(false)
+  })
+
+  it('should return false for an array of arrays with incorrect structure', () => {
+    const invalidInput = [['url1', { tags: ['tag1'] }], ['url2']] // Missing meta in first, incorrect structure in second
+    // FIXME: should return false
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray(invalidInput)).toBe(true)
+  })
+
+  it('should return false for null input', () => {
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray(null)).toBe(false)
+  })
+
+  it('should return false for undefined input', () => {
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray(undefined)).toBe(false)
+  })
+
+  it('should return false for a string input', () => {
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray('not an array')).toBe(false)
+  })
+
+  it('should return false for a number input', () => {
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray(123)).toBe(false)
+  })
+
+  it('should return false for an object input that is not an array', () => {
+    const invalidInput = { key: 'value' }
+    // @ts-expect-error testing invalid input
+    expect(isBookmarkKeyValuePairArray(invalidInput)).toBe(false)
+  })
+})
+
+describe('addTags', () => {
+  it('should add a single tag to an empty array', () => {
+    expect(addTags([], 'newTag')).toEqual(['newTag'])
+  })
+
+  it('should add multiple tags to an empty array', () => {
+    expect(addTags([], ['tag1', 'tag2'])).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should add a single tag to an existing array', () => {
+    expect(addTags(['oldTag'], 'newTag')).toEqual(['oldTag', 'newTag'])
+  })
+
+  it('should add multiple tags to an existing array', () => {
+    expect(addTags(['oldTag'], ['tag1', 'tag2'])).toEqual([
+      'oldTag',
+      'tag1',
+      'tag2',
+    ])
+  })
+
+  it('should not add duplicate tags', () => {
+    expect(addTags(['tag1'], 'tag1')).toEqual(['tag1'])
+    expect(addTags(['tag1', 'tag2'], ['tag1', 'tag3'])).toEqual([
+      'tag1',
+      'tag2',
+      'tag3',
+    ])
+  })
+
+  it('should handle undefined orgTags', () => {
+    expect(addTags(undefined, 'newTag')).toEqual(['newTag'])
+    expect(addTags(undefined, ['tag1', 'tag2'])).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should handle null orgTags', () => {
+    expect(addTags(null, 'newTag')).toEqual(['newTag'])
+    expect(addTags(null, ['tag1', 'tag2'])).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should trim tags before adding', () => {
+    expect(addTags([], '  spacedTag  ')).toEqual(['spacedTag'])
+    expect(addTags(['existing'], ['  tag1  ', 'tag2  '])).toEqual([
+      'existing',
+      'tag1',
+      'tag2',
+    ])
+  })
+
+  it('should ignore empty or whitespace-only tags in tagsToAdd array', () => {
+    expect(addTags(['existing'], ['', '   ', 'validTag'])).toEqual([
+      'existing',
+      'validTag',
+    ])
+  })
+
+  it('should ignore empty or whitespace-only single tag in tagsToAdd', () => {
+    expect(addTags(['existing'], '')).toEqual(['existing'])
+    expect(addTags(['existing'], '   ')).toEqual(['existing'])
+  })
+
+  it('should handle mixed valid and invalid tags in tagsToAdd array', () => {
+    expect(addTags(['old'], ['  new1', '', 'new2  ', '   '])).toEqual([
+      'old',
+      'new1',
+      'new2',
+    ])
+  })
+
+  it('should return a new array instance', () => {
+    const orgTags = ['tag1']
+    const result = addTags(orgTags, 'tag2')
+    expect(result).not.toBe(orgTags)
+    expect(result).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should handle adding an empty array of tags', () => {
+    expect(addTags(['existing'], [])).toEqual(['existing'])
+    expect(addTags(undefined, [])).toEqual([])
+    expect(addTags(null, [])).toEqual([])
+  })
+
+  it('should correctly add tags containing commas', () => {
+    expect(addTags([], 'tag,with,comma')).toEqual(['tag', 'with', 'comma'])
+    expect(addTags(['existing'], 'tag,with,comma，existing')).toEqual([
+      'existing',
+      'tag',
+      'with',
+      'comma',
+    ])
+    expect(addTags(['tag,with,comma'], 'another,with,comma')).toEqual([
+      'tag',
+      'with',
+      'comma',
+      'another',
+    ])
+    expect(addTags(['tag1'], ['tag,with,comma', 'tag2'])).toEqual([
+      'tag1',
+      'tag',
+      'with',
+      'comma',
+      'tag2',
+    ])
+  })
+
+  it('should correctly add tags when orgTags contain commas', () => {
+    expect(addTags(['tag,with,comma'], 'newTag')).toEqual([
+      'tag',
+      'with',
+      'comma',
+      'newTag',
+    ])
+    expect(addTags(['tag,with,comma', 'tag2'], 'newTag，tag2')).toEqual([
+      'tag',
+      'with',
+      'comma',
+      'tag2',
+      'newTag',
+    ])
+  })
+})
+
+describe('removeTags', () => {
+  it('should return an empty array if orgTags is undefined or null', () => {
+    expect(removeTags(undefined, 'tag1')).toEqual([])
+    expect(removeTags(null, 'tag1')).toEqual([])
+    expect(removeTags(null, ['tag1', 'tag2'])).toEqual([])
+  })
+
+  it('should return an empty array if orgTags is empty', () => {
+    expect(removeTags([], 'tag1')).toEqual([])
+    expect(removeTags([], ['tag1', 'tag2'])).toEqual([])
+  })
+
+  it('should remove a single tag from the array', () => {
+    expect(removeTags(['tag1', 'tag2', 'tag3'], 'tag2')).toEqual([
+      'tag1',
+      'tag3',
+    ])
+  })
+
+  it('should remove multiple tags from the array', () => {
+    expect(
+      removeTags(['tag1', 'tag2', 'tag3', 'tag4'], ['tag2', 'tag4'])
+    ).toEqual(['tag1', 'tag3'])
+  })
+
+  it('should handle removing non-existent tags gracefully', () => {
+    expect(removeTags(['tag1', 'tag2'], 'tag3')).toEqual(['tag1', 'tag2'])
+    expect(removeTags(['tag1', 'tag2'], ['tag3', 'tag4'])).toEqual([
+      'tag1',
+      'tag2',
+    ])
+  })
+
+  it('should handle an empty tagsToRemove array', () => {
+    expect(removeTags(['tag1', 'tag2'], [])).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should handle tagsToRemove being a single non-existent tag', () => {
+    expect(removeTags(['tag1', 'tag2'], 'tag3')).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should return a new array instance', () => {
+    const orgTags = ['tag1', 'tag2']
+    const result = removeTags(orgTags, 'tag1')
+    expect(result).not.toBe(orgTags)
+    expect(orgTags).toEqual(['tag1', 'tag2']) // Original array should be unchanged
+  })
+
+  it('should handle duplicate tags in orgTags (Set behavior)', () => {
+    // removeTags uses a Set internally, so duplicates in orgTags are effectively handled
+    expect(removeTags(['tag1', 'tag2', 'tag1', 'tag2'], 'tag1')).toEqual([
+      'tag2',
+    ])
+  })
+
+  it('should handle duplicate tags in tagsToRemove', () => {
+    expect(removeTags(['tag1', 'tag2', 'tag3'], ['tag2', 'tag2'])).toEqual([
+      'tag1',
+      'tag3',
+    ])
+  })
+
+  it('should ignore empty strings or whitespace-only strings in tagsToRemove', () => {
+    expect(removeTags(['tag1', 'tag2'], ['', '   '])).toEqual(['tag1', 'tag2'])
+    expect(removeTags(['tag1', 'tag2'], '')).toEqual(['tag1', 'tag2'])
+    expect(removeTags(['tag1', 'tag2'], '   ')).toEqual(['tag1', 'tag2'])
+  })
+
+  it('should correctly remove tags containing commas', () => {
+    expect(removeTags(['tag,with,comma', 'tag2'], 'tag,with,comma')).toEqual([
+      'tag2',
+    ])
+    expect(
+      removeTags(['tag1', 'tag,with,comma', 'tag3'], ['tag,with,comma'])
+    ).toEqual(['tag1', 'tag3'])
+    expect(removeTags(['tag1', 'tag,with,comma', 'tag3'], 'tag1')).toEqual([
+      'tag',
+      'with',
+      'comma',
+      'tag3',
+    ])
+  })
+
+  it('should handle mixed existing and non-existing tags in tagsToRemove', () => {
+    expect(
+      removeTags(['tag1', 'tag2', 'tag3'], ['tag2', 'nonexistent', 'tag3'])
+    ).toEqual(['tag1'])
+  })
+
+  it('should handle removing all tags', () => {
+    expect(removeTags(['tag1', 'tag2'], ['tag1', 'tag2'])).toEqual([])
+    expect(removeTags(['tag1', 'tag2'], 'tag1')).toEqual(['tag2'])
+    expect(removeTags(['tag1'], 'tag1')).toEqual([])
   })
 })

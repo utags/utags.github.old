@@ -64,7 +64,34 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Astuce : Utilisez Entrée ou une virgule pour séparer plusieurs étiquettes. Les étiquettes ne seront supprimées que si toutes les étiquettes saisies existent sur un signet.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} étiquette supprimée avec succès de {bookmarksCount} favori, et {deletedBookmarksCount} favori a été supprimé en conséquence.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} étiquette supprimée avec succès de {bookmarksCount} favori, et {deletedBookmarksCount} favoris ont été supprimés en conséquence.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} étiquettes supprimées avec succès de {bookmarksCount} favori, et {deletedBookmarksCount} favori a été supprimé en conséquence.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} étiquettes supprimées avec succès de {bookmarksCount} favori, et {deletedBookmarksCount} favoris ont été supprimés en conséquence.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=one": "{tagsCount} étiquette supprimée avec succès de {bookmarksCount} favoris, et {deletedBookmarksCount} favori a été supprimé en conséquence.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=other": "{tagsCount} étiquette supprimée avec succès de {bookmarksCount} favoris, et {deletedBookmarksCount} favoris ont été supprimés en conséquence.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=one": "{tagsCount} étiquettes supprimées avec succès de {bookmarksCount} favoris, et {deletedBookmarksCount} favori a été supprimé en conséquence.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=other": "{tagsCount} étiquettes supprimées avec succès de {bookmarksCount} favoris, et {deletedBookmarksCount} favoris ont été supprimés en conséquence."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Astuce : Utilisez Entrée ou une virgule pour séparer plusieurs étiquettes. Les étiquettes ne seront supprimées que si toutes les étiquettes saisies existent sur un favori. Si toutes les étiquettes sont supprimées, le favori sera également supprimé.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Saisissez les étiquettes à supprimer, appuyez sur Entrée ou virgule pour ajouter plusieurs étiquettes",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Supprimer des étiquettes en lot",
   "BOOKMARKS_DELETED_SUCCESS": [

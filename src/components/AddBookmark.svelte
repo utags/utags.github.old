@@ -1,6 +1,7 @@
 <script lang="ts">
   import { trimTitle } from 'utags-utils'
   import * as m from '../paraglide/messages'
+  import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
   import {
     bookmarks,
     checkBookmarksDataReady,
@@ -11,7 +12,7 @@
   import InputField from './ui/InputField.svelte'
   import BaseInputField from './ui/BaseInputField.svelte'
   import TagInput from './TagInput.svelte'
-  import type { BookmarksStore, BookmarkEntry } from '../types/bookmarks'
+  import type { BookmarkEntry } from '../types/bookmarks'
 
   interface Props {
     show: boolean
@@ -52,23 +53,32 @@
 
   $effect(() => {
     if (show) {
-      console.log('show', initialData)
+      console.log(
+        'show AddBookmark modal with initial data:',
+        $state.snapshot(initialData)
+      )
       if (initialData?.href) {
-        url = initialData?.href
+        url = initialData.href
         setTimeout(() => {
-          validateUrl(true)
+          validateUrl(true) // Validate URL when modal is shown with initial data
         })
       }
     } else {
-      console.log('hide')
-      reset()
+      reset() // Reset form when modal is hidden
     }
   })
 
+  /**
+   * Checks if the modal is in edit mode.
+   * @returns True if in edit mode, false otherwise.
+   */
   function isEditMode(): boolean {
     return !!initialData?.href
   }
 
+  /**
+   * Validates the favicon URL.
+   */
   function validateFavicon(): void {
     if (!favicon) {
       faviconError = ''
@@ -82,6 +92,9 @@
     }
   }
 
+  /**
+   * Validates the cover image URL.
+   */
   function validateCoverImage(): void {
     if (!coverImage) {
       coverImageError = ''
@@ -95,6 +108,15 @@
     }
   }
 
+  /**
+   * Validates the URL input.
+   * - Checks for empty URL.
+   * - Converts to valid URL format.
+   * - Handles existing bookmarks in add/edit mode.
+   * - Sets merge mode if URL conflict in edit mode.
+   * @param {boolean} [isFirst=false] - Indicates if it's the first validation call (e.g., on modal open).
+   * @returns {boolean} True if URL is valid, false otherwise.
+   */
   function validateUrl(isFirst = false): boolean {
     if (!url) {
       return false
@@ -109,11 +131,24 @@
       const entry = $bookmarks.data[url]
       isMergeMode = false
       if (entry) {
-        if (isEditMode() && !isFirst && url !== initialData?.href) {
-          // 编辑模式修改 URL 并已存在另一个书签时
-          console.log('edit mode', url, entry)
+        const isDeleted = entry.tags.includes(DELETED_BOOKMARK_TAG)
+        // If this is a marked as deleted bookmark, treat it as a new bookmark
+        if (isDeleted) {
+          // Do nothing, allow re-adding a deleted bookmark
+          console.log(
+            'Attempting to add/edit a previously deleted bookmark:',
+            url
+          )
+        } else if (isEditMode() && !isFirst && url !== initialData?.href) {
+          // Edit mode: URL changed to an existing, non-deleted bookmark
+          console.log(
+            'Edit mode conflict: URL changed to an existing bookmark:',
+            url,
+            entry
+          )
           error = m.BOOKMARK_FORM_URL_ERROR_CONFLICT_EDIT_MODE()
           isMergeMode = true
+          // Populate fields for the conflicting bookmark (target of merge)
           title2 = entry.meta.title || ''
           description2 = entry.meta.description || ''
           note2 = entry.meta.note || ''
@@ -121,7 +156,7 @@
           coverImage2 = entry.meta.coverImage || ''
           tagsArray2 = entry.tags
         } else {
-          // 添加模式或编辑模式开始时
+          // Add mode or initial load in edit mode: Populate form with existing bookmark data
           if (entry && url !== lastUrl) {
             if (!isEditMode()) {
               error = m.BOOKMARK_FORM_URL_ERROR_CONFLICT_ADD_MODE()
@@ -141,7 +176,7 @@
           }
         }
       } else {
-        // 编辑模式下，未找到该书签
+        // Edit mode: Bookmark not found for the initial URL
         if (isEditMode() && isFirst) {
           error = m.BOOKMARK_FORM_URL_ERROR_NOT_FOUND_EDIT_MODE()
         }
@@ -156,6 +191,11 @@
     }
   }
 
+  /**
+   * Validates the tags input.
+   * - Checks if tags array is empty.
+   * @returns {boolean} True if tags are valid, false otherwise.
+   */
   function validateTags(): boolean {
     if (tagsArray.length === 0) {
       tagError = m.BOOKMARK_FORM_TAGS_ERROR_EMPTY()
@@ -166,6 +206,12 @@
     return true
   }
 
+  /**
+   * Adds or updates a bookmark.
+   * - Validates URL and tags.
+   * - Handles new bookmarks, updates to existing ones, and merging bookmarks.
+   * - Saves changes to the bookmarks store and closes the modal.
+   */
   function addBookmark(): void {
     checkBookmarksDataReady()
     title = trimTitle(title)
@@ -174,9 +220,10 @@
     }
 
     const entry = $bookmarks.data[url]
-    if (entry) {
-      const clonedEntry = JSON.parse(JSON.stringify(entry))
-      entry.tags = tagsArray
+    const isDeleted = entry && entry.tags.includes(DELETED_BOOKMARK_TAG)
+    if (entry && !isDeleted) {
+      const clonedEntry = structuredClone(entry)
+      entry.tags = $state.snapshot(tagsArray)
       entry.meta = {
         ...entry.meta,
         title: title || undefined,
@@ -199,18 +246,19 @@
           }
 
           saveMergedBookmark(
-            { key: orgUrl, entry: $bookmarks.data[orgUrl] },
-            { key: url, entry: clonedEntry },
-            { key: url, entry: entry },
+            { key: orgUrl, entry: $bookmarks.data[orgUrl] }, // Source bookmark to be deleted
+            { key: url, entry: clonedEntry }, // Original state of the target bookmark (before merge)
+            { key: url, entry: entry }, // Merged state of the target bookmark
             { actionType: 'edit' }
           )
 
-          delete $bookmarks.data[orgUrl]
+          delete $bookmarks.data[orgUrl] // Delete the original bookmark after merging
         }
       }
     } else {
+      // Add a new bookmark or update a previously deleted one
       const newEntry: BookmarkEntry = {
-        tags: tagsArray,
+        tags: $state.snapshot(tagsArray),
         meta: {
           title: title || undefined,
           description: description || undefined,
@@ -229,13 +277,19 @@
       }
     }
 
-    console.log('addBookmark', $bookmarks.data[url])
+    console.log('addBookmark/updateBookmark', $bookmarks.data[url])
     bookmarks.set($bookmarks)
     close()
-    // 是否应该显示全部书签？当前筛选结果可能不会显示新添加的书签或修改的书签。如果显示全部书签，当前筛选条件会被重置。
+    // TODO: Consider whether to show all bookmarks or stay in the current filter.
+    // Showing all bookmarks might reset the current filter criteria.
+    // A modal prompt could ask the user if they want to see all bookmarks
+    // to view the newly added/modified one, or stay with the current filter.
     // location.hash = '#'
   }
 
+  /**
+   * Resets all form fields and state variables to their initial values.
+   */
   function reset(): void {
     url =
       title =
@@ -262,12 +316,16 @@
     tagsArray2 = []
   }
 
+  /**
+   * Closes the modal and resets the form after a short delay.
+   * The delay is to ensure onBlur validation events complete before reset.
+   */
   function close(): void {
     show = false
 
-    // 因为 onblur 事件发生时会校验，所以需要延迟重置表单
+    // Delay reset because onblur events trigger validation
     setTimeout(reset)
-    setTimeout(reset, 300)
+    setTimeout(reset, 300) // Additional safety timeout
   }
 </script>
 
@@ -392,7 +450,6 @@
     </BaseInputField>
   {/if}
 
-  <!-- 在高级选项部分添加图片上传字段 -->
   {#if showAdvancedFields}
     <InputField
       id="favicon-input"
@@ -447,9 +504,6 @@
           class="h-32 w-full object-cover"
           onerror={() =>
             (coverImageError = m.BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR())} />
-        <!-- {#if coverImageError}
-          <span class="text-sm text-red-500">{coverImageError}</span>
-        {/if} -->
       </div>
     {/if}
     <BaseInputField

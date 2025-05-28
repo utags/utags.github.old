@@ -64,12 +64,7 @@ export type BookmarkTagsAndMetadata = {
      * The timestamp of the deletion of the bookmark.
      */
     deleted: number
-    actionType:
-      | 'delete'
-      | 'import'
-      | 'sync'
-      | 'batch-delete-bookmarks'
-      | 'batch-delete-tags'
+    actionType: DeleteActionType
   }
   importedMeta?: {
     /**
@@ -175,3 +170,18 @@ export type BookmarkListItemProps = {
   formatedUpdated?: string
   dateTitleText: string
 }
+
+/**
+ * Represents the type of delete action performed on a bookmark.
+ */
+/**
+ * Represents the specific type of action that led to a bookmark's (soft) deletion.
+ * This helps in understanding the context of the deletion, especially for undo operations or analytics.
+ */
+export type DeleteActionType =
+  | 'DELETE' // Standard deletion action initiated by the user.
+  | 'IMPORT' // Bookmark was part of an import process and might have been marked for deletion based on import rules.
+  | 'SYNC' // Deletion occurred as a result of a synchronization process with another data source.
+  | 'BATCH_DELETE_BOOKMARKS' // Bookmark was deleted as part of a batch operation to remove multiple bookmarks.
+  | 'BATCH_REMOVE_TAGS' // Bookmark was (soft) deleted because all its tags were removed in a batch operation.
+  | 'LAST_TAG_REMOVED' // Bookmark was (soft) deleted because its last remaining tag was removed.

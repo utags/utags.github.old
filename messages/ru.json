@@ -86,7 +86,53 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Подсказка: Используйте Enter или запятую для разделения нескольких тегов. Теги будут удалены, только если все введенные теги существуют в закладке.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "Успешно удален {tagsCount} тег из {bookmarksCount} закладки, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=few": "Успешно удален {tagsCount} тег из {bookmarksCount} закладки, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=many": "Успешно удален {tagsCount} тег из {bookmarksCount} закладки, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=one, tagsPlural=few,deletedBookmarksPlural=one": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладки, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=one, tagsPlural=few,deletedBookmarksPlural=few": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладки, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=one, tagsPlural=few,deletedBookmarksPlural=many": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладки, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=one, tagsPlural=many,deletedBookmarksPlural=one": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладки, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=one, tagsPlural=many,deletedBookmarksPlural=few": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладки, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=one, tagsPlural=many,deletedBookmarksPlural=many": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладки, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=few, tagsPlural=one,deletedBookmarksPlural=one": "Успешно удален {tagsCount} тег из {bookmarksCount} закладок, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=few, tagsPlural=one,deletedBookmarksPlural=few": "Успешно удален {tagsCount} тег из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=few, tagsPlural=one,deletedBookmarksPlural=many": "Успешно удален {tagsCount} тег из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=few, tagsPlural=few,deletedBookmarksPlural=one": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладок, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=few, tagsPlural=few,deletedBookmarksPlural=few": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=few, tagsPlural=few,deletedBookmarksPlural=many": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=few, tagsPlural=many,deletedBookmarksPlural=one": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладок, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=few, tagsPlural=many,deletedBookmarksPlural=few": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=few, tagsPlural=many,deletedBookmarksPlural=many": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=many, tagsPlural=one,deletedBookmarksPlural=one": "Успешно удален {tagsCount} тег из {bookmarksCount} закладок, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=many, tagsPlural=one,deletedBookmarksPlural=few": "Успешно удален {tagsCount} тег из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=many, tagsPlural=one,deletedBookmarksPlural=many": "Успешно удален {tagsCount} тег из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=many, tagsPlural=few,deletedBookmarksPlural=one": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладок, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=many, tagsPlural=few,deletedBookmarksPlural=few": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=many, tagsPlural=few,deletedBookmarksPlural=many": "Успешно удалено {tagsCount} тега из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладок.",
+        "bookmarksPlural=many, tagsPlural=many,deletedBookmarksPlural=one": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладок, в результате чего была удалена {deletedBookmarksCount} закладка.",
+        "bookmarksPlural=many, tagsPlural=many,deletedBookmarksPlural=few": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладки.",
+        "bookmarksPlural=many, tagsPlural=many,deletedBookmarksPlural=many": "Успешно удалено {tagsCount} тегов из {bookmarksCount} закладок, в результате чего было удалено {deletedBookmarksCount} закладок."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Подсказка: Используйте Enter или запятую для разделения нескольких тегов. Теги будут удалены только в том случае, если все введенные теги существуют в закладке. Если все теги будут удалены, закладка также будет удалена.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Введите теги для удаления, нажмите Enter или запятую для добавления нескольких тегов",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Пакетное удаление тегов",
   "BOOKMARKS_DELETED_SUCCESS": [

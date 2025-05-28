@@ -1,8 +1,6 @@
 <script lang="ts">
   import * as m from '../paraglide/messages'
-  import { commandManager } from '../stores/command-store'
-  import { AddTagCommand } from '../lib/tag-commands'
-  import { bookmarkStorage } from '../lib/bookmark-storage'
+  import { batchAddTagsToBookmarks } from '../utils/bookmark-actions'
   import TagInput from './TagInput.svelte'
   import Modal from './Modal.svelte'
 
@@ -40,9 +38,10 @@
   }
 
   /**
-   * Add tags to selected bookmarks
+   * Add tags to selected bookmarks using the extracted function
    */
-  async function addTagsToBookmarks() {
+  async function handleAddTagsToBookmarks() {
+    // Basic validation remains in the component for immediate UI feedback
     if (tagsToAdd.length === 0) {
       errorMessage = m.BOOKMARK_FORM_TAGS_ERROR_EMPTY()
       return
@@ -58,28 +57,32 @@
     successMessage = ''
 
     try {
-      const bookmarksToUpdate =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(selectedBookmarkUrls)
-      // Create and execute the add tag command for each bookmark
-      const addTagCommand = new AddTagCommand(bookmarksToUpdate, tagsToAdd)
-      await commandManager.executeCommand(addTagCommand, bookmarksToUpdate)
+      const result = await batchAddTagsToBookmarks(
+        selectedBookmarkUrls,
+        tagsToAdd
+      )
+
+      if (!result) {
+        throw new Error(
+          m.BATCH_TAG_ADD_MODAL_ERROR_ADD_FAILED({
+            errorDetails: 'Unkown error',
+          })
+        )
+      }
+      const { affectedCount } = result
 
       successMessage = m.BATCH_TAG_ADD_MODAL_SUCCESS_MESSAGE({
+        bookmarksCount: affectedCount,
         tagsCount: tagsToAdd.length,
-        bookmarksCount: selectedBookmarkUrls.length,
       })
 
-      // Reset tags input after successful operation
       tagsToAdd = []
 
-      // Close modal after a short delay to show success message
       setTimeout(() => {
         closeModal()
-      }, 1500)
+      }, 2000)
     } catch (error) {
-      errorMessage = m.BATCH_TAG_ADD_MODAL_ERROR_ADD_FAILED({
-        errorDetails: error instanceof Error ? error.message : String(error),
-      })
+      errorMessage = error instanceof Error ? error.message : String(error)
     } finally {
       isProcessing = false
     }
@@ -93,7 +96,7 @@
     document.getElementById('tags')?.focus()
   }}
   onClose={closeModal}
-  onConfirm={addTagsToBookmarks}
+  onConfirm={handleAddTagsToBookmarks}
   disableConfirm={isProcessing || tagsToAdd.length === 0}
   confirmText={isProcessing
     ? m.PROCESSING_TEXT()

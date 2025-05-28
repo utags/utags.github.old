@@ -64,7 +64,34 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Hint: Use Enter or comma to separate multiple tags. Tags will be removed only if all entered tags exist on a bookmark.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "Successfully removed {tagsCount} tag from {bookmarksCount} bookmark, and {deletedBookmarksCount} bookmark was deleted as a result.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=other": "Successfully removed {tagsCount} tag from {bookmarksCount} bookmark, and {deletedBookmarksCount} bookmarks were deleted as a result.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=one": "Successfully removed {tagsCount} tags from {bookmarksCount} bookmark, and {deletedBookmarksCount} bookmark was deleted as a result.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=other": "Successfully removed {tagsCount} tags from {bookmarksCount} bookmark, and {deletedBookmarksCount} bookmarks were deleted as a result.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=one": "Successfully removed {tagsCount} tag from {bookmarksCount} bookmarks, and {deletedBookmarksCount} bookmark was deleted as a result.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=other": "Successfully removed {tagsCount} tag from {bookmarksCount} bookmarks, and {deletedBookmarksCount} bookmarks were deleted as a result.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=one": "Successfully removed {tagsCount} tags from {bookmarksCount} bookmarks, and {deletedBookmarksCount} bookmark was deleted as a result.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=other": "Successfully removed {tagsCount} tags from {bookmarksCount} bookmarks, and {deletedBookmarksCount} bookmarks were deleted as a result."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Hint: Use Enter or comma to separate multiple tags. Tags will be removed only if all entered tags exist on a bookmark. If all tags are removed, the bookmark will also be deleted.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Enter tags to remove, press Enter or comma to add multiple tags",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Batch Remove Tags",
   "BOOKMARKS_DELETED_SUCCESS": [

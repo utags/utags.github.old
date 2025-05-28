@@ -39,21 +39,20 @@ export class BookmarkService {
    * Current bookmark store - can hold either regular bookmarks or deleted bookmarks
    * Uses persisted store for browser storage persistence
    */
-  private currentStore: Persisted<BookmarkKeyValuePair[] | BookmarksStore> =
-    persisted(
-      'temporary_bookmarks',
-      {
-        data: {},
-        meta: {
-          databaseVersion: CURRENT_DATABASE_VERSION,
-          created: Date.now(),
-        },
+  private currentStore: Persisted<BookmarksStore> = persisted(
+    'temporary_bookmarks',
+    {
+      data: {},
+      meta: {
+        databaseVersion: CURRENT_DATABASE_VERSION,
+        created: Date.now(),
       },
-      {
-        storage: 'session',
-        syncTabs: false,
-      }
-    )
+    },
+    {
+      storage: 'session',
+      syncTabs: false,
+    }
+  )
 
   private currentStoreKey: string = STORAGE_KEY_BOOKMARKS
   private isSharedCollection = false
@@ -95,13 +94,9 @@ export class BookmarkService {
     // Determine storage key
     let storageKey = STORAGE_KEY_BOOKMARKS
 
-    if (collectionId === 'deleted') {
-      // Special case for deleted bookmarks collection
-      storageKey = `${STORAGE_KEY_BOOKMARKS}-deleted`
-      this.visibility = undefined
-      this.isSharedCollection = false
-      this.collectionId = collectionId
-    } else if (
+    // Soft-deleted bookmarks are part of the main store, no special key needed.
+
+    if (
       visibility &&
       collectionId &&
       ['shared', 'public', 'private'].includes(visibility)
@@ -114,29 +109,20 @@ export class BookmarkService {
     } else {
       this.visibility = undefined
       this.isSharedCollection = false
-      this.collectionId = collectionId
+      this.collectionId = collectionId // Still store collectionId if provided (e.g., for local named collections if any)
     }
 
     console.log(`Initializing bookmark store with key: ${storageKey}`)
     this.currentStoreKey = storageKey
 
-    // Initialize store with appropriate default value based on collection type
-    if (this.collectionId === 'deleted') {
-      // For deleted bookmarks, use array structure
-      this.currentStore = persisted<BookmarkKeyValuePair[]>(
-        storageKey,
-        [] // Default empty array for deleted bookmarks
-      )
-    } else {
-      // For regular bookmarks, use standard structure
-      this.currentStore = persisted<BookmarksStore>(storageKey, {
-        data: {},
-        meta: {
-          databaseVersion: CURRENT_DATABASE_VERSION,
-          created: Date.now(),
-        },
-      })
-    }
+    // Initialize store with appropriate default value
+    this.currentStore = persisted<BookmarksStore>(storageKey, {
+      data: {},
+      meta: {
+        databaseVersion: CURRENT_DATABASE_VERSION,
+        created: Date.now(),
+      },
+    })
 
     // If it's a shared collection, fetch data from API
     if (this.isSharedCollection && this.collectionId) {
@@ -227,22 +213,16 @@ export class BookmarkService {
   }
 
   /**
-   * Get current bookmark data as an array of key-value pairs
-   * Handles different data structures based on collection type
+   * Get current bookmark data as an array of key-value pairs.
    *
-   * @returns Array of bookmark key-value pairs
+   * @returns Array of bookmark key-value pairs.
    */
   public getBookmarks(): BookmarkKeyValuePair[] {
     const bookmarksData = get(this.currentStore)
 
-    // Handle different data structures based on collection type
-    if (this.collectionId === 'deleted') {
-      // For deleted bookmarks, data is already in BookmarkKeyValuePair[] format
-      return bookmarksData as BookmarkKeyValuePair[]
-    }
-
-    // For regular bookmarks, convert from BookmarksStore format
-    return Object.entries((bookmarksData as BookmarksStore).data)
+    // This method now always converts from BookmarksStore format.
+    // Filtering of soft-deleted bookmarks should be handled by the caller if needed.
+    return Object.entries(bookmarksData.data)
   }
 
   /**
@@ -273,7 +253,7 @@ export class BookmarkService {
    * Get the current store instance
    * @returns The persisted store instance for bookmarks
    */
-  public getStore(): Persisted<BookmarksStore | BookmarkKeyValuePair[]> {
+  public getStore(): Persisted<BookmarksStore> {
     return this.currentStore
   }
 
@@ -284,17 +264,11 @@ export class BookmarkService {
    * @param data New bookmark data
    * @throws Error when database versions are incompatible
    */
-  private updateStore(data: BookmarksStore | BookmarkKeyValuePair[]): void {
-    // Handle different data structures based on collection type
-    if (this.collectionId === 'deleted') {
-      // For deleted bookmarks, directly set the array data
-      this.currentStore.set(data as BookmarkKeyValuePair[])
-      return
-    }
+  private updateStore(data: BookmarksStore): void {
+    // This method now always expects BookmarksStore format.
 
-    // For regular bookmarks, proceed with normal update logic
-    const bookmarksData = data as BookmarksStore
-    const currentData = get(this.currentStore) as BookmarksStore
+    const bookmarksData = data
+    const currentData = get(this.currentStore)
 
     // Verify database version compatibility
     if (

@@ -29,7 +29,7 @@
   } from './utils/bookmarks.js'
   import { batchDeleteBookmarks } from './utils/bookmark-actions.js'
   import appConfig from './config/app-config.js'
-  import { HASH_DELIMITER } from './config/constants.js'
+  import { HASH_DELIMITER, DELETED_BOOKMARK_TAG } from './config/constants.js'
   import * as m from './paraglide/messages'
   import Header from './components/Header.svelte'
   import NavigationSidebar from './components/NavigationSidebar.svelte'
@@ -151,16 +151,16 @@
       )
     }
 
-    if (internalSearchString) {
-      const urlParams = convertCollectionToFilterParams(
-        new URLSearchParams(internalSearchString)
-      )
+    const urlParamsConverted = internalSearchString
+      ? convertCollectionToFilterParams(urlParams)
+      : urlParams
 
-      console.log('urlParams', urlParams.toString())
-      baseFilterSearchParams = urlParams.toString()
-    } else {
-      baseFilterSearchParams = ''
+    if (collectionId !== 'deleted') {
+      urlParamsConverted.append('q', `!t:${DELETED_BOOKMARK_TAG}`)
     }
+
+    console.log('baseFilterSearchParams', urlParamsConverted.toString())
+    baseFilterSearchParams = urlParamsConverted.toString()
 
     console.log('location.href', location.href)
 
@@ -513,7 +513,7 @@
   function confirmBatchDeleteBookmarks() {
     batchDeleteBookmarks(selectedBookmarkUrls, {
       skipConfirmation: true,
-      actionType: 'batch-delete-bookmarks',
+      actionType: 'BATCH_DELETE_BOOKMARKS',
       onSuccess: (undoFn, deletedCount) => {
         if (deletedCount > 0) {
           // TODO:  showUndoNotification(`Deleted ${deletedCount} bookmarks`, undoFn);

@@ -64,7 +64,34 @@
       }
     }
   ],
-  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Sugerencia: Use Enter o coma para separar múltiples etiquetas. Las etiquetas se eliminarán solo si todas las etiquetas ingresadas existen en un marcador.",
+  "BATCH_TAG_REMOVE_MODAL_SUCCESS_MESSAGE_WITH_DELETIONS": [
+    {
+      "declarations": [
+        "input bookmarksCount",
+        "input tagsCount",
+        "input deletedBookmarksCount",
+        "local bookmarksPlural = bookmarksCount: plural",
+        "local tagsPlural = tagsCount: plural",
+        "local deletedBookmarksPlural = deletedBookmarksCount: plural"
+      ],
+      "selectors": [
+        "bookmarksPlural",
+        "tagsPlural",
+        "deletedBookmarksPlural"
+      ],
+      "match": {
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=one": "Se eliminó con éxito {tagsCount} etiqueta de {bookmarksCount} marcador, y como resultado se eliminó {deletedBookmarksCount} marcador.",
+        "bookmarksPlural=one, tagsPlural=one,deletedBookmarksPlural=other": "Se eliminó con éxito {tagsCount} etiqueta de {bookmarksCount} marcador, y como resultado se eliminaron {deletedBookmarksCount} marcadores.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=one": "Se eliminaron con éxito {tagsCount} etiquetas de {bookmarksCount} marcador, y como resultado se eliminó {deletedBookmarksCount} marcador.",
+        "bookmarksPlural=one, tagsPlural=other,deletedBookmarksPlural=other": "Se eliminaron con éxito {tagsCount} etiquetas de {bookmarksCount} marcador, y como resultado se eliminaron {deletedBookmarksCount} marcadores.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=one": "Se eliminó con éxito {tagsCount} etiqueta de {bookmarksCount} marcadores, y como resultado se eliminó {deletedBookmarksCount} marcador.",
+        "bookmarksPlural=other, tagsPlural=one,deletedBookmarksPlural=other": "Se eliminó con éxito {tagsCount} etiqueta de {bookmarksCount} marcadores, y como resultado se eliminaron {deletedBookmarksCount} marcadores.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=one": "Se eliminaron con éxito {tagsCount} etiquetas de {bookmarksCount} marcadores, y como resultado se eliminó {deletedBookmarksCount} marcador.",
+        "bookmarksPlural=other, tagsPlural=other,deletedBookmarksPlural=other": "Se eliminaron con éxito {tagsCount} etiquetas de {bookmarksCount} marcadores, y como resultado se eliminaron {deletedBookmarksCount} marcadores."
+      }
+    }
+  ],
+  "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_HINT": "Sugerencia: Use Intro o coma para separar múltiples etiquetas. Las etiquetas solo se eliminarán si todas las etiquetas ingresadas existen en un marcador. Si se eliminan todas las etiquetas, el marcador también se eliminará.",
   "BATCH_TAG_REMOVE_MODAL_TAG_INPUT_PLACEHOLDER": "Ingrese las etiquetas a eliminar, presione Enter o coma para agregar múltiples etiquetas",
   "BATCH_TAG_REMOVE_MODAL_TITLE": "Eliminar etiquetas en lote",
   "BOOKMARKS_DELETED_SUCCESS": [

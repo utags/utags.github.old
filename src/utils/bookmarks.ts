@@ -1,9 +1,16 @@
+import { splitTags } from 'utags-utils'
 import type {
   BookmarkKeyValuePair,
   TagHierarchyItem,
 } from '../types/bookmarks.js'
 import { getHostName } from './url-utils.js'
 
+/**
+ * Calculates the count of each tag from a list of bookmark entries.
+ *
+ * @param bookmarkEntries - An array of bookmark key-value pairs.
+ * @returns A Map where keys are tag names and values are their counts.
+ */
 export function getTagCounts(
   bookmarkEntries: BookmarkKeyValuePair[]
 ): Map<string, number> {
@@ -18,6 +25,12 @@ export function getTagCounts(
   )
 }
 
+/**
+ * Calculates the count of each domain from a list of bookmark entries.
+ *
+ * @param bookmarkEntries - An array of bookmark key-value pairs.
+ * @returns A Map where keys are domain names and values are their counts.
+ */
 export function getDomainCounts(
   bookmarkEntries: BookmarkKeyValuePair[]
 ): Map<string, number> {
@@ -32,24 +45,47 @@ export function getDomainCounts(
   )
 }
 
+/**
+ * Normalizes a hierarchical path string.
+ * This function removes leading slashes and spaces, collapses multiple slashes with surrounding spaces into a single slash,
+ * and trims leading/trailing whitespace. Trailing slashes are preserved because browser bookmarks can represent empty folders.
+ *
+ * @param path - The path string to normalize.
+ * @returns The normalized path string.
+ */
 export function normalizeHierachyPath(path: string) {
-  // 注意：保留尾部的斜杠。因为浏览器收藏夹支持空文件夹，所以需要保留尾部的斜杠。
+  // Note: Trailing slashes are preserved. This is because browser bookmarks support empty folders,
+  // so trailing slashes need to be retained.
   return path
-    .replaceAll(/^[/\s]+/g, '') // 移除开始的斜杠和空格
-    .replaceAll(/\s*\/\s*/g, '/') // 移除斜杠两边的空格
-    .trim() // 移除首尾的空格
+    .replaceAll(/^[/\s]+/g, '') // Remove leading slashes and spaces
+    .replaceAll(/\s*\/\s*/g, '/') // Remove spaces around slashes
+    .trim() // Remove leading and trailing spaces
 }
 
+/**
+ * Converts a hierarchical path string into a tag query string for searching.
+ * It escapes special regex characters in the path and formats it as a regex tag query.
+ *
+ * @param path - The hierarchical path string (e.g., "/folder/subfolder").
+ * @returns A tag query string (e.g., "tag:/^\\/?folder\\s*\\/\\s*subfolder$/").
+ */
 function convertPathToQuery(path: string) {
-  // 转义正则表达式特殊字符
+  // Escape special regular expression characters
   const escapedPath = path.slice(1).replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return `tag:/^\\/?${escapedPath.replaceAll('/', '\\s*\\/\\s*')}$/`
 }
 
+/**
+ * Generates a hierarchical tag structure from a list of bookmark entries.
+ * It processes tags containing '/', normalizes them, and builds a tree structure.
+ *
+ * @param bookmarkEntries - An array of bookmark key-value pairs.
+ * @returns An array of TagHierarchyItem objects representing the root of the tag hierarchy.
+ */
 export function getHierachyTags(
   bookmarkEntries: BookmarkKeyValuePair[]
 ): TagHierarchyItem[] {
-  // 首先获取所有标签及其计数
+  // First, get all tags and their counts
   const tagCounts = getTagCounts(bookmarkEntries)
 
   const tags = Array.from(
@@ -80,17 +116,18 @@ export function getHierachyTags(
     for (const part of parts) {
       currentPath += `/${part.trim()}`
       if (!pathMap.has(currentPath)) {
-        // 计算当前路径下精确匹配的书签个数，处理四种路径格式
-        // 需包括 '/aaa/bbb', '/aaa/bbb/', 'aaa/bbb', 'aaa/bbb/' 四种情况
-        // FIXME: 目前的统计有小问题。当一个书签有多个标签匹配相同 path 时，数量会比实际大。比如 '/aaa/bbb' 和 'aaa/bbb' 都匹配 'aaa/bbb。
-        // 但除非刻意，不会添加这种标签
+        // Calculate the number of bookmarks that exactly match the current path, handling four path formats.
+        // Needs to include '/aaa/bbb', '/aaa/bbb/', 'aaa/bbb', 'aaa/bbb/'.
+        // FIXME: There's a minor issue with the current count. If a bookmark has multiple tags matching the same path,
+        // the count will be higher than actual. For example, '/aaa/bbb' and 'aaa/bbb' both match 'aaa/bbb'.
+        // However, users are unlikely to add such tags intentionally.
         const normalizedCurrentPath = normalizeHierachyPath(currentPath)
         const count = Array.from(tagCounts.entries())
           .filter(([t]) => normalizeHierachyPath(t) === normalizedCurrentPath)
           .reduce((sum, [, cnt]) => sum + cnt, 0)
-        console.log('Current path:', currentPath, 'Exact match count:', count)
+        // console.log('Current path:', currentPath, 'Exact match count:', count) // Keep or remove logging as needed
 
-        const newItem = {
+        const newItem: TagHierarchyItem = {
           name: part,
           path: currentPath,
           query: convertPathToQuery(currentPath),
@@ -113,4 +150,71 @@ export function getHierachyTags(
   }
 
   return root
+}
+
+/**
+ * Checks if the input is an array of BookmarkKeyValuePair.
+ *
+ * @param input - The input to check.
+ * @returns True if the input is an array of BookmarkKeyValuePair, false otherwise.
+ */
+export function isBookmarkKeyValuePairArray(
+  input: BookmarkKeyValuePair | BookmarkKeyValuePair[]
+): input is BookmarkKeyValuePair[] {
+  // Type predicate for better type inference
+  return Array.isArray(input) && (input.length === 0 || Array.isArray(input[0]))
+}
+
+/**
+ * Adds new tags to an existing list of tags, ensuring no duplicates.
+ *
+ * @param orgTags - The original array of tags. Can be undefined or null, treated as an empty array.
+ * @param tagsToAdd - A single tag string or an array of tag strings to add.
+ * @returns A new array of strings containing all unique tags.
+ */
+export function addTags(
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  orgTags: string[] | undefined | null, // Allow undefined or null for orgTags
+  tagsToAdd: string | string[]
+): string[] {
+  const tags = orgTags || [] // Initialize with empty array if orgTags is null/undefined
+
+  // Normalize to string if tagsToAdd is an array
+  const tagsToAddString = Array.isArray(tagsToAdd)
+    ? tagsToAdd.join(',')
+    : tagsToAdd
+
+  return splitTags(tags.join(',') + ',' + tagsToAddString)
+}
+
+/**
+ * Removes specified tags from an existing list of tags.
+ *
+ * @param orgTags - The original array of tags. Can be undefined or null, treated as an empty array.
+ * @param tagsToRemove - A single tag string or an array of tag strings to remove.
+ * @returns A new array of strings with the specified tags removed.
+ */
+export function removeTags(
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  orgTags: string[] | undefined | null, // Allow undefined or null for orgTags
+  tagsToRemove: string | string[]
+): string[] {
+  const tags = new Set(orgTags || []) // Initialize with empty array if orgTags is null/undefined
+
+  if (tags.size === 0) {
+    return []
+  }
+
+  const tagsToRemoveArray = Array.isArray(tagsToRemove)
+    ? tagsToRemove
+    : [tagsToRemove] // Normalize to array
+
+  for (const tag of tagsToRemoveArray) {
+    if (tag && typeof tag === 'string') {
+      // Ensure tag is a string before deleting
+      tags.delete(tag)
+    }
+  }
+
+  return splitTags(tags)
 }
