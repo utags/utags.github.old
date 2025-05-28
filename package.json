@@ -65,6 +65,12 @@
       "browser"
     ],
     "rules": {
+      "new-cap": [
+        "error",
+        {
+          "capIsNewExceptionPattern": "^m\\.\\w+"
+        }
+      ],
       "@typescript-eslint/prefer-nullish-coalescing": 0,
       "@typescript-eslint/prefer-optional-chain": 0,
       "unicorn/prevent-abbreviations": 0,
