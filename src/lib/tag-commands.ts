@@ -1,25 +1,28 @@
 import { splitTags } from 'utags-utils'
 import type {
   BookmarkKeyValuePair,
-  BookmarkMetadata,
-  BookmarkTagsAndMetadata,
   DeleteActionType,
 } from '../types/bookmarks.js'
 import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
-import { addTags, removeTags } from '../utils/bookmarks.js'
+import {
+  addTags,
+  removeTags,
+  filterBookmarksByUrls,
+} from '../utils/bookmarks.js'
 
 /**
- * Represents the original state of a bookmark before a command is executed.
- * This data is used to revert changes during an undo operation.
+ * Represents the original state of a bookmark's tags and deletion status before a command was executed.
+ * This data is crucial for the undo operation, allowing the command to revert changes
+ * specifically to the `tags` and `deletedMeta` properties of a bookmark, leaving other metadata (like `meta`)
+ * untouched to preserve any modifications made after the command's execution.
  */
 type OriginalBookmarkData = {
-  /** The original array of tags associated with the bookmark. */
+  /** The original array of tags associated with the bookmark before the command. */
   tags: string[]
-  /** The original metadata of the bookmark, if any. */
-  meta?: BookmarkMetadata
   /**
-   * The original deletion metadata, if the bookmark was previously marked as deleted.
+   * The original deletion metadata if the bookmark was marked as deleted before the command.
    * This includes the timestamp of deletion and the type of action that led to the deletion.
+   * If undefined, the bookmark was not in a deleted state prior to this command.
    */
   deletedMeta?: {
     /**
@@ -52,28 +55,45 @@ export type CommandExecutionResult = {
 
 /**
  * Defines the interface for tag manipulation commands.
- * Each command must be able to execute its operation and undo it.
- * It also provides methods to retrieve information about the command's execution and properties.
+ * Each command encapsulates an operation (e.g., adding, removing, renaming tags) that can be
+ * executed and undone. Commands operate on a list of bookmark URLs and expect the
+ * actual bookmark data to be resolved and passed in during execution and undo phases.
  */
 export type TagCommand = {
   /**
-   * Executes the command's primary operation (e.g., adding, removing, or renaming tags).
-   * This method should modify the bookmarks and store the necessary information for a potential undo.
+   * Executes the command's primary operation on the provided set of live bookmarks.
+   * Implementations should modify the `tags` and potentially `deletedMeta` of the bookmarks
+   * and store the necessary `OriginalBookmarkData` in `executionResult` for a potential undo.
+   * The `bookmarks` parameter contains the current state of bookmarks (resolved by their URLs)
+   * at the time of execution.
+   * @param {BookmarkKeyValuePair[]} bookmarks - The live bookmark data (resolved by `CommandManager` using `bookmarkUrls`) to operate on.
    */
-  execute(): void
+  execute(bookmarks: BookmarkKeyValuePair[]): void
 
   /**
-   * Reverts the changes made by the `execute` method.
-   * This method should restore the bookmarks to their state before the command was executed,
-   * using the data stored in `executionResult`.
+   * Reverts the changes made by the `execute` method on the provided set of live bookmarks.
+   * This method should restore only the `tags` and `deletedMeta` of the bookmarks to their state
+   * before the command was executed, using the data stored in `executionResult.originalStates`.
+   * Other bookmark properties (e.g., `meta`) should remain untouched to preserve subsequent changes.
+   * The `bookmarks` parameter contains the current state of bookmarks (resolved by their URLs)
+   * at the time of undo.
+   * @param {BookmarkKeyValuePair[]} bookmarks - The live bookmark data (resolved by `CommandManager` using `bookmarkUrls`) to operate on.
    */
-  undo(): void
+  undo(bookmarks: BookmarkKeyValuePair[]): void
 
   /**
-   * Retrieves the result of the command's execution.
-   * @returns {CommandExecutionResult | undefined} The execution result, or undefined if the command has not been executed yet.
+   * Retrieves the result of the command's execution, which includes counts of affected
+   * and deleted bookmarks, and the original states of modified bookmarks for undo purposes.
+   * @returns {CommandExecutionResult | undefined} The execution result, or undefined if the command has not been executed or if execution failed.
    */
   getExecutionResult(): CommandExecutionResult | undefined
+
+  /**
+   * Clears the execution result of the command.
+   * This method is typically called after a command has been executed but failed to run persisted.
+   * Or called after undo has been performed.
+   */
+  clearExecutionResult(): void
 
   /**
    * Gets the type of the command.
@@ -97,6 +117,12 @@ export type TagCommand = {
   getTargetTags(): string[] | undefined
 
   /**
+   * Gets the URLs of the bookmarks targeted by this command.
+   * @returns {string[]} An array of bookmark URLs.
+   */
+  getBookmarkUrls(): string[]
+
+  /**
    * Provides a human-readable description of the command, suitable for display in a UI (e.g., in an undo/redo history list).
    * @returns {string | undefined} A description string, or undefined if not applicable.
    */
@@ -110,41 +136,41 @@ export type TagCommand = {
 }
 
 /**
- * An abstract base class for tag commands, providing common functionality
- * such as storing bookmarks, source tags, execution results, and a timestamp.
- * It also implements a basic `undo` mechanism and methods to retrieve common command properties.
+ * An abstract base class for tag commands, providing common functionality for commands
+ * that operate on a set of bookmarks identified by their URLs.
+ * It handles storing bookmark URLs, source tags, execution results, and a timestamp.
+ * The `undo` method is implemented to revert changes to `tags` and `deletedMeta` only,
+ * preserving other metadata changes.
  */
 export abstract class BaseTagCommand implements TagCommand {
-  // eslint-disable-next-line @typescript-eslint/parameter-properties
-  protected bookmarks: BookmarkKeyValuePair[]
+  protected bookmarkUrls: string[] // Stores the URLs of the bookmarks targeted by the command.
   protected sourceTags: string[]
   protected executionResult: CommandExecutionResult | undefined = undefined
   private readonly timestamp: number
 
   /**
    * Creates an instance of BaseTagCommand.
-   * @param {BookmarkKeyValuePair[]} bookmarks - The array of bookmarks to operate on.
-   * @param {string | string[]} sourceTags - The source tag(s) for the command. Can be a single string or an array of strings.
-   *                                         Tags will be normalized (trimmed) and deduplicated.
+   * @param {string[]} bookmarkUrls - An array of URLs for the bookmarks to be affected by this command.
+   * @param {string | string[]} sourceTags - The source tag(s) for the command (e.g., tag to add/remove, or old tag name for rename).
+   *                                         Tags are normalized (trimmed, deduplicated).
    */
-  constructor(
-    bookmarks: BookmarkKeyValuePair[],
-    sourceTags: string | string[]
-  ) {
-    this.bookmarks = bookmarks
+  constructor(bookmarkUrls: string[], sourceTags: string | string[]) {
+    this.bookmarkUrls = [...bookmarkUrls]
     this.sourceTags = splitTags(sourceTags)
     this.timestamp = Date.now()
   }
 
   /**
-   * Reverts the tag operation by restoring the original tags, metadata, and deletedMeta
-   * of the affected bookmarks. It relies on the `executionResult` captured during the `execute` phase.
-   * If `executionResult` is not available (e.g., the command was not executed or failed),
-   * an error is logged, and the undo operation is aborted.
-   * After a successful undo, `executionResult` is set to `undefined` to prevent re-undoing
-   * without a new execution.
+   * Reverts the tag operation by restoring the original `tags` and `deletedMeta`
+   * of the affected bookmarks, based on the `executionResult` captured during `execute`.
+   * This method operates on the `resolvedBookmarks` (live bookmark data provided by `CommandManager`)
+   * and ensures that other bookmark metadata (e.g., `meta.title`, `meta.desc`) remains unchanged,
+   * preserving any modifications made to those fields after this command was executed.
+   *
+   * @param {BookmarkKeyValuePair[]} resolvedBookmarks - The live bookmark data, resolved by `CommandManager`
+   *                                                 using the command's `bookmarkUrls`, upon which to perform the undo.
    */
-  undo(): void {
+  undo(resolvedBookmarks: BookmarkKeyValuePair[]): void {
     if (!this.executionResult) {
       console.error(
         'Cannot undo: execution result is missing. The command might not have been executed, failed, or undo has already been performed.'
@@ -152,51 +178,42 @@ export abstract class BaseTagCommand implements TagCommand {
       return
     }
 
+    // Filter resolvedBookmarks to only include those actually requested by the command,
+    // as resolveBookmarksCallback might return more or less depending on its implementation.
+    // This ensures the command operates on the exact set of bookmarks it was intended for.
+    const targetBookmarks = filterBookmarksByUrls(
+      resolvedBookmarks,
+      this.bookmarkUrls
+    )
+
     const { originalStates } = this.executionResult
 
-    for (const bookmark of this.bookmarks) {
+    for (const bookmark of targetBookmarks) {
       const bookmarkUrl = bookmark[0]
-      const bookmarkData = bookmark[1]
+      const bookmarkData = bookmark[1] // This is the live bookmark data object
       const originalState = originalStates.get(bookmarkUrl)
 
       if (originalState) {
-        // Restore the original tags. Create a new array to avoid shared references.
-        const originalTags = [...originalState.tags]
-        bookmarkData.tags = originalTags
-
-        // Restore metadata if it was present in the original state.
-        // The `meta` property is only stored in `originalState` if it was modified by the command.
-        // If `originalState.meta` is undefined, null, or an empty object, it means `meta` was not
-        // part of the state to be restored for this specific property, or it was originally absent.
-        if (originalState.meta) {
-          bookmarkData.meta = { ...originalState.meta } // Shallow copy metadata
-        } else {
-          // If originalState.meta is not set, it implies meta was not modified or was absent.
-          // Depending on desired behavior, you might want to delete bookmarkData.meta here
-          // if the command could have added it. For now, we assume if originalState.meta is not there,
-          // the current meta (if any) is either from before the command or from another source.
-          // This part might need refinement based on how `meta` is handled across commands.
-        }
+        // Restore the original tags. Create a new array to ensure reactivity if needed.
+        bookmarkData.tags = [...originalState.tags]
 
         // Restore deletedMeta if it was present in the original state.
         if (originalState.deletedMeta) {
           bookmarkData.deletedMeta = { ...originalState.deletedMeta } // Shallow copy deletedMeta
         } else if (
-          // If deletedMeta was not in the original state (i.e., originalState.deletedMeta is undefined),
-          // but it currently exists on the bookmark (bookmarkData.deletedMeta is not undefined),
-          // and the restored tags do not include DELETED_BOOKMARK_TAG (meaning the bookmark wasn't originally deleted),
+          bookmarkData.deletedMeta &&
+          !originalState.tags.includes(DELETED_BOOKMARK_TAG)
+        ) {
+          // If originalState.deletedMeta is not set (bookmark wasn't deleted before),
+          // but it currently exists on the bookmark (bookmarkData.deletedMeta is set),
+          // and the restored tags do not include DELETED_BOOKMARK_TAG (meaning the bookmark shouldn't be marked as deleted after undo),
           // then the current deletedMeta must have been added by this command's execution.
           // In this case, it should be removed during undo.
-          bookmarkData.deletedMeta &&
-          !originalTags.includes(DELETED_BOOKMARK_TAG)
-        ) {
-          delete bookmarkData.deletedMeta // Remove deletedMeta as it was not present originally and the bookmark is not marked as deleted.
+          delete bookmarkData.deletedMeta
         }
+        // IMPORTANT: bookmarkData.meta is NOT touched here to preserve its latest state.
       }
     }
-
-    // Clear the execution result after a successful undo to prevent re-undoing without a new execution.
-    this.executionResult = undefined
   }
 
   /**
@@ -205,6 +222,14 @@ export abstract class BaseTagCommand implements TagCommand {
    */
   getExecutionResult(): CommandExecutionResult | undefined {
     return this.executionResult
+  }
+
+  clearExecutionResult(): void {
+    // Clear the execution result. This is typically called:
+    // 1. After a successful undo operation, to prevent re-accessing or re-using the result of an undone execution.
+    // 2. If the command's execution was part of a larger operation (e.g., in CommandManager)
+    //    that failed to persist, rendering this specific execution result invalid.
+    this.executionResult = undefined
   }
 
   /**
@@ -225,6 +250,14 @@ export abstract class BaseTagCommand implements TagCommand {
   }
 
   /**
+   * Gets the URLs of the bookmarks targeted by this command.
+   * @returns {string[]} A new array containing the bookmark URLs.
+   */
+  getBookmarkUrls(): string[] {
+    return [...this.bookmarkUrls]
+  }
+
+  /**
    * Gets the timestamp when this command instance was created.
    * @returns {number} The creation timestamp in milliseconds since the epoch.
    */
@@ -235,8 +268,9 @@ export abstract class BaseTagCommand implements TagCommand {
   /**
    * Abstract method to execute the specific tag operation.
    * Subclasses must implement this to define their behavior and populate `this.executionResult`.
+   * @param {BookmarkKeyValuePair[]} bookmarks - The live bookmark data to operate on.
    */
-  abstract execute(): void
+  abstract execute(bookmarks: BookmarkKeyValuePair[]): void
 
   /**
    * Abstract method to get the type of the command.
@@ -258,35 +292,34 @@ export class AddTagCommand extends BaseTagCommand {
   /**
    * Initializes a new instance of the `AddTagCommand`.
    *
-   * @param {BookmarkKeyValuePair[]} bookmarks - An array of bookmark key-value pairs (`[url, bookmarkObject]`)
-   *                                           to which the tags will be added.
+   * @param {string[]} bookmarkUrls - The URLs of the bookmarks to which the tags will be added.
    * @param {string | string[]} sourceTags - The tag or tags to add. This can be a single tag string
    *                                       (which might contain multiple tags separated by spaces/commas)
    *                                       or an array of tag strings. Tags are normalized and deduplicated by the base class.
    * @param {DeleteActionType} [actionType] - Optional. Specifies the context or reason for the deletion if
    *                                          `DELETED_BOOKMARK_TAG` is being added. This information is
-   *                                          stored in `deletedMeta.actionType`. If `DELETED_BOOKMARK_TAG`
-   *                                          is added and no `actionType` is provided, a default like
-   *                                          'BATCH_DELETE_BOOKMARKS' might be used by the `execute` method.
+   *                                          stored in `deletedMeta.actionType`.
    */
   constructor(
-    bookmarks: BookmarkKeyValuePair[],
+    bookmarkUrls: string[],
     sourceTags: string | string[],
     actionType?: DeleteActionType
   ) {
-    super(bookmarks, sourceTags)
+    super(bookmarkUrls, sourceTags)
     this.actionType = actionType
   }
 
   /**
    * Executes the command to add the specified tags to the bookmarks.
+   * This method operates on the `resolvedBookmarks` provided by the CommandManager.
    * For each bookmark, it adds tags from `sourceTags` that are not already present.
    * If `DELETED_BOOKMARK_TAG` is added, it also sets the `deletedMeta` property
    * with the current timestamp and the specified or default `actionType`.
    * The method populates `this.executionResult` with the number of affected bookmarks,
-   * the number of bookmarks marked as deleted, and their original states for undo purposes.
+   * the number of bookmarks marked as deleted, and their original states (tags and deletedMeta only) for undo purposes.
+   * @param {BookmarkKeyValuePair[]} resolvedBookmarks - The live bookmark data, resolved by CommandManager, to operate on.
    */
-  execute(): void {
+  execute(resolvedBookmarks: BookmarkKeyValuePair[]): void {
     if (this.sourceTags.length === 0) {
       console.warn('AddTagCommand: No tags provided for adding.')
       this.executionResult = {
@@ -297,6 +330,14 @@ export class AddTagCommand extends BaseTagCommand {
       return
     }
 
+    // Filter resolvedBookmarks to only include those actually requested by the command,
+    // as resolveBookmarksCallback might return more or less depending on its implementation.
+    // This ensures the command operates on the exact set of bookmarks it was intended for.
+    const targetBookmarks = filterBookmarksByUrls(
+      resolvedBookmarks,
+      this.bookmarkUrls
+    )
+
     const originalStates = new Map<string, OriginalBookmarkData>()
     let affectedCount = 0
     let deletedCount = 0
@@ -304,7 +345,7 @@ export class AddTagCommand extends BaseTagCommand {
     // Provide a default actionType if not specified during construction and DELETED_BOOKMARK_TAG is added
     const currentActionType = this.actionType || 'BATCH_DELETE_BOOKMARKS'
 
-    for (const bookmark of this.bookmarks) {
+    for (const bookmark of targetBookmarks) {
       const bookmarkUrl = bookmark[0]
       const bookmarkData = bookmark[1]
 
@@ -314,15 +355,12 @@ export class AddTagCommand extends BaseTagCommand {
       )
 
       if (tagsToAdd.length > 0) {
-        // Store the original state (tags, meta, deletedMeta) for potential undo operation
+        // Store the original state (tags) for potential undo operation
+        // No deletedMeta here, as it's not relevant for undo.
         originalStates.set(bookmarkUrl, {
           tags: [...bookmarkData.tags],
-          deletedMeta: bookmarkData.deletedMeta
-            ? { ...bookmarkData.deletedMeta }
-            : undefined,
         })
 
-        // Add the new tags
         bookmarkData.tags = addTags(bookmarkData.tags, tagsToAdd)
         affectedCount++
 
@@ -340,9 +378,6 @@ export class AddTagCommand extends BaseTagCommand {
 
     this.executionResult = { affectedCount, deletedCount, originalStates }
   }
-
-  // Note: The `undo` method is inherited from BaseTagCommand and should correctly restore
-  // tags, meta, and deletedMeta based on the `originalStates` populated by this `execute` method.
 
   /**
    * Gets the type of this command.
@@ -410,11 +445,11 @@ export class RemoveTagCommand extends BaseTagCommand {
    *                                          Defaults to 'BATCH_REMOVE_TAGS' if not provided and a bookmark is marked as deleted by this command.
    */
   constructor(
-    bookmarks: BookmarkKeyValuePair[],
+    bookmarkUrls: string[],
     sourceTags: string | string[],
     actionType?: DeleteActionType
   ) {
-    super(bookmarks, sourceTags)
+    super(bookmarkUrls, sourceTags)
     this.actionType = actionType
   }
 
@@ -426,7 +461,7 @@ export class RemoveTagCommand extends BaseTagCommand {
    * - Handling `DELETED_BOOKMARK_TAG`: Marking as deleted (preserving original tags) or clearing deleted state.
    * - Storing original states for undo.
    */
-  execute(): void {
+  execute(resolvedBookmarks: BookmarkKeyValuePair[]): void {
     if (this.sourceTags.length === 0) {
       console.warn('RemoveTagCommand: No tags provided for removal.')
       this.executionResult = {
@@ -437,6 +472,14 @@ export class RemoveTagCommand extends BaseTagCommand {
       return
     }
 
+    // Filter resolvedBookmarks to only include those actually requested by the command,
+    // as resolveBookmarksCallback might return more or less depending on its implementation.
+    // This ensures the command operates on the exact set of bookmarks it was intended for.
+    const targetBookmarks = filterBookmarksByUrls(
+      resolvedBookmarks,
+      this.bookmarkUrls
+    )
+
     const originalStates = new Map<string, OriginalBookmarkData>()
     let affectedCount = 0
     let deletedCount = 0
@@ -446,7 +489,7 @@ export class RemoveTagCommand extends BaseTagCommand {
     const isRemovingDeletedBookmarkTag =
       tagsToRemove.includes(DELETED_BOOKMARK_TAG)
 
-    for (const bookmark of this.bookmarks) {
+    for (const bookmark of targetBookmarks) {
       const bookmarkUrl = bookmark[0]
       const bookmarkData = bookmark[1]
 
@@ -456,7 +499,7 @@ export class RemoveTagCommand extends BaseTagCommand {
       )
 
       if (allTagsToRemovePresent) {
-        // Store the original state (tags, meta, deletedMeta) for potential undo
+        // Store the original state (tags, deletedMeta) for potential undo
         originalStates.set(bookmarkUrl, {
           tags: [...bookmarkData.tags], // Deep copy of original tags
           deletedMeta: bookmarkData.deletedMeta
@@ -467,39 +510,62 @@ export class RemoveTagCommand extends BaseTagCommand {
         const tagsAfterRemoval = removeTags(bookmarkData.tags, tagsToRemove)
         affectedCount++
 
-        if (tagsAfterRemoval.length > 0) {
-          // Case 1: Tags remain after removal.
-          bookmarkData.tags = tagsAfterRemoval
+        // Scenario 1: Undeleting a bookmark.
+        // This occurs if all tags are removed AND the only tag being removed was DELETED_BOOKMARK_TAG.
+        // This specific condition implies the bookmark was previously marked as deleted and is now being restored.
+        if (
+          tagsAfterRemoval.length === 0 &&
+          tagsToRemove.length === 1 &&
+          isRemovingDeletedBookmarkTag
+        ) {
+          bookmarkData.tags = [] // Bookmark now has no tags.
 
-          // If DELETED_BOOKMARK_TAG was among those removed (effectively an undelete operation),
-          // clear the deletedMeta.
-          if (isRemovingDeletedBookmarkTag && bookmarkData.deletedMeta) {
+          // If DELETED_BOOKMARK_TAG was removed, it's an undelete operation.
+          // Clear the deletedMeta to reflect its active status.
+          if (bookmarkData.deletedMeta) {
             delete bookmarkData.deletedMeta
           }
-        } else {
-          // Case 2: No tags remain after removal (tagsAfterRemoval is empty).
+        } else if (
+          // Scenario 2: Marking a bookmark as deleted.
+          // This occurs if either:
+          //   a) No tags remain after the removal operation (tagsAfterRemoval is empty).
+          //   b) The only tag remaining after removal is DELETED_BOOKMARK_TAG (e.g., other tags were removed from an already deleted item).
+          tagsAfterRemoval.length === 0 ||
+          (tagsAfterRemoval.length === 1 &&
+            tagsAfterRemoval.includes(DELETED_BOOKMARK_TAG))
+        ) {
           // The bookmark is now considered deleted.
-          // It's crucial to preserve the original tags for display/undo purposes before adding DELETED_BOOKMARK_TAG.
-          // Therefore, we use `bookmarkData.tags` (which still holds the tags *before* the current removal operation)
-          // as the base, and then add DELETED_BOOKMARK_TAG to this original set.
-          // DO NOT use `tagsAfterRemoval` here, as it would be an empty array, losing the original tag context.
-          // @important This ensures that if a user views deleted items, they can see what tags it originally had.
-          bookmarkData.tags = addTags(bookmarkData.tags, DELETED_BOOKMARK_TAG) // Preserve original tags + add DELETED_BOOKMARK_TAG
+          // CRITICAL: Preserve the original tags (tags *before* this removal operation) for display purposes when viewing deleted items.
+          // Then, add DELETED_BOOKMARK_TAG to this preserved set.
+          // This ensures users can see what tags a bookmark had *before* it was deleted.
+          // DO NOT use `tagsAfterRemoval` here if it's empty, as that would lose the original tag context.
+          bookmarkData.tags = addTags(bookmarkData.tags, DELETED_BOOKMARK_TAG)
 
           if (bookmarkData.deletedMeta) {
-            // If the bookmark was already marked as deleted (e.g. DELETED_BOOKMARK_TAG was part of tagsToRemove
-            // but other tags were also removed, resulting in an empty set again), we keep its original deletedMeta.
-            // This avoids overwriting original deletion context if it's essentially being re-deleted.
+            // The bookmark was already marked as deleted (e.g., DELETED_BOOKMARK_TAG was part of tagsToRemove
+            // but other tags were also removed, resulting in an effectively empty set again, or it was already deleted and more tags are removed).
+            // In this case, we keep its original deletedMeta to avoid overwriting the initial deletion context.
             console.warn(
               `Bookmark ${bookmarkUrl} is already deleted or being re-deleted, keeping original deletedMeta information.`
             )
           } else {
-            // This is a new deletion.
+            // This is a new deletion event.
             deletedCount++
             bookmarkData.deletedMeta = {
               deleted: deletionTimestamp,
               actionType: currentActionType,
             }
+          }
+        } else {
+          // Scenario 3: Standard tag removal (bookmark is not deleted or undeleted by this operation).
+          // More than one tag remains, or one non-DELETED_BOOKMARK_TAG remains.
+          bookmarkData.tags = tagsAfterRemoval
+
+          // If DELETED_BOOKMARK_TAG was among those removed (effectively an undelete operation alongside other tag removals
+          // or removing DELETED_BOOKMARK_TAG from an item that still has other tags),
+          // clear the deletedMeta.
+          if (isRemovingDeletedBookmarkTag && bookmarkData.deletedMeta) {
+            delete bookmarkData.deletedMeta
           }
         }
       }
@@ -535,39 +601,40 @@ export class RemoveTagCommand extends BaseTagCommand {
 /**
  * Represents a command to rename one or more tags in a collection of bookmarks.
  * This command will replace all occurrences of specified source tags with target tags
- * in bookmarks that contain *all* of the source tags.
+ * in bookmarks (identified by their URLs) that contain *all* of the source tags.
+ * The actual bookmark data is resolved by the CommandManager before execution.
  */
 export class RenameTagCommand extends BaseTagCommand {
   private readonly targetTags: string[]
 
   /**
    * Creates an instance of RenameTagCommand.
-   * @param bookmarks An array of bookmark key-value pairs to operate on.
-   *                  Each pair consists of a bookmark URL (string) and its {@link BookmarkTagsAndMetadata}.
-   * @param sourceTags The original tag name(s) to be renamed. Can be a single tag string or an array of tag strings.
+   * @param {string[]} bookmarkUrls - The URLs of the bookmarks to operate on.
+   * @param {string | string[]} sourceTags - The original tag name(s) to be renamed. Can be a single tag string or an array of tag strings.
    *                   These are the tags that will be looked for in the bookmarks.
-   * @param targetTags The new tag name(s) to replace the source tags. Can be a single tag string or an array of tag strings.
+   * @param {string | string[]} targetTags - The new tag name(s) to replace the source tags. Can be a single tag string or an array of tag strings.
    *                   These are the tags that will be added to the bookmarks after the source tags (if different) are removed.
    */
   constructor(
-    bookmarks: BookmarkKeyValuePair[],
+    bookmarkUrls: string[],
     sourceTags: string | string[],
     targetTags: string | string[]
   ) {
-    super(bookmarks, sourceTags)
+    super(bookmarkUrls, sourceTags)
     this.targetTags = splitTags(targetTags) // Normalize targetTags to an array of strings
   }
 
   /**
-   * Executes the rename tag operation.
-   * It iterates through the provided bookmarks. For each bookmark, if it contains all of the `sourceTags`,
+   * Executes the rename tag operation on the resolved bookmarks.
+   * It iterates through the provided `resolvedBookmarks`. For each bookmark, if it contains all of the `sourceTags`,
    * those `sourceTags` (that are not also `targetTags`) are removed, and all `targetTags` are added.
    * The original state of modified bookmarks (their tags before renaming) is stored for potential undo operations.
    * The command will not execute if `sourceTags` or `targetTags` are empty, or if they include the `DELETED_BOOKMARK_TAG`,
    * logging an error in such cases.
-   * Sets `this.executionResult` with the count of affected bookmarks and their original states.
+   * Sets `this.executionResult` with the count of affected bookmarks and their original states (tags only).
+   * @param {BookmarkKeyValuePair[]} resolvedBookmarks - The live bookmark data, resolved by CommandManager, to operate on.
    */
-  execute(): void {
+  execute(resolvedBookmarks: BookmarkKeyValuePair[]): void {
     // Prevent execution if source or target tags are invalid or empty.
     // The DELETED_BOOKMARK_TAG is a reserved tag and should not be part of rename operations.
     if (
@@ -588,9 +655,16 @@ export class RenameTagCommand extends BaseTagCommand {
       return
     }
 
+    // Filter resolvedBookmarks to only include those actually requested by the command,
+    // as resolveBookmarksCallback might return more or less depending on its implementation.
+    // This ensures the command operates on the exact set of bookmarks it was intended for.
+    const targetBookmarks = filterBookmarksByUrls(
+      resolvedBookmarks,
+      this.bookmarkUrls
+    )
+
     const originalStates = new Map<string, OriginalBookmarkData>()
     let affectedCount = 0
-    const deletedCount = 0 // Rename operation does not directly delete bookmarks, so deletedCount is always 0.
 
     // Determine which of the source tags need to be explicitly removed.
     // This logic is crucial for maintaining the original order of tags after renaming.
@@ -606,7 +680,7 @@ export class RenameTagCommand extends BaseTagCommand {
       this.sourceTags.filter((tag) => !this.targetTags.includes(tag))
     )
 
-    for (const bookmark of this.bookmarks) {
+    for (const bookmark of targetBookmarks) {
       const bookmarkUrl = bookmark[0]
       const bookmarkData = bookmark[1]
 
@@ -630,7 +704,7 @@ export class RenameTagCommand extends BaseTagCommand {
       }
     }
 
-    this.executionResult = { affectedCount, deletedCount, originalStates }
+    this.executionResult = { affectedCount, deletedCount: 0, originalStates }
   }
 
   /**
@@ -662,13 +736,18 @@ export class RenameTagCommand extends BaseTagCommand {
 }
 
 /**
- * Composite Tag Command - Combines multiple commands into a single command
+ * Composite Tag Command - Combines multiple {@link TagCommand} instances into a single logical command.
+ * This allows for batching operations that can be executed and undone as a single unit.
+ * The composite command delegates execution and undo operations to its constituent commands.
+ * It aggregates the execution results from all sub-commands.
  */
 export class CompositeTagCommand implements TagCommand {
   private readonly commands: TagCommand[]
   private readonly type: 'add' | 'remove' | 'rename'
   private readonly name: string
+  private readonly timestamp: number
   private executionResult?: CommandExecutionResult
+
   /**
    * Create a composite tag command
    * @param commands Array of commands to combine
@@ -678,24 +757,35 @@ export class CompositeTagCommand implements TagCommand {
   constructor(
     commands: TagCommand[],
     type: 'add' | 'remove' | 'rename',
-    name = '复合命令'
+    name = 'composite tag command'
   ) {
     this.commands = [...commands]
     this.type = type
     this.name = name
+    this.timestamp = Date.now()
   }
 
   /**
-   * Execute all commands in sequence
-   * @returns Map of affected bookmark URLs and their original tags
+   * Executes all contained commands in sequence on the provided `resolvedBookmarks`.
+   * Each sub-command operates on a subset of `resolvedBookmarks` relevant to its `bookmarkUrls`.
+   * Aggregates `affectedCount`, `deletedCount`, and `originalStates` from all sub-commands.
+   * @param {BookmarkKeyValuePair[]} resolvedBookmarks - The live bookmark data, resolved by CommandManager, to operate on.
    */
-  execute(): void {
+  execute(resolvedBookmarks: BookmarkKeyValuePair[]): void {
     const compositeOriginalStates = new Map<string, OriginalBookmarkData>()
     let totalAffectedCount = 0
     let totalDeletedCount = 0
 
     for (const command of this.commands) {
-      command.execute()
+      const bookmarkUrls = command.getBookmarkUrls()
+      // Filter resolvedBookmarks to only include those actually requested by the command,
+      // as resolveBookmarksCallback might return more or less depending on its implementation.
+      // This ensures the command operates on the exact set of bookmarks it was intended for.
+      const targetBookmarks = filterBookmarksByUrls(
+        resolvedBookmarks,
+        bookmarkUrls
+      )
+      command.execute(targetBookmarks)
       const result = command.getExecutionResult()
       if (!result) {
         console.error('Command execution result is missing.')
@@ -715,21 +805,31 @@ export class CompositeTagCommand implements TagCommand {
     }
 
     this.executionResult = {
-      affectedCount: totalAffectedCount,
+      affectedCount: compositeOriginalStates.size,
       deletedCount: totalDeletedCount,
       originalStates: compositeOriginalStates,
     }
   }
 
   /**
-   * Undo all commands in reverse sequence
-   * @param originalStates Map of affected bookmark URLs and their original tags
+   * Undoes all contained commands in reverse sequence on the provided `resolvedBookmarks`.
+   * Each sub-command's undo operation uses its own stored `executionResult` and operates on
+   * a subset of `resolvedBookmarks` relevant to its `bookmarkUrls`.
+   * @param {BookmarkKeyValuePair[]} resolvedBookmarks - The live bookmark data, resolved by CommandManager, to operate on.
    */
-  undo(): void {
+  undo(resolvedBookmarks: BookmarkKeyValuePair[]): void {
     // Undo commands in reverse order
     // Each sub-command will use its own stored executionResult for its undo logic
     for (let i = this.commands.length - 1; i >= 0; i--) {
-      this.commands[i].undo()
+      const bookmarkUrls = this.commands[i].getBookmarkUrls()
+      // Filter resolvedBookmarks to only include those actually requested by the command,
+      // as resolveBookmarksCallback might return more or less depending on its implementation.
+      // This ensures the command operates on the exact set of bookmarks it was intended for.
+      const targetBookmarks = filterBookmarksByUrls(
+        resolvedBookmarks,
+        bookmarkUrls
+      )
+      this.commands[i].undo(targetBookmarks)
     }
   }
 
@@ -737,11 +837,28 @@ export class CompositeTagCommand implements TagCommand {
     return this.executionResult
   }
 
+  clearExecutionResult(): void {
+    this.executionResult = undefined
+  }
+
   /**
    * Get command type
    */
   getType(): 'add' | 'remove' | 'rename' {
     return this.type
+  }
+
+  /**
+   * Gets the URLs of the bookmarks targeted by this command.
+   * @returns {string[]} A new array containing the bookmark URLs.
+   */
+  getBookmarkUrls(): string[] {
+    const allUrls: string[] = []
+    for (const command of this.commands) {
+      allUrls.push(...command.getBookmarkUrls())
+    }
+
+    return [...new Set(allUrls)]
   }
 
   /**
@@ -754,7 +871,7 @@ export class CompositeTagCommand implements TagCommand {
       allTags.push(...command.getSourceTags())
     }
 
-    return [...new Set(allTags)] // 去重
+    return [...new Set(allTags)]
   }
 
   /**
@@ -783,221 +900,12 @@ export class CompositeTagCommand implements TagCommand {
   getName(): string {
     return this.name
   }
-}
-
-/**
- * Manages a history of commands, allowing for undo and redo operations on bookmarks.
- * It supports executing single commands or batches of commands, persisting changes
- * via an optional callback, and limiting the size of the command history.
- */
-export class CommandManager {
-  private commandHistory: TagCommand[] = []
-  private currentIndex = -1
-  private readonly persistCallback?:
-    | ((bookmarks: BookmarkKeyValuePair[]) => Promise<void>)
-    | undefined
-
-  private maxHistorySize = 100 // Default maximum history size
 
   /**
-   * Creates an instance of CommandManager.
-   * @param persistCallback - Optional. A function called after command execution, undo, or redo
-   *                          to persist the changes to storage. It receives the array of all bookmarks.
-   * @param maxHistorySize - Optional. The maximum number of commands to keep in the history. Defaults to 100.
+   * Gets the timestamp when this command instance was created.
+   * @returns {number} The creation timestamp in milliseconds since the epoch.
    */
-  constructor(
-    persistCallback?: (bookmarks: BookmarkKeyValuePair[]) => Promise<void>,
-    maxHistorySize = 100
-  ) {
-    this.persistCallback = persistCallback
-    this.maxHistorySize = maxHistorySize
-  }
-
-  /**
-   * Executes a single command, adds it to the history, and optionally persists the changes.
-   * If new commands are executed after an undo operation, the previous redo history is cleared.
-   * @param command - The command to execute.
-   * @param bookmarks - Optional. The array of all bookmarks, passed to the persistCallback if provided.
-   * @returns A promise that resolves when the command has been executed and changes (if any) have been persisted.
-   */
-  async executeCommand(
-    command: TagCommand,
-    bookmarks?: BookmarkKeyValuePair[]
-  ): Promise<void> {
-    // Execute single command
-    await this.executeCommandsInternal([command], bookmarks)
-  }
-
-  /**
-   * Executes multiple commands as a single batch transaction, adds them to the history,
-   * and optionally persists the changes. This is treated as a single operation in the undo/redo stack.
-   * If new commands are executed after an undo operation, the previous redo history is cleared.
-   * @param commands - An array of commands to execute in sequence.
-   * @param bookmarks - Optional. The array of all bookmarks, passed to the persistCallback if provided.
-   * @returns A promise that resolves to true if commands were executed (i.e., the commands array was not empty),
-   *          false otherwise. The promise also ensures commands are executed and changes (if any) are persisted.
-   */
-  async executeBatch(
-    commands: TagCommand[],
-    bookmarks?: BookmarkKeyValuePair[]
-  ): Promise<boolean> {
-    if (commands.length === 0) {
-      return false
-    }
-
-    // Execute multiple commands
-    await this.executeCommandsInternal(commands, bookmarks)
-    return true
-  }
-
-  /**
-   * Undoes the last executed command and optionally persists the changes.
-   * @param bookmarks - Optional. The array of all bookmarks, passed to the persistCallback if provided.
-   * @returns A promise that resolves to true if the undo operation was successful, false otherwise (e.g., if there's nothing to undo).
-   *          The promise also ensures changes (if any) are persisted.
-   */
-  async undo(bookmarks?: BookmarkKeyValuePair[]): Promise<boolean> {
-    if (this.currentIndex < 0) {
-      return false
-    }
-
-    const command = this.commandHistory[this.currentIndex]
-
-    command.undo()
-    this.currentIndex--
-
-    // If persistence callback and bookmarks array provided, save changes
-    if (this.persistCallback && bookmarks) {
-      await this.persistCallback(bookmarks)
-    }
-
-    return true
-  }
-
-  /**
-   * Redoes the last undone command and optionally persists the changes.
-   * @param bookmarks - Optional. The array of all bookmarks, passed to the persistCallback if provided.
-   * @returns A promise that resolves to true if the redo operation was successful, false otherwise (e.g., if there's nothing to redo).
-   *          The promise also ensures changes (if any) are persisted.
-   */
-  async redo(bookmarks?: BookmarkKeyValuePair[]): Promise<boolean> {
-    if (this.currentIndex >= this.commandHistory.length - 1) {
-      return false
-    }
-
-    this.currentIndex++
-    const command = this.commandHistory[this.currentIndex]
-
-    // Re-execute command and update affected bookmarks
-    command.execute() // Command re-executes and stores its own result
-
-    // If persistence callback and bookmarks array provided, save changes
-    if (this.persistCallback && bookmarks) {
-      await this.persistCallback(bookmarks)
-    }
-
-    return true
-  }
-
-  /**
-   * Checks if an undo operation can be performed.
-   * @returns True if there is at least one command in the history that can be undone, false otherwise.
-   */
-  canUndo(): boolean {
-    return this.currentIndex >= 0
-  }
-
-  /**
-   * Checks if a redo operation can be performed.
-   * @returns True if there is at least one undone command in the history that can be redone, false otherwise.
-   */
-  canRedo(): boolean {
-    return this.currentIndex < this.commandHistory.length - 1
-  }
-
-  /**
-   * Gets a copy of the current command history.
-   * @returns An array containing the executed commands.
-   */
-  getCommandHistory(): TagCommand[] {
-    return [...this.commandHistory]
-  }
-
-  /**
-   * Gets the current index in the command history.
-   * This points to the last executed command. -1 means the history is empty or all commands have been undone.
-   * @returns The current index.
-   */
-  getCurrentIndex(): number {
-    return this.currentIndex
-  }
-
-  /**
-   * Clears the entire command history and resets the current index.
-   */
-  clear(): void {
-    this.commandHistory = []
-    this.currentIndex = -1
-  }
-
-  /**
-   * Sets the maximum number of commands to keep in the history.
-   * If the new size is smaller than the current history size, the oldest commands are removed.
-   * @param size - The new maximum history size. Must be greater than 0.
-   * @throws Error if the provided size is less than 1.
-   */
-  setMaxHistorySize(size: number): void {
-    if (size < 1) {
-      // TODO: Consider localizing this error message if CommandManager is used in UI directly
-      // or if error messages are meant to be user-facing.
-      throw new Error('History size must be greater than 0')
-    }
-
-    this.maxHistorySize = size
-
-    // Trim history if needed
-    if (this.commandHistory.length > this.maxHistorySize) {
-      const excess = this.commandHistory.length - this.maxHistorySize
-      this.commandHistory = this.commandHistory.slice(excess)
-      this.currentIndex -= excess
-    }
-  }
-
-  /**
-   * Internal helper method to execute a list of commands, update the command history,
-   * manage history size, and trigger persistence.
-   * @param commands - An array of commands to execute.
-   * @param bookmarks - Optional. The array of all bookmarks, passed to the persistCallback if provided.
-   * @private
-   */
-  private async executeCommandsInternal(
-    commands: TagCommand[],
-    bookmarks?: BookmarkKeyValuePair[]
-  ): Promise<void> {
-    // If not at the last command (i.e., some undos have happened),
-    // clear commands after the current index, effectively removing the redo history.
-    if (this.currentIndex < this.commandHistory.length - 1) {
-      this.commandHistory = this.commandHistory.slice(0, this.currentIndex + 1)
-    }
-
-    // Execute all commands and add them to the history
-    for (const command of commands) {
-      command.execute()
-      this.commandHistory.push(command)
-      this.currentIndex++ // Increment index for each command added
-    }
-
-    // Limit history size by removing the oldest commands if necessary
-    if (this.commandHistory.length > this.maxHistorySize) {
-      const excess = this.commandHistory.length - this.maxHistorySize
-      this.commandHistory = this.commandHistory.slice(excess)
-      // Adjust currentIndex to reflect the removed items from the beginning of the array
-      this.currentIndex -= excess
-    }
-
-    // If persistence callback and bookmarks array provided, save changes
-    if (this.persistCallback && bookmarks) {
-      await this.persistCallback(bookmarks)
-    }
+  getTimestamp(): number {
+    return this.timestamp
   }
 }

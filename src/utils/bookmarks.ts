@@ -218,3 +218,17 @@ export function removeTags(
 
   return splitTags(tags)
 }
+
+/**
+ * Filters an array of bookmark key-value pairs by a given list of URLs.
+ *
+ * @param bookmarks - An array of BookmarkKeyValuePair, where each element is a tuple containing the bookmark URL and its data.
+ * @param urls - An array of strings representing the URLs to filter by.
+ * @returns A new array of BookmarkKeyValuePair containing only the bookmarks whose URLs are included in the `urls` array.
+ */
+export function filterBookmarksByUrls(
+  bookmarks: BookmarkKeyValuePair[],
+  urls: string[]
+): BookmarkKeyValuePair[] {
+  return bookmarks.filter(([url]) => urls.includes(url))
+}

@@ -1,20 +1,12 @@
-import { get } from 'svelte/store'
 import * as m from '../paraglide/messages.js'
-import {
-  type BookmarkKeyValuePair,
-  type BookmarkTagsAndMetadata,
-  type DeleteActionType,
-} from '../types/bookmarks.js'
+import { type DeleteActionType } from '../types/bookmarks.js'
 import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
-import { bookmarks } from '../stores/stores.js'
 import { commandManager } from '../stores/command-store.js'
 import {
   AddTagCommand,
   RemoveTagCommand,
   type CommandExecutionResult,
 } from '../lib/tag-commands.js'
-import { bookmarkStorage } from '../lib/bookmark-storage.js'
-import { addTags, removeTags } from './bookmarks.js'
 
 /**
  * Batch adds tags to selected bookmarks.
@@ -36,10 +28,8 @@ export async function batchAddTagsToBookmarks(
   }
 
   try {
-    const bookmarksToUpdate =
-      await bookmarkStorage.getBookmarksAsArrayByKeys(selectedBookmarkUrls)
-    const addTagCommand = new AddTagCommand(bookmarksToUpdate, tagsToAdd)
-    await commandManager.executeCommand(addTagCommand, bookmarksToUpdate)
+    const addTagCommand = new AddTagCommand(selectedBookmarkUrls, tagsToAdd)
+    await commandManager.executeCommand(addTagCommand)
     return addTagCommand.getExecutionResult()
   } catch (error) {
     throw new Error(
@@ -70,13 +60,11 @@ export async function batchRemoveTagsFromBookmarks(
   }
 
   try {
-    const bookmarksToUpdate =
-      await bookmarkStorage.getBookmarksAsArrayByKeys(selectedBookmarkUrls)
     const removeTagCommand = new RemoveTagCommand(
-      bookmarksToUpdate,
+      selectedBookmarkUrls,
       tagsToRemove
     )
-    await commandManager.executeCommand(removeTagCommand, bookmarksToUpdate)
+    await commandManager.executeCommand(removeTagCommand)
     return removeTagCommand.getExecutionResult()
   } catch (error) {
     throw new Error(
@@ -128,7 +116,8 @@ export async function batchDeleteBookmarks(
   } = {}
 ): Promise<{
   success: boolean
-  undo?: () => void
+  // TODO: 不返回 undoFunction，使用 commandManager.undo() 全局控制撤销功能
+  undo?: () => Promise<void>
   deletedCount: number
   error?: Error
 }> {
@@ -157,68 +146,31 @@ export async function batchDeleteBookmarks(
   }
 
   try {
-    const $bookmarks = get(bookmarks)
-    const modifiedBookmarksForUndo: BookmarkKeyValuePair[] = []
-    const deletionTimestamp = Date.now()
+    const addTagCommand = new AddTagCommand(
+      urlsArray,
+      DELETED_BOOKMARK_TAG,
+      actionType
+    )
+    await commandManager.executeCommand(addTagCommand)
+    const executionResult = addTagCommand.getExecutionResult()
 
-    for (const url of urlsArray) {
-      const item = $bookmarks.data[url]
-      if (item && !item.tags?.includes(DELETED_BOOKMARK_TAG)) {
-        // Store a deep copy of the original item state for undo
-        modifiedBookmarksForUndo.push([
-          url,
-          structuredClone(item), // Simple deep copy for plain objects
-        ])
-
-        // Add the deleted tag
-        item.tags = addTags(item.tags, DELETED_BOOKMARK_TAG)
-
-        // Add deletion metadata
-        item.deletedMeta = {
-          deleted: deletionTimestamp,
-          actionType,
-        }
-      } else if (item && item.tags?.includes(DELETED_BOOKMARK_TAG)) {
-        console.warn(`Bookmark ${url} is already marked as deleted.`)
-      }
-    }
-
-    if (modifiedBookmarksForUndo.length === 0) {
+    if (executionResult?.deletedCount === 0) {
       onSuccess?.(undefined, 0)
       return { success: true, deletedCount: 0 }
     }
 
     let undoExecuted = false
-    const undoFunction = () => {
+    const undoFunction = async () => {
       if (undoExecuted) {
         return
       }
 
-      const currentBookmarksStore = get(bookmarks)
-      for (const [url, originalItemState] of modifiedBookmarksForUndo) {
-        const currentItem = currentBookmarksStore.data[url]
-        if (currentItem) {
-          // Restore original tags and remove deletedMeta
-          currentItem.tags = originalItemState.tags // originalItemState.tags is already a safe copy
-          delete currentItem.deletedMeta
-          // If other properties were modified, restore them here from originalItemState
-        } else {
-          // If the bookmark was permanently deleted by another process, we might re-add it
-          // or log a warning. For now, we log a warning.
-          // Alternatively, to re-add: currentBookmarksStore.data[url] = originalItemState;
-          console.warn(
-            `Bookmark ${url} no longer exists in the store. Cannot fully restore its previous state via undo.`
-          )
-        }
-      }
+      await commandManager.undo()
 
-      bookmarks.set(currentBookmarksStore)
       undoExecuted = true
     }
 
-    bookmarks.set($bookmarks) // Update the store with the modified items
-
-    const deletedCount = modifiedBookmarksForUndo.length
+    const deletedCount = executionResult?.deletedCount || 0
     onSuccess?.(undoFunction, deletedCount)
     return { success: true, undo: undoFunction, deletedCount }
   } catch (error) {

@@ -8,6 +8,7 @@ import {
   isBookmarkKeyValuePairArray,
   addTags,
   removeTags,
+  filterBookmarksByUrls,
 } from './bookmarks.js'
 
 const testMeta = {
@@ -552,5 +553,79 @@ describe('removeTags', () => {
     expect(removeTags(['tag1', 'tag2'], ['tag1', 'tag2'])).toEqual([])
     expect(removeTags(['tag1', 'tag2'], 'tag1')).toEqual(['tag2'])
     expect(removeTags(['tag1'], 'tag1')).toEqual([])
+  })
+})
+
+describe('filterBookmarksByUrls', () => {
+  const bookmark1: BookmarkKeyValuePair = [
+    'url1',
+    { tags: ['tag1'], meta: testMeta },
+  ]
+  const bookmark2: BookmarkKeyValuePair = [
+    'url2',
+    { tags: ['tag2'], meta: testMeta },
+  ]
+  const bookmark3: BookmarkKeyValuePair = [
+    'url3',
+    { tags: ['tag3'], meta: testMeta },
+  ]
+  const allBookmarks: BookmarkKeyValuePair[] = [bookmark1, bookmark2, bookmark3]
+
+  it('should return an empty array if bookmarks is empty', () => {
+    const result = filterBookmarksByUrls([], ['url1'])
+    expect(result).toEqual([])
+  })
+
+  it('should return an empty array if urls is empty', () => {
+    const result = filterBookmarksByUrls(allBookmarks, [])
+    expect(result).toEqual([])
+  })
+
+  it('should return an empty array if no bookmarks match the given urls', () => {
+    const result = filterBookmarksByUrls(allBookmarks, ['url4', 'url5'])
+    expect(result).toEqual([])
+  })
+
+  it('should filter bookmarks when bookmarks count is greater than urls count', () => {
+    const result = filterBookmarksByUrls(allBookmarks, ['url1', 'url3'])
+    expect(result).toEqual([bookmark1, bookmark3])
+  })
+
+  it('should filter bookmarks when bookmarks count is less than urls count', () => {
+    const bookmarks: BookmarkKeyValuePair[] = [bookmark1]
+    const result = filterBookmarksByUrls(bookmarks, ['url1', 'url2', 'url3'])
+    expect(result).toEqual([bookmark1])
+  })
+
+  it('should filter bookmarks when bookmarks count is equal to urls count and all match', () => {
+    const result = filterBookmarksByUrls(allBookmarks, ['url1', 'url2', 'url3'])
+    expect(result).toEqual(allBookmarks)
+  })
+
+  it('should filter bookmarks when bookmarks count is equal to urls count and some match', () => {
+    const result = filterBookmarksByUrls(allBookmarks, ['url1', 'url4', 'url2'])
+    expect(result).toEqual([bookmark1, bookmark2])
+  })
+
+  it('should handle duplicate urls in the urls array correctly', () => {
+    const result = filterBookmarksByUrls(allBookmarks, ['url1', 'url1', 'url2'])
+    expect(result).toEqual([bookmark1, bookmark2])
+  })
+
+  it('should handle bookmarks with empty tags or meta', () => {
+    const bookmark4: BookmarkKeyValuePair = [
+      'url4',
+      { tags: [], meta: testMeta },
+    ]
+    const bookmark5: BookmarkKeyValuePair = [
+      'url5',
+      { tags: [], meta: { created: 1, updated: 1 } },
+    ]
+    const bookmarksWithEmptyMeta: BookmarkKeyValuePair[] = [
+      bookmark4,
+      bookmark5,
+    ]
+    const result = filterBookmarksByUrls(bookmarksWithEmptyMeta, ['url4'])
+    expect(result).toEqual([bookmark4])
   })
 })

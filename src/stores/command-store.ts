@@ -1,5 +1,5 @@
 import type { BookmarkKeyValuePair } from '../types/bookmarks.js'
-import { CommandManager } from '../lib/tag-commands.js'
+import { CommandManager } from '../lib/tag-commands-manager.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 
 /**
@@ -7,6 +7,7 @@ import { bookmarkStorage } from '../lib/bookmark-storage.js'
  * Manages command history and undo/redo operations for tag commands
  */
 export const commandManager = new CommandManager(
+  async (urls: string[]) => bookmarkStorage.getBookmarksAsArrayByKeys(urls),
   // Optional persistence callback
   async (bookmarks: BookmarkKeyValuePair[]) => {
     // 使用 bookmarkStorage 进行持久化
@@ -17,5 +18,6 @@ export const commandManager = new CommandManager(
       throw error
     }
   },
+  undefined,
   10
 )
