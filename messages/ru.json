@@ -153,6 +153,24 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "Закладки не были удалены.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Успешно восстановлена {count} закладка.",
+        "countPlural=few": "Успешно восстановлены {count} закладки.",
+        "countPlural=many": "Успешно восстановлено {count} закладок.",
+        "countPlural=other": "Успешно восстановлено {count} закладки."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "Закладки не были восстановлены.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Всегда показывать расширенные параметры",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Не удалось загрузить изображение обложки",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Предпросмотр изображения обложки",
@@ -223,7 +241,25 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Вы уверены, что хотите восстановить эту закладку?",
+        "countPlural=few": "Вы уверены, что хотите восстановить {count} закладки?",
+        "countPlural=many": "Вы уверены, что хотите восстановить {count} закладок?",
+        "countPlural=other": "Вы уверены, что хотите восстановить {count} закладки?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Пакетное удаление закладок",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Подтвердить пакетное восстановление",
   "DELETED_BOOKMARKS": "Удаленные закладки",
   "DELETE_BUTTON_TEXT": "Удалить",
   "EDIT_BOOKMARK_MODAL_TITLE": "Редактировать закладку",
@@ -257,6 +293,7 @@
   "RECENTLY_ADDED": "Недавно добавлено",
   "RECENTLY_MODIFIED": "Недавно изменено",
   "RELEASE_NOTES": "Заметки о выпуске",
+  "RESTORE_BUTTON_TEXT": "Восстановить",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Создать новый фильтр",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Сохранить текущий фильтр",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "Вы уверены, что хотите удалить этот сохраненный фильтр?",

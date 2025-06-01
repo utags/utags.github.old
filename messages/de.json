@@ -110,6 +110,22 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "Es wurden keine Lesezeichen gelöscht.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "{count} Lesezeichen erfolgreich wiederhergestellt.",
+        "countPlural=other": "{count} Lesezeichen erfolgreich wiederhergestellt."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "Es wurden keine Lesezeichen wiederhergestellt.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Erweiterte Optionen immer anzeigen",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Titelbild konnte nicht geladen werden",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Titelbild-Vorschau",
@@ -178,7 +194,23 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Möchten Sie dieses Lesezeichen wirklich wiederherstellen?",
+        "countPlural=other": "Möchten Sie wirklich {count} Lesezeichen wiederherstellen?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Lesezeichen stapelweise löschen",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Massenwiederherstellung bestätigen",
   "DELETED_BOOKMARKS": "Gelöschte Lesezeichen",
   "DELETE_BUTTON_TEXT": "Löschen",
   "EDIT_BOOKMARK_MODAL_TITLE": "Lesezeichen bearbeiten",
@@ -212,6 +244,7 @@
   "RECENTLY_ADDED": "Zuletzt hinzugefügt",
   "RECENTLY_MODIFIED": "Zuletzt geändert",
   "RELEASE_NOTES": "Versionshinweise",
+  "RESTORE_BUTTON_TEXT": "Wiederherstellen",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Neuen Filter erstellen",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Aktuellen Filter speichern",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "Möchten Sie diesen gespeicherten Filter wirklich löschen?",
@@ -253,7 +286,7 @@
   "SETTINGS_SYNC_WEBDAV_TEST_CONNECTION_BUTTON": "Verbindung testen",
   "SETTINGS_SYNC_WEBDAV_URL_PLACEHOLDER": "WebDAV URL (z.B. https://example.com/remote.php/dav/files/username/)",
   "SETTINGS_SYNC_WEBDAV_USERNAME_LABEL": "Benutzername:",
-  "SETTINGS_SYNC_WEBDAV_USERNAME_PLACEHOLDER": "WebDAV Benutzername",
+  "SETTINGS_SYNC_WEBDAV_USERNAME_PLACEHOLDER": "WebDAV-Benutzername",
   "SORT_OPTION_CREATED_ASC": "Erstellungsdatum ↑",
   "SORT_OPTION_CREATED_DESC": "Erstellungsdatum ↓",
   "SORT_OPTION_TITLE_ASC": "Titel (A-Z)",

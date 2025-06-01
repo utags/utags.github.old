@@ -110,6 +110,22 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "No se eliminaron marcadores.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Se restauró {count} marcador correctamente.",
+        "countPlural=other": "Se restauraron {count} marcadores correctamente."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "No se restauraron marcadores.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Mostrar siempre opciones avanzadas",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Error al cargar la imagen de portada",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Vista previa de la imagen de portada",
@@ -178,7 +194,23 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "¿Está seguro de que desea restaurar este marcador?",
+        "countPlural=other": "¿Está seguro de que desea restaurar {count} marcadores?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Eliminar marcadores en lote",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Confirmar restauración por lotes",
   "DELETED_BOOKMARKS": "Marcadores eliminados",
   "DELETE_BUTTON_TEXT": "Eliminar",
   "EDIT_BOOKMARK_MODAL_TITLE": "Editar marcador",
@@ -212,6 +244,7 @@
   "RECENTLY_ADDED": "Añadidos recientemente",
   "RECENTLY_MODIFIED": "Modificados recientemente",
   "RELEASE_NOTES": "Notas de la versión",
+  "RESTORE_BUTTON_TEXT": "Restaurar",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Crear nuevo filtro",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Guardar filtro actual",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "¿Seguro que quieres eliminar este filtro guardado?",
@@ -253,21 +286,21 @@
   "SETTINGS_SYNC_WEBDAV_TEST_CONNECTION_BUTTON": "Probar conexión",
   "SETTINGS_SYNC_WEBDAV_URL_PLACEHOLDER": "URL de WebDAV (ej. https://example.com/remote.php/dav/files/username/)",
   "SETTINGS_SYNC_WEBDAV_USERNAME_LABEL": "Nombre de usuario:",
-  "SETTINGS_SYNC_WEBDAV_USERNAME_PLACEHOLDER": "Nombre de usuario de WebDAV",
+  "SETTINGS_SYNC_WEBDAV_USERNAME_PLACEHOLDER": "Nombre de usuario WebDAV",
   "SORT_OPTION_CREATED_ASC": "Fecha de creación ↑",
   "SORT_OPTION_CREATED_DESC": "Fecha de creación ↓",
   "SORT_OPTION_TITLE_ASC": "Título (A-Z)",
   "SORT_OPTION_TITLE_DESC": "Título (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "Fecha de actualización ↑",
   "SORT_OPTION_UPDATED_DESC": "Fecha de actualización ↓",
-  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Limpiar contenido de la etiqueta",
-  "TAG_INPUT_EDIT_TAG_TOOLTIP": "Haz clic para editar la etiqueta",
-  "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Consejo: Use Enter o coma para separar múltiples etiquetas",
-  "TAG_INPUT_PLACEHOLDER": "Introduce etiquetas, presiona Enter o coma para añadir varias etiquetas",
+  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Borrar contenido de la etiqueta",
+  "TAG_INPUT_EDIT_TAG_TOOLTIP": "Haga clic para editar la etiqueta",
+  "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Sugerencia: Use Enter o coma para separar múltiples etiquetas",
+  "TAG_INPUT_PLACEHOLDER": "Ingrese etiquetas, presione Enter o coma para agregar múltiples etiquetas",
   "TAG_INPUT_REMOVE_TAG_TOOLTIP": "Eliminar etiqueta {tag}",
   "TOOLBAR_BATCH_SELECT_MODE_TOOLTIP": "Modo de selección por lotes",
   "TOOLBAR_MENU_EXPORT_ALL_BOOKMARKS": "Exportar todos los marcadores",
-  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Exportar resultados actuales",
+  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Exportar resultados del filtro actual",
   "TOOLBAR_MENU_OPEN_ALL_BOOKMARKS": "Abrir todos los marcadores",
   "TOOLBAR_MENU_SELECT_MODE": "Modo de selección",
   "TOOLBAR_SELECT_BUTTON": "Seleccionar",

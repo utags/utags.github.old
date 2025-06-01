@@ -110,6 +110,22 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "Aucun favori n'a été supprimé.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "{count} signet restauré avec succès.",
+        "countPlural=other": "{count} signets restaurés avec succès."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "Aucun signet n'a été restauré.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Toujours afficher les options avancées",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Échec du chargement de l'image de couverture",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Aperçu de l'image de couverture",
@@ -178,7 +194,23 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Êtes-vous sûr de vouloir restaurer ce signet ?",
+        "countPlural=other": "Êtes-vous sûr de vouloir restaurer {count} signets ?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Supprimer les favoris en lot",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Confirmer la restauration par lot",
   "DELETED_BOOKMARKS": "Signets supprimés",
   "DELETE_BUTTON_TEXT": "Supprimer",
   "EDIT_BOOKMARK_MODAL_TITLE": "Modifier le signet",
@@ -212,6 +244,7 @@
   "RECENTLY_ADDED": "Récemment ajoutés",
   "RECENTLY_MODIFIED": "Récemment modifiés",
   "RELEASE_NOTES": "Notes de version",
+  "RESTORE_BUTTON_TEXT": "Restaurer",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Créer un nouveau filtre",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Enregistrer le filtre actuel",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "Voulez-vous vraiment supprimer ce filtre enregistré ?",
@@ -260,18 +293,18 @@
   "SORT_OPTION_TITLE_DESC": "Titre (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "Date de mise à jour ↑",
   "SORT_OPTION_UPDATED_DESC": "Date de mise à jour ↓",
-  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Effacer le contenu du tag",
-  "TAG_INPUT_EDIT_TAG_TOOLTIP": "Cliquer pour modifier le tag",
+  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Effacer le contenu de l'étiquette",
+  "TAG_INPUT_EDIT_TAG_TOOLTIP": "Cliquez pour modifier l'étiquette",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Astuce : Utilisez Entrée ou une virgule pour séparer plusieurs étiquettes",
-  "TAG_INPUT_PLACEHOLDER": "Saisir les tags, appuyer sur Entrée ou virgule pour ajouter plusieurs tags",
-  "TAG_INPUT_REMOVE_TAG_TOOLTIP": "Supprimer le tag {tag}",
+  "TAG_INPUT_PLACEHOLDER": "Saisissez les étiquettes, appuyez sur Entrée ou virgule pour ajouter plusieurs étiquettes",
+  "TAG_INPUT_REMOVE_TAG_TOOLTIP": "Supprimer l'étiquette {tag}",
   "TOOLBAR_BATCH_SELECT_MODE_TOOLTIP": "Mode de sélection par lot",
-  "TOOLBAR_MENU_EXPORT_ALL_BOOKMARKS": "Exporter tous les favoris",
-  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Exporter les résultats actuels",
-  "TOOLBAR_MENU_OPEN_ALL_BOOKMARKS": "Ouvrir tous les favoris",
+  "TOOLBAR_MENU_EXPORT_ALL_BOOKMARKS": "Exporter tous les signets",
+  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Exporter les résultats du filtre actuel",
+  "TOOLBAR_MENU_OPEN_ALL_BOOKMARKS": "Ouvrir tous les signets",
   "TOOLBAR_MENU_SELECT_MODE": "Mode de sélection",
   "TOOLBAR_SELECT_BUTTON": "Sélectionner",
-  "WELCOME_MESSAGE": "Bienvenue chez UTags !",
+  "WELCOME_MESSAGE": "Bienvenue sur UTags !",
   "ZZ_P_COLON": " :",
   "__BOOKMARK_FORM_URL_LABEL": "URL :",
   "__BOOKMARK_FORM_URL_PLACEHOLDER": "https://example.com",

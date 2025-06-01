@@ -110,6 +110,22 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "Nenhum marcador foi excluído.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "{count} marcador restaurado com sucesso.",
+        "countPlural=other": "{count} marcadores restaurados com sucesso."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "Nenhum marcador foi restaurado.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Mostrar sempre opções avançadas",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Falha ao carregar imagem de capa",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Pré-visualização da imagem de capa",
@@ -178,7 +194,23 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Tem certeza de que deseja restaurar este marcador?",
+        "countPlural=other": "Tem certeza de que deseja restaurar {count} marcadores?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Excluir Marcadores em Lote",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Confirmar Restauração em Lote",
   "DELETED_BOOKMARKS": "Marcadores Excluídos",
   "DELETE_BUTTON_TEXT": "Excluir",
   "EDIT_BOOKMARK_MODAL_TITLE": "Editar Marcador",
@@ -212,6 +244,7 @@
   "RECENTLY_ADDED": "Adicionado recentemente",
   "RECENTLY_MODIFIED": "Modificado recentemente",
   "RELEASE_NOTES": "Notas de lançamento",
+  "RESTORE_BUTTON_TEXT": "Restaurar",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Criar novo filtro",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Salvar filtro atual",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "Tem certeza de que deseja excluir este filtro salvo?",
@@ -254,27 +287,27 @@
   "SETTINGS_SYNC_WEBDAV_URL_PLACEHOLDER": "URL do WebDAV (ex: https://example.com/remote.php/dav/files/username/)",
   "SETTINGS_SYNC_WEBDAV_USERNAME_LABEL": "Nome de utilizador:",
   "SETTINGS_SYNC_WEBDAV_USERNAME_PLACEHOLDER": "Nome de utilizador WebDAV",
-  "SORT_OPTION_CREATED_ASC": "Data de Criação ↑",
-  "SORT_OPTION_CREATED_DESC": "Data de Criação ↓",
+  "SORT_OPTION_CREATED_ASC": "Data de criação ↑",
+  "SORT_OPTION_CREATED_DESC": "Data de criação ↓",
   "SORT_OPTION_TITLE_ASC": "Título (A-Z)",
   "SORT_OPTION_TITLE_DESC": "Título (Z-A)",
-  "SORT_OPTION_UPDATED_ASC": "Data de Atualização ↑",
-  "SORT_OPTION_UPDATED_DESC": "Data de Atualização ↓",
-  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Limpar conteúdo da tag",
-  "TAG_INPUT_EDIT_TAG_TOOLTIP": "Clique para editar a tag",
-  "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Dica: Use Enter ou vírgula para separar múltiplas tags",
-  "TAG_INPUT_PLACEHOLDER": "Digite as tags, pressione Enter ou vírgula para adicionar várias tags",
-  "TAG_INPUT_REMOVE_TAG_TOOLTIP": "Remover tag {tag}",
-  "TOOLBAR_BATCH_SELECT_MODE_TOOLTIP": "Modo de Seleção em Lote",
-  "TOOLBAR_MENU_EXPORT_ALL_BOOKMARKS": "Exportar Todos os Marcadores",
-  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Exportar Resultados Atuais",
-  "TOOLBAR_MENU_OPEN_ALL_BOOKMARKS": "Abrir Todos os Marcadores",
-  "TOOLBAR_MENU_SELECT_MODE": "Modo de Seleção",
+  "SORT_OPTION_UPDATED_ASC": "Data de atualização ↑",
+  "SORT_OPTION_UPDATED_DESC": "Data de atualização ↓",
+  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Limpar conteúdo da etiqueta",
+  "TAG_INPUT_EDIT_TAG_TOOLTIP": "Clique para editar a etiqueta",
+  "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Dica: Use Enter ou vírgula para separar várias etiquetas",
+  "TAG_INPUT_PLACEHOLDER": "Insira etiquetas, pressione Enter ou vírgula para adicionar várias etiquetas",
+  "TAG_INPUT_REMOVE_TAG_TOOLTIP": "Remover etiqueta {tag}",
+  "TOOLBAR_BATCH_SELECT_MODE_TOOLTIP": "Modo de seleção em lote",
+  "TOOLBAR_MENU_EXPORT_ALL_BOOKMARKS": "Exportar todos os marcadores",
+  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Exportar resultados do filtro atual",
+  "TOOLBAR_MENU_OPEN_ALL_BOOKMARKS": "Abrir todos os marcadores",
+  "TOOLBAR_MENU_SELECT_MODE": "Modo de seleção",
   "TOOLBAR_SELECT_BUTTON": "Selecionar",
   "WELCOME_MESSAGE": "Bem-vindo ao UTags!",
   "ZZ_P_COLON": ":",
   "__BOOKMARK_FORM_URL_LABEL": "URL:",
   "__BOOKMARK_FORM_URL_PLACEHOLDER": "https://example.com",
-  "__MODAL_SAVE_BUTTON": "Salvar",
+  "__MODAL_SAVE_BUTTON": "Guardar",
   "__SAVED_FILTERS_DESCRIPTION_LABEL": "Descrição:"
 }

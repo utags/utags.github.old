@@ -110,6 +110,22 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "No bookmarks were deleted.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Successfully restored {count} bookmark.",
+        "countPlural=other": "Successfully restored {count} bookmarks."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "No bookmarks were restored.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Always show advanced options",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Cover image failed to load",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Cover image preview",
@@ -178,7 +194,23 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Are you sure you want to restore this bookmark?",
+        "countPlural=other": "Are you sure you want to restore {count} bookmarks?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Batch Delete Bookmarks",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Confirm Batch Restore",
   "DELETED_BOOKMARKS": "Deleted Bookmarks",
   "DELETE_BUTTON_TEXT": "Delete",
   "EDIT_BOOKMARK_MODAL_TITLE": "Edit Bookmark",
@@ -212,6 +244,7 @@
   "RECENTLY_ADDED": "Recently added",
   "RECENTLY_MODIFIED": "Recently Modified",
   "RELEASE_NOTES": "Release Notes",
+  "RESTORE_BUTTON_TEXT": "Restore",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Create new filter",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Save Current Filter",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "Are you sure you want to delete this saved filter?",

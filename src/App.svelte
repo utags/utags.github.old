@@ -27,7 +27,10 @@
     getDomainCounts,
     getHierachyTags,
   } from './utils/bookmarks.js'
-  import { batchDeleteBookmarks } from './utils/bookmark-actions.js'
+  import {
+    batchDeleteBookmarks,
+    batchRestoreBookmarks,
+  } from './utils/bookmark-actions.js'
   import appConfig from './config/app-config.js'
   import { HASH_DELIMITER, DELETED_BOOKMARK_TAG } from './config/constants.js'
   import * as m from './paraglide/messages'
@@ -450,6 +453,7 @@
   let showBatchTagAddModal = $state(false)
   let showBatchTagRemoveModal = $state(false)
   let showBatchDeleteConfirmModal = $state(false)
+  let showBatchRestoreConfirmModal = $state(false)
 
   /**
    * Handle selection mode change from toolbar
@@ -508,25 +512,56 @@
   }
 
   /**
+   * Handle batch bookmark restore event from BookmarkList
+   * @param event - Custom event containing selected bookmark URLs
+   */
+  async function handleBatchRestoreBookmarks(event: CustomEvent) {
+    selectedBookmarkUrls = event.detail.selectedBookmarkUrls
+    showBatchRestoreConfirmModal = true
+  }
+
+  /**
    * Delete selected bookmarks after confirmation
    */
-  function confirmBatchDeleteBookmarks() {
-    batchDeleteBookmarks(selectedBookmarkUrls, {
+  async function confirmBatchDeleteBookmarks() {
+    const result = await batchDeleteBookmarks(selectedBookmarkUrls, {
       skipConfirmation: true,
       actionType: 'BATCH_DELETE_BOOKMARKS',
-      onSuccess: (undoFn, deletedCount) => {
-        if (deletedCount > 0) {
-          // TODO:  showUndoNotification(`Deleted ${deletedCount} bookmarks`, undoFn);
-          alert(m.BOOKMARKS_DELETED_SUCCESS({ count: deletedCount }))
-        } else {
-          // TODO: showNotification('No bookmarks were deleted');
-          alert(m.BOOKMARKS_DELETION_NO_ITEMS())
-        }
-      },
     })
+
+    const deletedCount = result?.deletedCount || 0
+
+    if (deletedCount > 0) {
+      // TODO:  showUndoNotification(`Deleted ${deletedCount} bookmarks`, undoFn);
+      alert(m.BOOKMARKS_DELETED_SUCCESS({ count: deletedCount }))
+    } else {
+      // TODO: showNotification('No bookmarks were deleted');
+      alert(m.BOOKMARKS_DELETION_NO_ITEMS())
+    }
 
     // Close modal and reset selection
     showBatchDeleteConfirmModal = false
+    selectedBookmarkUrls = []
+  }
+
+  /**
+   * Restore selected bookmarks after confirmation
+   */
+  async function confirmBatchRestoreBookmarks() {
+    const result = await batchRestoreBookmarks(selectedBookmarkUrls)
+
+    const affectedCount = result?.affectedCount || 0
+
+    if (affectedCount > 0) {
+      // TODO: showUndoNotification(`Restored ${result.affectedCount} bookmarks`, result.undoFn);
+      alert(m.BOOKMARKS_RESTORED_SUCCESS({ count: affectedCount }))
+    } else {
+      // TODO: showNotification('No bookmarks were restored');
+      alert(m.BOOKMARKS_RESTORE_NO_ITEMS())
+    }
+
+    // Close modal and reset selection
+    showBatchRestoreConfirmModal = false
     selectedBookmarkUrls = []
   }
 </script>
@@ -603,7 +638,8 @@
         on:batchAddTag={handleBatchAddTag}
         on:batchRemoveTag={handleBatchRemoveTag}
         on:batchTagEdit={handleBatchTagEdit}
-        on:batchDeleteBookmarks={handleBatchDeleteBookmarks} />
+        on:batchDeleteBookmarks={handleBatchDeleteBookmarks}
+        on:batchRestoreBookmarks={handleBatchRestoreBookmarks} />
       <AddBookmark
         bind:show={showAddBookmarkModal}
         initialData={editBookmarkData} />
@@ -622,6 +658,15 @@
         cancelText={m.MODAL_CANCEL_BUTTON()}
         bind:isOpen={showBatchDeleteConfirmModal}
         onConfirm={confirmBatchDeleteBookmarks} />
+      <ConfirmModal
+        title={m.CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS()}
+        message={m.CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS({
+          count: selectedBookmarkUrls.length,
+        })}
+        confirmText={m.RESTORE_BUTTON_TEXT()}
+        cancelText={m.MODAL_CANCEL_BUTTON()}
+        bind:isOpen={showBatchRestoreConfirmModal}
+        onConfirm={confirmBatchRestoreBookmarks} />
     </div>
   </div>
 </main>

@@ -110,6 +110,22 @@
     }
   ],
   "BOOKMARKS_DELETION_NO_ITEMS": "Nessun segnalibro è stato eliminato.",
+  "BOOKMARKS_RESTORED_SUCCESS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "{count} segnalibro ripristinato con successo.",
+        "countPlural=other": "{count} segnalibri ripristinati con successo."
+      }
+    }
+  ],
+  "BOOKMARKS_RESTORE_NO_ITEMS": "Nessun segnalibro è stato ripristinato.",
   "BOOKMARK_FORM_ALWAYS_SHOW_ADVANCED_LABEL": "Mostra sempre opzioni avanzate",
   "BOOKMARK_FORM_COVER_IMAGE_LOAD_ERROR": "Caricamento immagine di copertina non riuscito",
   "BOOKMARK_FORM_COVER_IMAGE_PREVIEW_ALT": "Anteprima immagine di copertina",
@@ -178,7 +194,23 @@
       }
     }
   ],
+  "CONFIRM_MODAL_MESSAGE_BATCH_RESTORE_BOOKMARKS": [
+    {
+      "declarations": [
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": [
+        "countPlural"
+      ],
+      "match": {
+        "countPlural=one": "Sei sicuro di voler ripristinare questo segnalibro?",
+        "countPlural=other": "Sei sicuro di voler ripristinare {count} segnalibri?"
+      }
+    }
+  ],
   "CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS": "Elimina segnalibri in blocco",
+  "CONFIRM_MODAL_TITLE_BATCH_RESTORE_BOOKMARKS": "Conferma ripristino multiplo",
   "DELETED_BOOKMARKS": "Segnalibri eliminati",
   "DELETE_BUTTON_TEXT": "Eliminare",
   "EDIT_BOOKMARK_MODAL_TITLE": "Modifica segnalibro",
@@ -212,6 +244,7 @@
   "RECENTLY_ADDED": "Aggiunto di recente",
   "RECENTLY_MODIFIED": "Modificato di recente",
   "RELEASE_NOTES": "Note di rilascio",
+  "RESTORE_BUTTON_TEXT": "Ripristina",
   "SAVED_FILTERS_CREATE_ARIA_LABEL": "Crea nuovo filtro",
   "SAVED_FILTERS_CREATE_MODAL_TITLE": "Salva filtro corrente",
   "SAVED_FILTERS_DELETE_CONFIRM_MESSAGE": "Sei sicuro di voler eliminare questo filtro salvato?",
@@ -254,20 +287,20 @@
   "SETTINGS_SYNC_WEBDAV_URL_PLACEHOLDER": "URL WebDAV (es. https://example.com/remote.php/dav/files/username/)",
   "SETTINGS_SYNC_WEBDAV_USERNAME_LABEL": "Nome utente:",
   "SETTINGS_SYNC_WEBDAV_USERNAME_PLACEHOLDER": "Nome utente WebDAV",
-  "SORT_OPTION_CREATED_ASC": "Data creazione ↑",
-  "SORT_OPTION_CREATED_DESC": "Data creazione ↓",
+  "SORT_OPTION_CREATED_ASC": "Data di creazione ↑",
+  "SORT_OPTION_CREATED_DESC": "Data di creazione ↓",
   "SORT_OPTION_TITLE_ASC": "Titolo (A-Z)",
   "SORT_OPTION_TITLE_DESC": "Titolo (Z-A)",
-  "SORT_OPTION_UPDATED_ASC": "Data aggiornamento ↑",
-  "SORT_OPTION_UPDATED_DESC": "Data aggiornamento ↓",
-  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Cancella contenuto del tag",
+  "SORT_OPTION_UPDATED_ASC": "Data di aggiornamento ↑",
+  "SORT_OPTION_UPDATED_DESC": "Data di aggiornamento ↓",
+  "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Cancella contenuto tag",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "Clicca per modificare il tag",
-  "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Suggerimento: usa Invio o la virgola per separare più tag",
-  "TAG_INPUT_PLACEHOLDER": "Inserisci tag, premi Invio o virgola per aggiungere più tag",
+  "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Suggerimento: usa Invio o virgola per separare più tag",
+  "TAG_INPUT_PLACEHOLDER": "Inserisci i tag, premi Invio o virgola per aggiungere più tag",
   "TAG_INPUT_REMOVE_TAG_TOOLTIP": "Rimuovi tag {tag}",
   "TOOLBAR_BATCH_SELECT_MODE_TOOLTIP": "Modalità selezione multipla",
   "TOOLBAR_MENU_EXPORT_ALL_BOOKMARKS": "Esporta tutti i segnalibri",
-  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Esporta risultati correnti",
+  "TOOLBAR_MENU_EXPORT_CURRENT_RESULTS": "Esporta risultati filtro corrente",
   "TOOLBAR_MENU_OPEN_ALL_BOOKMARKS": "Apri tutti i segnalibri",
   "TOOLBAR_MENU_SELECT_MODE": "Modalità selezione",
   "TOOLBAR_SELECT_BUTTON": "Seleziona",

@@ -24,8 +24,8 @@
   /**
    * Handle confirm action
    */
-  function handleConfirm() {
-    onConfirm()
+  async function handleConfirm() {
+    await onConfirm()
     isOpen = false
   }
 
