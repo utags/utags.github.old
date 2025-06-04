@@ -16,7 +16,7 @@ import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { getHostName } from '../utils/url-utils.js'
 import { convertDate, isValidDate } from '../utils/date.js'
 import {
-  type MergeTitleStrategy,
+  type MergeMetaStrategy,
   type MergeTagsStrategy,
 } from '../config/merge-options.js'
 
@@ -162,10 +162,14 @@ let importProgress = {
 }
 
 type MergeStrategy = {
-  title: MergeTitleStrategy
+  title: MergeMetaStrategy
   tags: MergeTagsStrategy
   // conflict: 'skip' | 'overwrite' | 'rename'
   defaultDate: number | string
+  skipExisting?: boolean // default false
+  updateOverDelete?: boolean // default true
+  overwriteLocalDeleted?: boolean // 是否覆盖本地已删除的书签
+  overwriteRemoteDeleted?: boolean // 是否覆盖远程已删除的书签. 先保留，有实际使用场景时再实现
 }
 
 export async function importData(
@@ -264,31 +268,6 @@ export async function importData(
   }
 }
 
-export async function importDataOld() {
-  checkBookmarksDataReady()
-
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'application/json'
-
-  input.addEventListener('change', async (event) => {
-    const target = event.target as HTMLInputElement
-    const file = target.files ? target.files[0] : null
-    if (!file) return
-
-    try {
-      const content = await file.text()
-      const data: BookmarksStore = JSON.parse(content) as BookmarksStore
-      await importData(data, {})
-    } catch {
-      // eslint-disable-next-line no-alert
-      alert('文件导入失败，请检查文件格式')
-    }
-  })
-
-  input.click()
-}
-
 function normalizeBookmark(
   bookmark: BookmarkTagsAndMetadata,
   defaultDate: number
@@ -299,7 +278,7 @@ function normalizeBookmark(
   if (!isValidDate(created)) {
     meta.created = defaultDate
     meta.updated = defaultDate
-  } else if (!updated) {
+  } else if (!isValidDate(updated)) {
     meta.updated = created
   }
 }

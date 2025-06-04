@@ -6,16 +6,18 @@
     removeEventListener,
   } from 'browser-extension-utils'
   import Modal from './Modal.svelte'
-  import { importData } from '../stores/stores.js'
-  import {
-    type BookmarksStore,
-    type BookmarksData,
-  } from '../types/bookmarks.js'
+  import { type BookmarksData } from '../types/bookmarks.js'
   import { validateBookmarksFile } from '../lib/bookmark-import-utils'
   import {
-    mergeTitleOptions,
+    mergeBookmarks,
+    type MergeStrategy,
+    type SyncOption,
+  } from '../lib/bookmark-merge-utils.js'
+  import { bookmarkStorage } from '../lib/bookmark-storage.js'
+  import {
+    mergeMetaOptions,
     mergeTagsOptions,
-    type MergeTitleStrategy,
+    type MergeMetaStrategy,
     type MergeTagsStrategy,
   } from '../config/merge-options'
 
@@ -37,8 +39,8 @@
   let isDragging = $state(false)
 
   const mergeStrategy = $state({
-    title: 'newer' as MergeTitleStrategy,
-    tags: 'merge' as MergeTagsStrategy,
+    meta: 'merge' as MergeMetaStrategy,
+    tags: 'union' as MergeTagsStrategy,
     // conflict: 'skip' as 'skip' | 'overwrite' | 'rename',
     defaultDate: new Date(2000, 0, 1).toISOString().split('T')[0],
   })
@@ -154,7 +156,12 @@
     }
   }
 
-  function startImport() {
+  async function startImport() {
+    if (!stats || !stats.data) {
+      alert('请先选择并验证文件')
+      currentStep = 1
+      return
+    }
     currentStep = 3
 
     // 监听导入状态变化
@@ -167,7 +174,62 @@
 
     console.log(stats.data, fileType, mergeStrategy)
     // 使用验证阶段获取的数据而不是原始文件
-    importData(stats.data, mergeStrategy)
+    // importData(stats.data, mergeStrategy)
+    // Get local bookmarks data
+    const localData = await bookmarkStorage.getBookmarksData()
+
+    // Prepare parameters for mergeBookmarks
+    const remoteData = $state.snapshot(stats.data.data) as BookmarksData
+
+    // Define a default sync option for import
+    const syncOption: SyncOption = {
+      currentTime: Date.now(),
+      lastSyncTime: 0, // For import, lastSyncTime can be 0
+    }
+
+    // Define the merge strategy, ensuring it matches the expected type
+    const currentMergeStrategy: MergeStrategy = {
+      meta: mergeStrategy.meta, // Assuming mergeStrategy.meta is 'newer', 'local', or 'remote'
+      tags: mergeStrategy.tags, // Assuming mergeStrategy.tags is 'merge', 'local', or 'remote'
+      defaultDate: mergeStrategy.defaultDate,
+      // Add other strategy options if needed, e.g.:
+      // skipExisting: false,
+      // updateOverDelete: true,
+      // overwriteLocalDeleted: false,
+    }
+
+    try {
+      // Call mergeBookmarks
+      const { merged, deleted } = await mergeBookmarks(
+        localData,
+        remoteData,
+        currentMergeStrategy,
+        syncOption
+      )
+
+      // Delete bookmarks first
+      await bookmarkStorage.deleteBookmarks(deleted)
+      // Update bookmarks
+      await bookmarkStorage.updateBookmarks(Object.entries(merged))
+
+      // Dispatch import finished event with stats (can be enhanced)
+      const importFinishedEvent = new CustomEvent('importFinished', {
+        detail: {
+          // You might want to calculate more detailed stats from the 'merged' and 'deleted' data
+          mergedCount: Object.keys(merged).length,
+          deletedCount: deleted.length,
+        },
+      })
+      globalThis.dispatchEvent(importFinishedEvent)
+
+      console.log('Import successful:', { merged, deleted })
+    } catch (error) {
+      console.error('Error during import:', error)
+      // Handle error, e.g., show a message to the user
+      alert(`导入失败: ${error.message}`)
+      // Reset to a previous step or allow retry
+      currentStep = 2 // Or resetImport()
+    }
   }
 
   // 监听导入状态变化
@@ -198,9 +260,14 @@
 <Modal
   title="导入书签"
   bind:isOpen={showImportModal}
+  showCancel={currentStep < 3}
+  showConfirm={currentStep === 3}
   onClose={resetImport}
   confirmText={currentStep === 3 ? '完成' : '取消'}
-  onConfirm={resetImport}>
+  onConfirm={() => {
+    resetImport()
+    showImportModal = false
+  }}>
   <div class="step-indicator mb-6 flex justify-center gap-2">
     {#each [1, 2, 3] as step}
       <div
@@ -214,7 +281,12 @@
     <div class="import-step-1 text-center">
       <div
         class={`drop-zone ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-        onclick={() => document.getElementById('fileInput')?.click()}
+        onclick={(e) => {
+          const target = e.target
+          if (!target.closest('.import-step-1 label')) {
+            document.getElementById('fileInput')?.click()
+          }
+        }}
         ondragover={handleDragOver}
         ondragleave={handleDragLeave}
         ondrop={handleDrop}>
@@ -299,15 +371,15 @@
           </thead>
           <tbody>
             <tr class="border-b border-gray-200">
-              <td class="px-4 py-3 font-medium">标题处理</td>
+              <td class="px-4 py-3 font-medium">书签字段处理</td>
               <td class="px-4 py-3">
                 <div class="flex flex-wrap gap-4">
-                  {#each mergeTitleOptions as option}
+                  {#each mergeMetaOptions as option}
                     <label class="inline-flex items-center">
                       <input
                         type="radio"
                         class="mr-2"
-                        bind:group={mergeStrategy.title}
+                        bind:group={mergeStrategy.meta}
                         value={option.value} />
                       <span>{option.label}</span>
                     </label>

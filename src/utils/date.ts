@@ -9,5 +9,6 @@ export function convertDate(value: number) {
 
 export function isValidDate(date: number) {
   // 631_152_000_000 is '1990-01-01T00:00:00.000Z'
-  return date < 9_999_999_999_999 && date > 631_152_000_000
+  // 9_999_999_999_999 is '2286-11-20T17:46:39.999Z'
+  return date && date > 631_152_000_000 && date < 9_999_999_999_999
 }

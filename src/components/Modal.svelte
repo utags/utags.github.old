@@ -12,7 +12,9 @@
     onClose = () => {},
     onInputEnter = () => {},
     cancelText = m.MODAL_CANCEL_BUTTON(),
+    showCancel = true,
     confirmText = m.SAVE_BUTTON_TEXT(),
+    showConfirm = true,
     onConfirm = () => {},
     disableConfirm = false,
   } = $props()
@@ -106,17 +108,21 @@
         </div>
 
         <div class="mt-6 flex justify-end gap-3">
-          <button
-            class="rounded-lg border border-gray-300 px-4 py-2 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/30"
-            onclick={() => (isOpen = false)}>
-            {cancelText}
-          </button>
-          <button
-            class="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-white transition-all hover:from-blue-600 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
-            onclick={onConfirm}
-            disabled={disableConfirm}>
-            {confirmText}
-          </button>
+          {#if showCancel}
+            <button
+              class="rounded-lg border border-gray-300 px-4 py-2 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/30"
+              onclick={() => (isOpen = false)}>
+              {cancelText}
+            </button>
+          {/if}
+          {#if showConfirm}
+            <button
+              class="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-white transition-all hover:from-blue-600 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
+              onclick={onConfirm}
+              disabled={disableConfirm}>
+              {confirmText}
+            </button>
+          {/if}
         </div>
       </div>
     </div>

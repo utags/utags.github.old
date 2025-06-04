@@ -220,7 +220,7 @@ export function handleAISummary(url: string) {
 // TODO: add copy url action
 // TODO: add show QR code action
 
-export function batchRestoreBookmarks(selectedBookmarkUrls: string[]) {
+export async function batchRestoreBookmarks(selectedBookmarkUrls: string[]) {
   return batchRemoveTagsFromBookmarks(selectedBookmarkUrls, [
     DELETED_BOOKMARK_TAG,
   ])

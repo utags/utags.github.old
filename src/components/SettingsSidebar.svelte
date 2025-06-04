@@ -5,12 +5,7 @@
   import { LayoutList, PanelLeftClose } from 'lucide-svelte'
   import { getLocale, setLocale } from '../paraglide/runtime'
   import * as m from '../paraglide/messages'
-  import {
-    settings,
-    importDataOld,
-    exportData,
-    clearAll,
-  } from '../stores/stores.js'
+  import { settings, exportData, clearAll } from '../stores/stores.js'
   import { viewModes } from '../config/view-modes.js'
   import { sortOptions } from '../config/sort-options.js'
   import { themeOptions } from '../config/theme-options.js'
@@ -327,7 +322,6 @@
             <div class="flex items-center justify-between px-1 py-1.5">
               <button
                 class="flex items-center gap-3 text-gray-700 hover:text-blue-600 dark:text-gray-300"
-                onclick2={() => importDataOld()}
                 onclick={() => (showImportModal = true)}>
                 <span>📥 {m.SETTINGS_SIDEBAR_IMPORT_LABEL()}</span>
               </button>

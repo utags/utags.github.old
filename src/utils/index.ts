@@ -140,3 +140,7 @@ export function deduplicateArrays<T>(arr: T[][], ignoreOrder = false): T[][] {
 export function isNonNullObject(value: unknown): boolean {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
+
+export function getType(value: any) {
+  return Object.prototype.toString.call(value).slice(8, -1)
+}

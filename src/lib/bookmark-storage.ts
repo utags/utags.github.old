@@ -1,6 +1,7 @@
 import { STORAGE_KEY_BOOKMARKS } from '../config/constants.js'
 import type {
   BookmarksStore,
+  BookmarksData,
   BookmarkKeyValuePair,
   BookmarkTagsAndMetadata,
   BookmarkKey,
@@ -87,6 +88,17 @@ export class BookmarkStorage {
       console.error('Failed to retrieve bookmarks:', error)
       throw error
     }
+  }
+
+  /**
+   * Retrieves the 'data' part of the bookmark store.
+   *
+   * @returns A promise that resolves with the BookmarksData.
+   * @throws Error if retrieving or validating the bookmark store fails.
+   */
+  async getBookmarksData(): Promise<BookmarksData> {
+    const bookmarksStore = await this.getBookmarksStore()
+    return bookmarksStore.data
   }
 
   /**
@@ -185,6 +197,38 @@ export class BookmarkStorage {
   }
 
   /**
+   * Deletes bookmarks from storage
+   *
+   * @param keys - The list of URL of the bookmarks to delete
+   * @returns A promise that resolves when the bookmarks has been deleted
+   * @throws Error if deletion fails
+   */
+  async deleteBookmarks(keys: BookmarkKey[]): Promise<void> {
+    try {
+      const bookmarksStore = await this.getBookmarksStore()
+      let deletedCount = 0
+      // Remove bookmarks from the store
+      for (const key of keys) {
+        if (bookmarksStore.data[key]) {
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete bookmarksStore.data[key]
+          deletedCount++
+        }
+      }
+
+      // Only save if bookmarks were actually deleted
+      if (deletedCount > 0) {
+        // Update the last modified timestamp
+        bookmarksStore.meta.updated = Date.now()
+        await this.saveBookmarksStore(bookmarksStore, true)
+      }
+    } catch (error) {
+      console.error('Failed to delete bookmarks:', error)
+      throw error
+    }
+  }
+
+  /**
    * Deletes a bookmark from storage
    *
    * @param key - The URL of the bookmark to delete
@@ -193,14 +237,8 @@ export class BookmarkStorage {
    */
   async deleteBookmark(key: BookmarkKey): Promise<void> {
     try {
-      const bookmarksStore = await this.getBookmarksStore()
-
-      if (bookmarksStore.data[key]) {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete bookmarksStore.data[key]
-        bookmarksStore.meta.updated = Date.now()
-        await this.saveBookmarksStore(bookmarksStore, true)
-      }
+      // Call deleteBookmarks with a single key
+      await this.deleteBookmarks([key])
     } catch (error) {
       console.error('Failed to delete bookmark:', error)
       throw error

@@ -1219,6 +1219,200 @@ describe('BookmarkStorage', () => {
     })
   })
 
+  describe('deleteBookmarks', () => {
+    it('should delete multiple existing bookmarks from localStorage', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Create a spy on saveBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+
+      // Bookmark keys to delete
+      const bookmarkKeysToDelete = ['https://example.com', 'https://test.org']
+
+      // Delete the bookmarks
+      await bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
+
+      // Verify saveBookmarksStore was called with skipValidation
+      expect(saveSpy).toHaveBeenCalledTimes(1)
+      expect(saveSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.not.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            'https://example.com': expect.anything(),
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            'https://test.org': expect.anything(),
+          }),
+        }),
+        true
+      )
+
+      // Get the saved data to verify
+      const result = await bookmarkStorage.getBookmarksStore()
+
+      // Verify bookmarks were deleted
+      expect(result.data['https://example.com']).toBeUndefined()
+      expect(result.data['https://test.org']).toBeUndefined()
+    })
+
+    it('should update the store metadata timestamp when deleting multiple bookmarks', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Record timestamp before deletion
+      const beforeDelete = validBookmarksStore.meta.updated!
+
+      // Wait a short time to ensure timestamp will be different
+      // eslint-disable-next-line no-promise-executor-return
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Bookmark keys to delete
+      const bookmarkKeysToDelete = ['https://example.com']
+
+      // Delete the bookmarks
+      await bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
+
+      // Get the saved data to verify
+      const result = await bookmarkStorage.getBookmarksStore()
+
+      // Verify metadata timestamp has been updated
+      expect(result.meta.updated).toBeGreaterThan(beforeDelete)
+    })
+
+    it('should not modify localStorage when no bookmarks are deleted (keys do not exist)', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Create a spy on saveBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+
+      // Non-existent bookmark keys
+      const nonExistentKeys = [
+        'https://non-existent1.com',
+        'https://non-existent2.com',
+      ]
+
+      // Delete the non-existent bookmarks
+      await bookmarkStorage.deleteBookmarks(nonExistentKeys)
+
+      // Verify saveBookmarksStore was not called
+      expect(saveSpy).not.toHaveBeenCalled()
+
+      // Get the saved data to verify
+      const result = await bookmarkStorage.getBookmarksStore()
+
+      // Verify data remains unchanged
+      expect(Object.keys(result.data)).toEqual(
+        Object.keys(validBookmarksStore.data)
+      )
+    })
+
+    it('should not modify localStorage when provided with an empty array of keys', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Create a spy on saveBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+
+      // Delete with empty array
+      await bookmarkStorage.deleteBookmarks([])
+
+      // Verify saveBookmarksStore was not called
+      expect(saveSpy).not.toHaveBeenCalled()
+
+      // Get the saved data to verify
+      const result = await bookmarkStorage.getBookmarksStore()
+
+      // Verify data remains unchanged
+      expect(Object.keys(result.data)).toEqual(
+        Object.keys(validBookmarksStore.data)
+      )
+    })
+
+    it('should call getBookmarksStore method', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Create a spy on getBookmarksStore method
+      const getSpy = vi.spyOn(bookmarkStorage, 'getBookmarksStore')
+
+      // Bookmark keys to delete
+      const bookmarkKeysToDelete = ['https://example.com']
+
+      // Delete the bookmarks
+      await bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
+
+      // Verify getBookmarksStore was called
+      expect(getSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('should throw error when getBookmarksStore fails', async () => {
+      // Mock getBookmarksStore method to fail
+      vi.spyOn(bookmarkStorage, 'getBookmarksStore').mockImplementationOnce(
+        () => {
+          throw new Error('Failed to retrieve bookmarks')
+        }
+      )
+
+      // Bookmark keys to delete
+      const bookmarkKeysToDelete = ['https://example.com']
+
+      // Expect operation to throw error
+      await expect(
+        bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
+      ).rejects.toThrow('Failed to retrieve bookmarks')
+    })
+
+    it('should throw error when saveBookmarksStore fails', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Mock saveBookmarksStore method to fail
+      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+        () => {
+          throw new Error('Failed to save bookmarks')
+        }
+      )
+
+      // Bookmark keys to delete
+      const bookmarkKeysToDelete = ['https://example.com']
+
+      // Expect operation to throw error
+      await expect(
+        bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
+      ).rejects.toThrow('Failed to save bookmarks')
+    })
+
+    it('should delete a mix of existing and non-existing bookmarks', async () => {
+      // Setup localStorage with existing data
+      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+
+      // Create a spy on saveBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+
+      // Bookmark keys to delete, including one that doesn't exist
+      const bookmarkKeysToDelete = [
+        'https://example.com',
+        'https://non-existent.com',
+      ]
+
+      // Delete the bookmarks
+      await bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
+
+      // Verify saveBookmarksStore was called (because at least one existed)
+      expect(saveSpy).toHaveBeenCalledTimes(1)
+
+      // Get the saved data to verify
+      const result = await bookmarkStorage.getBookmarksStore()
+
+      // Verify existing bookmark was deleted, non-existent was ignored
+      expect(result.data['https://example.com']).toBeUndefined()
+      expect(result.data['https://test.org']).toBeDefined() // This one should remain
+      expect(result.data['https://non-existent.com']).toBeUndefined()
+    })
+  })
+
   describe('exportBookmarks', () => {
     it('should export bookmarks as a formatted JSON string', async () => {
       // Setup localStorage with existing data

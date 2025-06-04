@@ -27,3 +27,5 @@ export const FILTER_DELIMITER = '/'
 export const OR_CONDITION_DELIMITER = ','
 
 export const DELETED_BOOKMARK_TAG = '._DELETED_'
+export const STARRED_BOOKMARK_TAG = '._STARRED_'
+export const ARCHIVED_BOOKMARK_TAG = '._ARCHIVED_'

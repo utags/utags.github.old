@@ -12,12 +12,25 @@ export type BookmarkMetadata = {
   mainUrl?: string
   /**
    * The timestamp of the creation of the bookmark.
+   * This value is set once when the bookmark is first created and should not change.
    */
   created: number
   /**
-   * The timestamp of the last update of the bookmark.
+   * The timestamp of the last manual edit of the bookmark by the user.
+   * This includes changes to title, URL, tags, description, notes, etc., through the edit interface.
+   * It does NOT update on automated processes like sync, import, or batch operations unless those operations explicitly mimic a user edit.
    */
   updated: number
+  /**
+   * The timestamp of the last modification of the bookmark, regardless of the source.
+   * This field is updated on any change to the bookmark's data, including:
+   * - Manual user edits (same as 'updated').
+   * - Automated processes like synchronization with a remote server.
+   * - Bulk operations (e.g., batch tagging, batch deletion/restoration).
+   * - Import processes that might update existing bookmarks.
+   * This timestamp is useful for determining the most recent state of a bookmark for sync conflict resolution or general data auditing.
+   */
+  updated2?: number
 }
 
 /**
