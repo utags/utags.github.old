@@ -81,9 +81,8 @@ vi.mock('svelte-persisted-store', () => {
         stores.set(key, value)
       }),
       update: vi.fn((updater: (value: any) => any) => {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const currentValue = stores.get(key)
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
         const newValue = updater(currentValue)
         stores.set(key, newValue)
       }),
@@ -107,7 +106,6 @@ if (!globalThis.addEventListener) {
   type EventListenersMap = Record<string, EventListenerOrEventListenerObject>
 
   // Add event listener storage to globalThis
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
   ;(globalThis as any).eventListeners = {} as EventListenersMap
 
   // Implement addEventListener method
@@ -1246,7 +1244,7 @@ describe('BookmarkService', () => {
       // Verify store content type
       // Use _getStore helper method to get the actual stored value
       // @ts-expect-error - Accessing private method for testing
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       const storeValue = store._getStore()
 
       expect(storeValue).toHaveProperty('data')
@@ -1264,7 +1262,7 @@ describe('BookmarkService', () => {
 
       // Verify store content type
       // @ts-expect-error - Accessing private method for testing
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       const storeValue = store._getStore()
 
       expect(storeValue).toHaveProperty('data')
@@ -1281,7 +1279,7 @@ describe('BookmarkService', () => {
 
       // Verify store content type
       // @ts-expect-error - Accessing private method for testing
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       const storeValue = store._getStore()
 
       expect(storeValue).toHaveProperty('data')
@@ -1296,7 +1294,7 @@ describe('BookmarkService', () => {
       // Get store instance and verify type
       let store = service.getStore()
       // @ts-expect-error - Accessing private method for testing
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       let storeValue = store._getStore()
 
       expect(storeValue).toHaveProperty('data')
@@ -1308,7 +1306,7 @@ describe('BookmarkService', () => {
       // Re-get store instance and verify type
       store = service.getStore()
       // @ts-expect-error - Accessing private method for testing
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       storeValue = store._getStore()
 
       expect(storeValue).toHaveProperty('data')
@@ -1321,7 +1319,7 @@ describe('BookmarkService', () => {
       // Get store instance again and verify type
       store = service.getStore()
       // @ts-expect-error - Accessing private method for testing
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       storeValue = store._getStore()
 
       expect(storeValue).toHaveProperty('data')
@@ -1342,7 +1340,7 @@ describe('BookmarkService', () => {
 
         // Verify store content type
         // @ts-expect-error - Accessing private method for testing
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         const storeValue = store._getStore()
 
         expect(storeValue).toHaveProperty('data')

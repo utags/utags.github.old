@@ -3,6 +3,7 @@ import type {
   BookmarksStore,
   BookmarkKeyValuePair,
 } from '../types/bookmarks.js'
+import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import { BookmarkStorage } from './bookmark-storage.js'
 
 // Mock localStorage
@@ -82,8 +83,8 @@ describe('BookmarkStorage instance', () => {
     }
 
     // Save bookmarks to each storage
-    await storage1.saveBookmark(bookmark1.key, bookmark1.entry)
-    await storage2.saveBookmark(bookmark2.key, bookmark2.entry)
+    await storage1.upsertBookmark(bookmark1.key, bookmark1.entry)
+    await storage2.upsertBookmark(bookmark2.key, bookmark2.entry)
 
     // Verify localStorage.setItem was called with different keys
     expect(setItemSpy).toHaveBeenCalledWith(
@@ -160,9 +161,9 @@ describe('BookmarkStorage', () => {
     bookmarkStorage = new BookmarkStorage(testStorageKey)
   })
 
-  describe('saveBookmarksStore', () => {
+  describe('persistBookmarksStore', () => {
     it('should save valid bookmark store to localStorage', async () => {
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Verify localStorage.setItem was called with correct parameters
       expect(localStorageMock.setItem).toHaveBeenCalledTimes(1)
@@ -185,7 +186,7 @@ describe('BookmarkStorage', () => {
         'validateBookmarksStore'
       )
 
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Verify validation was called
       expect(validateSpy).toHaveBeenCalledTimes(1)
@@ -199,7 +200,7 @@ describe('BookmarkStorage', () => {
         'validateBookmarksStore'
       )
 
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore, true)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore, true)
 
       // Verify validation was not called
       expect(validateSpy).not.toHaveBeenCalled()
@@ -207,7 +208,7 @@ describe('BookmarkStorage', () => {
 
     it('should throw error when saving invalid data', async () => {
       // Invalid bookmark store missing required fields
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       const invalidStore = {
         data: {},
         // Missing meta field
@@ -216,13 +217,13 @@ describe('BookmarkStorage', () => {
       // Expect the save operation to throw an error
       await expect(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        bookmarkStorage.saveBookmarksStore(invalidStore)
+        bookmarkStorage.persistBookmarksStore(invalidStore)
       ).rejects.toThrow()
     })
 
     it('should throw error when databaseVersion is not a number', async () => {
       // Invalid bookmark store with non-numeric databaseVersion
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       const invalidVersionStore = {
         data: {},
         meta: {
@@ -235,7 +236,7 @@ describe('BookmarkStorage', () => {
       // Expect the save operation to throw an error
       await expect(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        bookmarkStorage.saveBookmarksStore(invalidVersionStore)
+        bookmarkStorage.persistBookmarksStore(invalidVersionStore)
       ).rejects.toThrow(
         'Invalid bookmark store format: databaseVersion must be a number'
       )
@@ -254,7 +255,7 @@ describe('BookmarkStorage', () => {
 
       // Expect the save operation to throw an error
       await expect(
-        bookmarkStorage.saveBookmarksStore(futureVersionStore)
+        bookmarkStorage.persistBookmarksStore(futureVersionStore)
       ).rejects.toThrow(/Incompatible database version/)
     })
 
@@ -266,7 +267,7 @@ describe('BookmarkStorage', () => {
 
       // Expect the save operation to throw an error
       await expect(
-        bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+        bookmarkStorage.persistBookmarksStore(validBookmarksStore)
       ).rejects.toThrow()
     })
   })
@@ -295,9 +296,9 @@ describe('BookmarkStorage', () => {
         data: {},
         meta: {
           databaseVersion: 3, // Current version
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
           created: expect.any(Number),
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
           updated: expect.any(Number),
         },
       })
@@ -389,8 +390,8 @@ describe('BookmarkStorage', () => {
         'migrateBookmarksStore'
       )
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       const result = await bookmarkStorage.getBookmarksStore()
 
@@ -398,7 +399,7 @@ describe('BookmarkStorage', () => {
       expect(migrateSpy).toHaveBeenCalledTimes(1)
       expect(migrateSpy).toHaveBeenCalledWith(olderVersionData, 1, true)
 
-      // Verify saveBookmarksStore was called with skipValidation=true
+      // Verify persistBookmarksStore was called with skipValidation=true
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(expect.any(Object), true)
 
@@ -406,7 +407,7 @@ describe('BookmarkStorage', () => {
       expect(result.meta.databaseVersion).toBe(3) // Current version is 3
     })
 
-    it('should handle saveBookmarksStore failure during migration without throwing', async () => {
+    it('should handle persistBookmarksStore failure during migration without throwing', async () => {
       // Setup localStorage with older version
       const olderVersionData = {
         ...validBookmarksStore,
@@ -425,11 +426,11 @@ describe('BookmarkStorage', () => {
         'migrateBookmarksStore'
       )
 
-      // Create a spy on saveBookmarksStore method and mock throwing an exception
+      // Create a spy on persistBookmarksStore method and mock throwing an exception
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const saveSpy = vi
-        .spyOn(bookmarkStorage, 'saveBookmarksStore')
+        .spyOn(bookmarkStorage, 'persistBookmarksStore')
         .mockImplementationOnce(() => {
           throw new Error('Mock save failure')
         })
@@ -441,7 +442,7 @@ describe('BookmarkStorage', () => {
       expect(migrateSpy).toHaveBeenCalledTimes(1)
       expect(migrateSpy).toHaveBeenCalledWith(olderVersionData, 1, true)
 
-      // Verify saveBookmarksStore was called
+      // Verify persistBookmarksStore was called
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(expect.any(Object), true)
 
@@ -461,12 +462,212 @@ describe('BookmarkStorage', () => {
     })
   })
 
-  describe('getBookmarksAsArray', () => {
+  describe('overwriteBookmarks', () => {
+    it('should replace existing bookmarks data with new data', async () => {
+      // Initial data
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+
+      const newData = {
+        'https://newsite.com': {
+          tags: ['new', 'site'],
+          meta: {
+            title: 'New Site',
+            created: Date.now(),
+            updated: Date.now(),
+          },
+        },
+      }
+
+      await bookmarkStorage.overwriteBookmarks(newData)
+      const store = await bookmarkStorage.getBookmarksStore()
+
+      expect(store.data).toEqual(newData)
+      expect(store.data['https://example.com']).toBeUndefined()
+    })
+
+    it('should update the meta.updated timestamp', async () => {
+      // Initial data
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+      const initialStore = await bookmarkStorage.getBookmarksStore()
+      const initialCreatedTimestamp = initialStore.meta.created
+      const initialUpdatedTimestamp = initialStore.meta.updated!
+
+      // Ensure some time passes for the timestamp to be different
+      // eslint-disable-next-line no-promise-executor-return
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const newData = {
+        'https://anothersite.com': {
+          tags: ['another'],
+          meta: {
+            title: 'Another Site',
+            created: Date.now(),
+            updated: Date.now(),
+          },
+        },
+      }
+      await bookmarkStorage.overwriteBookmarks(newData)
+      const updatedStore = await bookmarkStorage.getBookmarksStore()
+
+      expect(updatedStore.meta.created).toEqual(initialCreatedTimestamp)
+      expect(updatedStore.meta.updated).toBeGreaterThan(initialUpdatedTimestamp)
+    })
+
+    it('should call persistBookmarksStore with skipValidation true', async () => {
+      const persistBookmarksStoreSpy = vi.spyOn(
+        bookmarkStorage,
+        'persistBookmarksStore'
+      )
+      const newData = {
+        'https://yetanothersite.com': {
+          tags: ['yet', 'another'],
+          meta: {
+            title: 'Yet Another Site',
+            created: Date.now(),
+            updated: Date.now(),
+          },
+        },
+      }
+
+      await bookmarkStorage.overwriteBookmarks(newData)
+
+      expect(persistBookmarksStoreSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: newData,
+        }),
+        true
+      )
+    })
+
+    it('should throw an error if getBookmarksStore fails', async () => {
+      vi.spyOn(bookmarkStorage, 'getBookmarksStore').mockRejectedValueOnce(
+        new Error('Failed to get store')
+      )
+      const newData = {
+        'https://site.com': {
+          tags: [],
+          meta: { title: '', created: 0, updated: 0 },
+        },
+      }
+      await expect(bookmarkStorage.overwriteBookmarks(newData)).rejects.toThrow(
+        'Failed to get store'
+      )
+    })
+
+    it('should throw an error if persistBookmarksStore fails', async () => {
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockRejectedValueOnce(
+        new Error('Failed to save store')
+      )
+      const newData = {
+        'https://site.com': {
+          tags: [],
+          meta: { title: '', created: 0, updated: 0 },
+        },
+      }
+      await expect(bookmarkStorage.overwriteBookmarks(newData)).rejects.toThrow(
+        'Failed to save store'
+      )
+    })
+  })
+
+  describe('upsertBookmarksFromData', () => {
+    it('should add new bookmarks to existing data', async () => {
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+      const initialDataCount = Object.keys(validBookmarksStore.data).length
+
+      const newDataToMerge = {
+        'https://mergedsite.com': {
+          tags: ['merged', 'new'],
+          meta: {
+            title: 'Merged Site',
+            created: Date.now(),
+            updated: Date.now(),
+          },
+        },
+      }
+
+      await bookmarkStorage.upsertBookmarksFromData(newDataToMerge)
+      const store = await bookmarkStorage.getBookmarksStore()
+
+      expect(Object.keys(store.data).length).toBe(initialDataCount + 1)
+      expect(store.data['https://mergedsite.com']).toEqual(
+        newDataToMerge['https://mergedsite.com']
+      )
+      expect(store.data['https://example.com']).toEqual(
+        validBookmarksStore.data['https://example.com']
+      )
+    })
+
+    it('should update existing bookmarks', async () => {
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+
+      const updatedData = {
+        'https://example.com': {
+          tags: ['example', 'test', 'updated'], // Added 'updated' tag
+          meta: {
+            title: 'Example Website Updated',
+            created:
+              validBookmarksStore.data['https://example.com'].meta.created, // Keep original creation date
+            updated: Date.now(), // New update timestamp
+          },
+        },
+      }
+
+      await bookmarkStorage.upsertBookmarksFromData(updatedData)
+      const store = await bookmarkStorage.getBookmarksStore()
+
+      expect(store.data['https://example.com'].tags).toContain('updated')
+      expect(store.data['https://example.com'].meta.title).toBe(
+        'Example Website Updated'
+      )
+      expect(store.data['https://example.com'].meta.updated).not.toBe(
+        validBookmarksStore.data['https://example.com'].meta.updated
+      )
+    })
+
+    it('should call upsertBookmarks with the correct data', async () => {
+      const upsertBookmarksSpy = vi.spyOn(bookmarkStorage, 'upsertBookmarks')
+      const dataToMerge = {
+        'https://somesite.com': {
+          tags: ['some', 'site'],
+          meta: {
+            title: 'Some Site',
+            created: Date.now(),
+            updated: Date.now(),
+          },
+        },
+      }
+      const expectedBookmarksToUpdate: BookmarkKeyValuePair[] = Object.entries(
+        dataToMerge
+      ) as BookmarkKeyValuePair[]
+
+      await bookmarkStorage.upsertBookmarksFromData(dataToMerge)
+
+      expect(upsertBookmarksSpy).toHaveBeenCalledWith(expectedBookmarksToUpdate)
+    })
+
+    it('should throw an error if upsertBookmarks fails', async () => {
+      vi.spyOn(bookmarkStorage, 'upsertBookmarks').mockRejectedValueOnce(
+        new Error('Failed to update bookmarks')
+      )
+      const dataToMerge = {
+        'https://site.com': {
+          tags: [],
+          meta: { title: '', created: 0, updated: 0 },
+        },
+      }
+      await expect(
+        bookmarkStorage.upsertBookmarksFromData(dataToMerge)
+      ).rejects.toThrow('Failed to update bookmarks')
+    })
+  })
+
+  describe('getAllBookmarksAsEntries', () => {
     it('should return an empty array when no bookmarks exist', async () => {
       // Setup empty localStorage
       localStorageMock.getItem.mockReturnValueOnce(null)
 
-      const result = await bookmarkStorage.getBookmarksAsArray()
+      const result = await bookmarkStorage.getAllBookmarksAsEntries()
 
       // Verify result is an empty array
       expect(result).toEqual([])
@@ -476,9 +677,9 @@ describe('BookmarkStorage', () => {
 
     it('should convert bookmarks data to key-value pairs array', async () => {
       // Setup localStorage by saving valid data through the API
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      const result = await bookmarkStorage.getBookmarksAsArray()
+      const result = await bookmarkStorage.getAllBookmarksAsEntries()
 
       // Verify result is an array of key-value pairs
       expect(Array.isArray(result)).toBe(true)
@@ -498,9 +699,9 @@ describe('BookmarkStorage', () => {
 
     it('should maintain the original data structure in the array', async () => {
       // Setup localStorage by saving valid data through the API
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      const result = await bookmarkStorage.getBookmarksAsArray()
+      const result = await bookmarkStorage.getAllBookmarksAsEntries()
 
       // Verify the array entries match the original data structure
       const originalEntries = Object.entries(validBookmarksStore.data)
@@ -524,7 +725,7 @@ describe('BookmarkStorage', () => {
       )
 
       // Expect the operation to throw an error
-      await expect(bookmarkStorage.getBookmarksAsArray()).rejects.toThrow(
+      await expect(bookmarkStorage.getAllBookmarksAsEntries()).rejects.toThrow(
         'Failed to retrieve bookmarks'
       )
     })
@@ -541,23 +742,23 @@ describe('BookmarkStorage', () => {
         JSON.stringify(validBookmarksStore)
       )
 
-      await bookmarkStorage.getBookmarksAsArray()
+      await bookmarkStorage.getAllBookmarksAsEntries()
 
       // Verify getBookmarksStore was called
       expect(getBookmarksStoreSpy).toHaveBeenCalledTimes(1)
     })
   })
 
-  describe('getBookmarksAsArrayByKeys', () => {
+  describe('getBookmarkEntriesByKeys', () => {
     it('should return bookmarks array for specified keys', async () => {
       // Setup localStorage with valid data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Prepare keys to retrieve
       const keysToRetrieve = ['https://example.com']
 
       const result =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(keysToRetrieve)
+        await bookmarkStorage.getBookmarkEntriesByKeys(keysToRetrieve)
 
       // Verify result is an array
       expect(Array.isArray(result)).toBe(true)
@@ -572,13 +773,13 @@ describe('BookmarkStorage', () => {
 
     it('should return multiple bookmarks for multiple keys', async () => {
       // Setup localStorage with valid data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Prepare multiple keys to retrieve
       const keysToRetrieve = ['https://example.com', 'https://test.org']
 
       const result =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(keysToRetrieve)
+        await bookmarkStorage.getBookmarkEntriesByKeys(keysToRetrieve)
 
       // Verify result contains two bookmarks
       expect(Array.isArray(result)).toBe(true)
@@ -599,7 +800,7 @@ describe('BookmarkStorage', () => {
 
     it('should ignore non-existent keys', async () => {
       // Setup localStorage with valid data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Prepare keys including non-existent ones
       const keysToRetrieve = [
@@ -609,7 +810,7 @@ describe('BookmarkStorage', () => {
       ]
 
       const result =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(keysToRetrieve)
+        await bookmarkStorage.getBookmarkEntriesByKeys(keysToRetrieve)
 
       // Verify result only contains existing bookmarks
       expect(result.length).toBe(2)
@@ -623,7 +824,7 @@ describe('BookmarkStorage', () => {
 
     it('should return empty array when all keys are non-existent', async () => {
       // Setup localStorage with valid data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Prepare non-existent keys
       const keysToRetrieve = [
@@ -632,7 +833,7 @@ describe('BookmarkStorage', () => {
       ]
 
       const result =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(keysToRetrieve)
+        await bookmarkStorage.getBookmarkEntriesByKeys(keysToRetrieve)
 
       // Verify result is an empty array
       expect(Array.isArray(result)).toBe(true)
@@ -641,10 +842,10 @@ describe('BookmarkStorage', () => {
 
     it('should return empty array for empty keys array', async () => {
       // Setup localStorage with valid data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Pass empty array
-      const result = await bookmarkStorage.getBookmarksAsArrayByKeys([])
+      const result = await bookmarkStorage.getBookmarkEntriesByKeys([])
 
       // Verify result is an empty array
       expect(Array.isArray(result)).toBe(true)
@@ -659,7 +860,7 @@ describe('BookmarkStorage', () => {
       const keysToRetrieve = ['https://example.com', 'https://test.org']
 
       const result =
-        await bookmarkStorage.getBookmarksAsArrayByKeys(keysToRetrieve)
+        await bookmarkStorage.getBookmarkEntriesByKeys(keysToRetrieve)
 
       // Verify result is an empty array
       expect(Array.isArray(result)).toBe(true)
@@ -679,15 +880,15 @@ describe('BookmarkStorage', () => {
 
       // Expect operation to throw error
       await expect(
-        bookmarkStorage.getBookmarksAsArrayByKeys(keysToRetrieve)
+        bookmarkStorage.getBookmarkEntriesByKeys(keysToRetrieve)
       ).rejects.toThrow('Failed to retrieve bookmarks store')
     })
   })
 
-  describe('updateBookmarks', () => {
+  describe('upsertBookmarks', () => {
     it('should batch update multiple bookmarks', async () => {
       // Save initial data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Prepare update data
       const updatedBookmarks: BookmarkKeyValuePair[] = [
@@ -717,7 +918,7 @@ describe('BookmarkStorage', () => {
       ]
 
       // Execute batch update
-      await bookmarkStorage.updateBookmarks(updatedBookmarks)
+      await bookmarkStorage.upsertBookmarks(updatedBookmarks)
 
       // Get updated data
       const result = await bookmarkStorage.getBookmarksStore()
@@ -737,7 +938,7 @@ describe('BookmarkStorage', () => {
 
     it('should update metadata timestamp', async () => {
       // Save initial data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Record timestamp before update
       const beforeUpdate = validBookmarksStore.meta.updated!
@@ -762,7 +963,7 @@ describe('BookmarkStorage', () => {
       ]
 
       // Execute batch update
-      await bookmarkStorage.updateBookmarks(updatedBookmarks)
+      await bookmarkStorage.upsertBookmarks(updatedBookmarks)
 
       // Get updated data
       const result = await bookmarkStorage.getBookmarksStore()
@@ -773,10 +974,10 @@ describe('BookmarkStorage', () => {
 
     it('should skip validation during update', async () => {
       // Save initial data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Prepare update data
       const updatedBookmarks: BookmarkKeyValuePair[] = [
@@ -794,9 +995,9 @@ describe('BookmarkStorage', () => {
       ]
 
       // Execute batch update
-      await bookmarkStorage.updateBookmarks(updatedBookmarks)
+      await bookmarkStorage.upsertBookmarks(updatedBookmarks)
 
-      // Verify saveBookmarksStore was called with skipValidation parameter
+      // Verify persistBookmarksStore was called with skipValidation parameter
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(expect.any(Object), true)
     })
@@ -826,16 +1027,16 @@ describe('BookmarkStorage', () => {
 
       // Expect operation to throw error
       await expect(
-        bookmarkStorage.updateBookmarks(updatedBookmarks)
+        bookmarkStorage.upsertBookmarks(updatedBookmarks)
       ).rejects.toThrow('Failed to retrieve bookmarks')
     })
 
-    it('should throw error when saveBookmarksStore fails', async () => {
+    it('should throw error when persistBookmarksStore fails', async () => {
       // Save initial data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Mock saveBookmarksStore method to fail
-      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+      // Mock persistBookmarksStore method to fail
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockImplementationOnce(
         () => {
           throw new Error('Failed to save bookmarks')
         }
@@ -858,19 +1059,19 @@ describe('BookmarkStorage', () => {
 
       // Expect operation to throw error
       await expect(
-        bookmarkStorage.updateBookmarks(updatedBookmarks)
+        bookmarkStorage.upsertBookmarks(updatedBookmarks)
       ).rejects.toThrow('Failed to save bookmarks')
     })
 
     it('should handle empty array input', async () => {
       // Save initial data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Record data before update
       const beforeUpdate = await bookmarkStorage.getBookmarksStore()
 
       // Execute batch update with empty array
-      await bookmarkStorage.updateBookmarks([])
+      await bookmarkStorage.upsertBookmarks([])
 
       // Get data after update
       const afterUpdate = await bookmarkStorage.getBookmarksStore()
@@ -885,13 +1086,13 @@ describe('BookmarkStorage', () => {
     })
   })
 
-  describe('saveBookmark', () => {
+  describe('upsertBookmark', () => {
     it('should save a new bookmark to localStorage', async () => {
       // Setup empty localStorage
       localStorageMock.getItem.mockReturnValueOnce(null)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Prepare bookmark data
       const bookmarkKey = 'https://example.com'
@@ -905,13 +1106,12 @@ describe('BookmarkStorage', () => {
       }
 
       // Save the bookmark
-      await bookmarkStorage.saveBookmark(bookmarkKey, bookmarkData)
+      await bookmarkStorage.upsertBookmark(bookmarkKey, bookmarkData)
 
-      // Verify saveBookmarksStore was called with skipValidation
+      // Verify persistBookmarksStore was called with skipValidation
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           data: expect.objectContaining({
             [bookmarkKey]: bookmarkData,
           }),
@@ -930,10 +1130,10 @@ describe('BookmarkStorage', () => {
 
     it('should update an existing bookmark', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Prepare updated bookmark data
       const bookmarkKey = 'https://example.com'
@@ -947,9 +1147,9 @@ describe('BookmarkStorage', () => {
       }
 
       // Save the updated bookmark
-      await bookmarkStorage.saveBookmark(bookmarkKey, updatedBookmarkData)
+      await bookmarkStorage.upsertBookmark(bookmarkKey, updatedBookmarkData)
 
-      // Verify saveBookmarksStore was called
+      // Verify persistBookmarksStore was called
       expect(saveSpy).toHaveBeenCalledTimes(1)
 
       // Get the saved data to verify
@@ -969,7 +1169,7 @@ describe('BookmarkStorage', () => {
 
     it('should update the store metadata timestamp', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Record timestamp before update
       const beforeUpdate = validBookmarksStore.meta.updated!
@@ -990,7 +1190,7 @@ describe('BookmarkStorage', () => {
       }
 
       // Save the bookmark
-      await bookmarkStorage.saveBookmark(bookmarkKey, bookmarkData)
+      await bookmarkStorage.upsertBookmark(bookmarkKey, bookmarkData)
 
       // Get the saved data to verify
       const result = await bookmarkStorage.getBookmarksStore()
@@ -999,10 +1199,10 @@ describe('BookmarkStorage', () => {
       expect(result.meta.updated).toBeGreaterThan(beforeUpdate)
     })
 
-    it('should call getBookmarksStore and saveBookmarksStore methods', async () => {
+    it('should call getBookmarksStore and persistBookmarksStore methods', async () => {
       // Create spies on both methods
       const getSpy = vi.spyOn(bookmarkStorage, 'getBookmarksStore')
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Prepare bookmark data
       const bookmarkKey = 'https://example.com'
@@ -1016,7 +1216,7 @@ describe('BookmarkStorage', () => {
       }
 
       // Save the bookmark
-      await bookmarkStorage.saveBookmark(bookmarkKey, bookmarkData)
+      await bookmarkStorage.upsertBookmark(bookmarkKey, bookmarkData)
 
       // Verify both methods were called
       expect(getSpy).toHaveBeenCalledTimes(1)
@@ -1045,13 +1245,13 @@ describe('BookmarkStorage', () => {
 
       // Expect operation to throw error
       await expect(
-        bookmarkStorage.saveBookmark(bookmarkKey, bookmarkData)
+        bookmarkStorage.upsertBookmark(bookmarkKey, bookmarkData)
       ).rejects.toThrow('Failed to retrieve bookmarks')
     })
 
-    it('should throw error when saveBookmarksStore fails', async () => {
-      // Mock saveBookmarksStore method to fail
-      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+    it('should throw error when persistBookmarksStore fails', async () => {
+      // Mock persistBookmarksStore method to fail
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockImplementationOnce(
         () => {
           throw new Error('Failed to save bookmarks')
         }
@@ -1070,7 +1270,7 @@ describe('BookmarkStorage', () => {
 
       // Expect operation to throw error
       await expect(
-        bookmarkStorage.saveBookmark(bookmarkKey, bookmarkData)
+        bookmarkStorage.upsertBookmark(bookmarkKey, bookmarkData)
       ).rejects.toThrow('Failed to save bookmarks')
     })
   })
@@ -1078,10 +1278,10 @@ describe('BookmarkStorage', () => {
   describe('deleteBookmark', () => {
     it('should delete an existing bookmark from localStorage', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Bookmark key to delete
       const bookmarkKey = 'https://example.com'
@@ -1089,13 +1289,11 @@ describe('BookmarkStorage', () => {
       // Delete the bookmark
       await bookmarkStorage.deleteBookmark(bookmarkKey)
 
-      // Verify saveBookmarksStore was called with skipValidation
+      // Verify persistBookmarksStore was called with skipValidation
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           data: expect.not.objectContaining({
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             [bookmarkKey]: expect.anything(),
           }),
         }),
@@ -1117,7 +1315,7 @@ describe('BookmarkStorage', () => {
 
     it('should update the store metadata timestamp when deleting a bookmark', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Record timestamp before deletion
       const beforeDelete = validBookmarksStore.meta.updated!
@@ -1141,10 +1339,10 @@ describe('BookmarkStorage', () => {
 
     it('should not modify localStorage when bookmark does not exist', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Non-existent bookmark key
       const nonExistentKey = 'https://non-existent.com'
@@ -1152,7 +1350,7 @@ describe('BookmarkStorage', () => {
       // Delete the non-existent bookmark
       await bookmarkStorage.deleteBookmark(nonExistentKey)
 
-      // Verify saveBookmarksStore was not called
+      // Verify persistBookmarksStore was not called
       expect(saveSpy).not.toHaveBeenCalled()
 
       // Get the saved data to verify
@@ -1166,7 +1364,7 @@ describe('BookmarkStorage', () => {
 
     it('should call getBookmarksStore method', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Create a spy on getBookmarksStore method
       const getSpy = vi.spyOn(bookmarkStorage, 'getBookmarksStore')
@@ -1198,12 +1396,12 @@ describe('BookmarkStorage', () => {
       )
     })
 
-    it('should throw error when saveBookmarksStore fails', async () => {
+    it('should throw error when persistBookmarksStore fails', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Mock saveBookmarksStore method to fail
-      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+      // Mock persistBookmarksStore method to fail
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockImplementationOnce(
         () => {
           throw new Error('Failed to save bookmarks')
         }
@@ -1222,10 +1420,10 @@ describe('BookmarkStorage', () => {
   describe('deleteBookmarks', () => {
     it('should delete multiple existing bookmarks from localStorage', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Bookmark keys to delete
       const bookmarkKeysToDelete = ['https://example.com', 'https://test.org']
@@ -1233,15 +1431,13 @@ describe('BookmarkStorage', () => {
       // Delete the bookmarks
       await bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
 
-      // Verify saveBookmarksStore was called with skipValidation
+      // Verify persistBookmarksStore was called with skipValidation
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           data: expect.not.objectContaining({
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             'https://example.com': expect.anything(),
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
             'https://test.org': expect.anything(),
           }),
         }),
@@ -1258,7 +1454,7 @@ describe('BookmarkStorage', () => {
 
     it('should update the store metadata timestamp when deleting multiple bookmarks', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Record timestamp before deletion
       const beforeDelete = validBookmarksStore.meta.updated!
@@ -1282,10 +1478,10 @@ describe('BookmarkStorage', () => {
 
     it('should not modify localStorage when no bookmarks are deleted (keys do not exist)', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Non-existent bookmark keys
       const nonExistentKeys = [
@@ -1296,7 +1492,7 @@ describe('BookmarkStorage', () => {
       // Delete the non-existent bookmarks
       await bookmarkStorage.deleteBookmarks(nonExistentKeys)
 
-      // Verify saveBookmarksStore was not called
+      // Verify persistBookmarksStore was not called
       expect(saveSpy).not.toHaveBeenCalled()
 
       // Get the saved data to verify
@@ -1310,15 +1506,15 @@ describe('BookmarkStorage', () => {
 
     it('should not modify localStorage when provided with an empty array of keys', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Delete with empty array
       await bookmarkStorage.deleteBookmarks([])
 
-      // Verify saveBookmarksStore was not called
+      // Verify persistBookmarksStore was not called
       expect(saveSpy).not.toHaveBeenCalled()
 
       // Get the saved data to verify
@@ -1332,7 +1528,7 @@ describe('BookmarkStorage', () => {
 
     it('should call getBookmarksStore method', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Create a spy on getBookmarksStore method
       const getSpy = vi.spyOn(bookmarkStorage, 'getBookmarksStore')
@@ -1364,12 +1560,12 @@ describe('BookmarkStorage', () => {
       ).rejects.toThrow('Failed to retrieve bookmarks')
     })
 
-    it('should throw error when saveBookmarksStore fails', async () => {
+    it('should throw error when persistBookmarksStore fails', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Mock saveBookmarksStore method to fail
-      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+      // Mock persistBookmarksStore method to fail
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockImplementationOnce(
         () => {
           throw new Error('Failed to save bookmarks')
         }
@@ -1386,10 +1582,10 @@ describe('BookmarkStorage', () => {
 
     it('should delete a mix of existing and non-existing bookmarks', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Bookmark keys to delete, including one that doesn't exist
       const bookmarkKeysToDelete = [
@@ -1400,7 +1596,7 @@ describe('BookmarkStorage', () => {
       // Delete the bookmarks
       await bookmarkStorage.deleteBookmarks(bookmarkKeysToDelete)
 
-      // Verify saveBookmarksStore was called (because at least one existed)
+      // Verify persistBookmarksStore was called (because at least one existed)
       expect(saveSpy).toHaveBeenCalledTimes(1)
 
       // Get the saved data to verify
@@ -1416,7 +1612,7 @@ describe('BookmarkStorage', () => {
   describe('exportBookmarks', () => {
     it('should export bookmarks as a formatted JSON string', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Export the bookmarks
       const exportedJson = await bookmarkStorage.exportBookmarks()
@@ -1436,7 +1632,7 @@ describe('BookmarkStorage', () => {
 
     it('should add an exported timestamp to the metadata', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Export the bookmarks
       const exportedJson = await bookmarkStorage.exportBookmarks()
@@ -1456,7 +1652,7 @@ describe('BookmarkStorage', () => {
 
     it('should format the JSON with indentation for readability', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Export the bookmarks
       const exportedJson = await bookmarkStorage.exportBookmarks()
@@ -1465,7 +1661,7 @@ describe('BookmarkStorage', () => {
       expect(exportedJson).toContain('\n  ') // Check for indented lines
 
       // Verify the JSON is properly formatted
-      const formattedJson = JSON.stringify(validBookmarksStore, null, 2)
+      const formattedJson = prettyPrintJson(validBookmarksStore)
 
       // The exported JSON should have similar formatting (ignoring the exported timestamp)
       expect(exportedJson.length).toBeGreaterThan(formattedJson.length - 100) // Approximate check
@@ -1518,8 +1714,8 @@ describe('BookmarkStorage', () => {
       // Setup empty localStorage
       localStorageMock.getItem.mockReturnValueOnce(null)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Prepare import data
       const importData = {
@@ -1555,7 +1751,7 @@ describe('BookmarkStorage', () => {
       // Import the bookmarks
       await bookmarkStorage.importBookmarks(jsonData)
 
-      // Verify saveBookmarksStore was called with the correct data
+      // Verify persistBookmarksStore was called with the correct data
       expect(saveSpy).toHaveBeenCalledTimes(1)
       expect(saveSpy).toHaveBeenCalledWith(importData, true)
 
@@ -1586,8 +1782,8 @@ describe('BookmarkStorage', () => {
       const invalidData = { foo: 'bar' }
       const jsonData = JSON.stringify(invalidData)
 
-      // Mock saveBookmarksStore to simulate validation failure
-      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+      // Mock persistBookmarksStore to simulate validation failure
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockImplementationOnce(
         () => {
           throw new Error('Invalid bookmark store format')
         }
@@ -1645,8 +1841,8 @@ describe('BookmarkStorage', () => {
       }
       const jsonData = JSON.stringify(incompatibleData)
 
-      // Mock saveBookmarksStore to simulate version incompatibility
-      vi.spyOn(bookmarkStorage, 'saveBookmarksStore').mockImplementationOnce(
+      // Mock persistBookmarksStore to simulate version incompatibility
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockImplementationOnce(
         () => {
           throw new Error('Incompatible database version')
         }
@@ -1704,7 +1900,7 @@ describe('BookmarkStorage', () => {
 
     it('should merge imported bookmarks with existing ones', async () => {
       // Setup localStorage with existing data
-      await bookmarkStorage.saveBookmarksStore(validBookmarksStore)
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
 
       // Prepare import data with a new bookmark
       const importData = {
@@ -1728,13 +1924,13 @@ describe('BookmarkStorage', () => {
       // Convert to JSON string
       const jsonData = JSON.stringify(importData)
 
-      // Create a spy on saveBookmarksStore method
-      const saveSpy = vi.spyOn(bookmarkStorage, 'saveBookmarksStore')
+      // Create a spy on persistBookmarksStore method
+      const saveSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
 
       // Import the bookmarks
       await bookmarkStorage.importBookmarks(jsonData)
 
-      // Verify saveBookmarksStore was called
+      // Verify persistBookmarksStore was called
       expect(saveSpy).toHaveBeenCalledTimes(1)
 
       // Get the saved data to verify

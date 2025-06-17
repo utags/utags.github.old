@@ -1,36 +1,69 @@
 /**
- * The metadata of a bookmark.
+ * Represents the metadata associated with a bookmark.
+ * This type includes standard fields and allows for arbitrary, user-defined fields via an index signature.
  */
 export type BookmarkMetadata = {
+  /**
+   * Index signature allowing for arbitrary, dynamically-defined key-value pairs.
+   * This provides flexibility for users or extensions to add custom metadata fields to bookmarks.
+   * Keys are strings, and values can be of any type.
+   * Example: `customField: 'customValue'`, `priority: 1`
+   */
+  [key: string]: any
+  /** The primary URL of the bookmark. This is typically the direct link to the bookmarked content. Optional. */
+  url?: string
+  /** The main title of the bookmark. Optional. */
   title?: string
-  // TODO: add short title in addBookmark.svelte
+  /** An optional shorter version of the title, suitable for display in constrained spaces. */
   shortTitle?: string
+  /** An optional user-provided description of the bookmark. */
   description?: string
+  /** Optional personal notes or annotations related to the bookmark. */
   note?: string
+  /** The URL of the favicon for the bookmarked page. Optional. */
   favicon?: string
+  /** The URL of a cover image or a representative image for the bookmark. Optional. */
   coverImage?: string
+  /**
+   * The canonical or main URL if the `url` field points to a specific part or version of a larger resource.
+   * For example, if `url` is a deep link, `mainUrl` could be the homepage of the site. Optional.
+   */
   mainUrl?: string
   /**
-   * The timestamp of the creation of the bookmark.
-   * This value is set once when the bookmark is first created and should not change.
+   * Timestamp (in milliseconds since the UNIX epoch) indicating when the bookmark was initially created.
+   * This value is set once upon creation and should remain immutable.
    */
   created: number
   /**
-   * The timestamp of the last manual edit of the bookmark by the user.
-   * This includes changes to title, URL, tags, description, notes, etc., through the edit interface.
-   * It does NOT update on automated processes like sync, import, or batch operations unless those operations explicitly mimic a user edit.
+   * Timestamp (in milliseconds since the UNIX epoch) of the last manual edit by the user.
+   * This includes direct modifications to fields like title, URL, tags, description, or notes via the application's edit interface.
+   * It should NOT be updated by automated processes such as sync, import, or batch operations unless those operations are explicitly designed to mimic a direct user edit.
    */
   updated: number
   /**
-   * The timestamp of the last modification of the bookmark, regardless of the source.
-   * This field is updated on any change to the bookmark's data, including:
-   * - Manual user edits (same as 'updated').
-   * - Automated processes like synchronization with a remote server.
-   * - Bulk operations (e.g., batch tagging, batch deletion/restoration).
-   * - Import processes that might update existing bookmarks.
-   * This timestamp is useful for determining the most recent state of a bookmark for sync conflict resolution or general data auditing.
+   * Timestamp (in milliseconds since the UNIX epoch) of the last modification to the bookmark, regardless of the source.
+   * This field is updated upon ANY change to the bookmark's data, including:
+   *  - Manual user edits (will be the same as 'updated').
+   *  - Automated processes like synchronization with a remote server.
+   *  - Bulk operations (e.g., batch tagging, batch deletion/restoration).
+   *  - Import processes that might update or overwrite existing bookmark data.
+   * This timestamp is crucial for determining the most recent state of a bookmark, especially for sync conflict resolution and data auditing purposes.
    */
   updated2?: number
+  /**
+   * Timestamp (in milliseconds since the UNIX epoch) indicating when the bookmark was soft-deleted.
+   * A value here signifies that the bookmark is marked as deleted but may still be recoverable.
+   * Undefined or 0 if the bookmark is active. Optional.
+   */
+  deleted?: number
+  /** Optional: The IETF language tag (e.g., "en", "zh-CN") for the content of the bookmark. */
+  lang?: string
+  /** Optional: A user-defined numerical rating for the bookmark. */
+  rating?: number
+  /** Optional: A boolean flag indicating whether the user has marked this bookmark as read. */
+  read?: boolean
+  /** Optional: A string indicating the source or method by which the bookmark was added (e.g., "import", "manual", "extension"). */
+  source?: string
 }
 
 /**

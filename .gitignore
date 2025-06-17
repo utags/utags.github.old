@@ -25,4 +25,5 @@ dist-ssr
 
 ._*
 mock-data.json
+mock-server/.mock-data/
 coverage/*

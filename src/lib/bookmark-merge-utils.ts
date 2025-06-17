@@ -2,7 +2,7 @@ import {
   type BookmarkTagsAndMetadata,
   type BookmarksData,
 } from '../types/bookmarks.js'
-import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
+import { DELETED_BOOKMARK_TAG, DEFAULT_DATE } from '../config/constants.js'
 import {
   type MergeMetaStrategy,
   type MergeTagsStrategy,
@@ -63,10 +63,10 @@ function normalizeBookmark(
   const { created, updated } = meta
 
   if (!isValidDate(created)) {
-    meta.created = defaultDate
+    meta.created = defaultDate || DEFAULT_DATE
     // When created is invalid, updated should also be set to defaultDate,
     // as 'updated' should not be earlier than 'created'.
-    meta.updated = defaultDate
+    meta.updated = defaultDate || DEFAULT_DATE
   } else if (!isValidDate(updated)) {
     meta.updated = created
   }
@@ -103,7 +103,11 @@ function isValid(
   lastSyncTime: number
 ): data is BookmarkTagsAndMetadata {
   // Type predicate to narrow down type
-  return Boolean(data) && getUpdated(data!.meta) >= lastSyncTime
+  if (!data || !data.meta) {
+    return false
+  }
+
+  return getUpdated(data.meta) >= lastSyncTime
 }
 
 /**
@@ -159,6 +163,7 @@ export async function mergeBookmarks(
   const allUrls = Array.from(
     new Set([...Object.keys(localData), ...Object.keys(remoteData)])
   )
+  // TODO: 过滤非正常 URL
 
   const batchSize = 100 // Process 100 URLs per batch
 
@@ -205,7 +210,7 @@ export async function mergeBookmarks(
             // simply ignored or keep local data.
             // This case is handled by the fact that 'merged[url]' won't be set.
             // If it was previously deleted and now both are invalid, it remains deleted.
-            // Since we will use `BookmarkStorage.updateBookmarks` to update the bookmarks,
+            // Since we will use `BookmarkStorage.upsertBookmarks` to update the bookmarks,
             // this case will be handled correctly.
           }
         } else if (local && !remote) {

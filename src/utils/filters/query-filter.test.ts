@@ -1090,7 +1090,6 @@ describe('createQueryFilterCondition', () => {
       ).toBe(false)
       // 处理 null 标题
       expect(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         filter('https://example.com', [], { title: null as any, ...testMeta })
       ).toBe(false)
       // 处理空标题

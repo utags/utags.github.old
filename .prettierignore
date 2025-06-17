@@ -9,5 +9,5 @@ dist/*
 coverage/*
 src/paraglide/**
 
-src/sync/**
 srs/sync2/**
+src/sync3/**

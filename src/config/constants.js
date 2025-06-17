@@ -29,3 +29,4 @@ export const OR_CONDITION_DELIMITER = ','
 export const DELETED_BOOKMARK_TAG = '._DELETED_'
 export const STARRED_BOOKMARK_TAG = '._STARRED_'
 export const ARCHIVED_BOOKMARK_TAG = '._ARCHIVED_'
+export const DEFAULT_DATE = 946_684_800_000 // new Date('2000-01-01T00:00:00Z').getTime()

@@ -15,6 +15,9 @@ export const appConfig = Object.freeze({
   title: 'uTags', // Website title
   // Other configs
   maxBookmarksPerPage: 100,
+  githubApiUrl: 'http://localhost:3002',
+  // githubApiUrl: 'https://api.github.com',
+  customApiUrl: '',
   // Don't change after this unless you know what you are doing
   preferQueryString: false,
   base: '/',

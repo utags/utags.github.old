@@ -15,6 +15,7 @@ import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { getHostName } from '../utils/url-utils.js'
 import { convertDate, isValidDate } from '../utils/date.js'
+import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import {
   type MergeMetaStrategy,
   type MergeTagsStrategy,
@@ -126,7 +127,7 @@ export function exportData(bookmarksData?: BookmarksData) {
     }
   }
 
-  const dataString = JSON.stringify(bookmarksStore, null, 2)
+  const dataString = prettyPrintJson(bookmarksStore)
   const blob = new Blob([dataString], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

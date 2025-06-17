@@ -207,10 +207,12 @@
         syncOption
       )
 
-      // Delete bookmarks first
-      await bookmarkStorage.deleteBookmarks(deleted)
+      if (deleted.length > 0) {
+        // Delete bookmarks first
+        await bookmarkStorage.deleteBookmarks(deleted)
+      }
       // Update bookmarks
-      await bookmarkStorage.updateBookmarks(Object.entries(merged))
+      await bookmarkStorage.upsertBookmarks(Object.entries(merged))
 
       // Dispatch import finished event with stats (can be enhanced)
       const importFinishedEvent = new CustomEvent('importFinished', {

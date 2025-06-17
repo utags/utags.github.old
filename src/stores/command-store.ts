@@ -7,12 +7,12 @@ import { bookmarkStorage } from '../lib/bookmark-storage.js'
  * Manages command history and undo/redo operations for tag commands
  */
 export const commandManager = new CommandManager(
-  async (urls: string[]) => bookmarkStorage.getBookmarksAsArrayByKeys(urls),
+  async (urls: string[]) => bookmarkStorage.getBookmarkEntriesByKeys(urls),
   // Optional persistence callback
   async (bookmarks: BookmarkKeyValuePair[]) => {
     // 使用 bookmarkStorage 进行持久化
     try {
-      await bookmarkStorage.updateBookmarks(bookmarks)
+      await bookmarkStorage.upsertBookmarks(bookmarks)
     } catch (error) {
       console.error('Failed to persist bookmarks:', error)
       throw error

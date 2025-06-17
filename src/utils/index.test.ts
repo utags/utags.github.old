@@ -1034,7 +1034,7 @@ describe('isNonNullObject', () => {
   it('should handle edge cases correctly', () => {
     // Test with object created with Object.create(null)
     // This creates an object with no prototype
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     const noProtoObject = Object.create(null)
     expect(isNonNullObject(noProtoObject)).toBe(true)
 

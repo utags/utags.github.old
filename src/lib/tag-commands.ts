@@ -909,3 +909,5 @@ export class CompositeTagCommand implements TagCommand {
     return this.timestamp
   }
 }
+
+// TODO: update 'updated2' value

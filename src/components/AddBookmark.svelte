@@ -276,7 +276,7 @@
         delete $bookmarks.data[orgUrl]
       }
     }
-
+    $bookmarks.meta.updated = Date.now()
     console.log('addBookmark/updateBookmark', $bookmarks.data[url])
     bookmarks.set($bookmarks)
     close()

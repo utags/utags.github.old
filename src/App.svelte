@@ -33,7 +33,12 @@
   } from './utils/bookmark-actions.js'
   import appConfig from './config/app-config.js'
   import { HASH_DELIMITER, DELETED_BOOKMARK_TAG } from './config/constants.js'
-  import * as m from './paraglide/messages'
+  import { SyncManager } from './sync/sync-manager.js'
+  import {
+    initAutoSyncScheduler,
+    stopAutoSyncScheduler,
+  } from './sync/auto-sync-scheduler.js'
+  import * as m from './paraglide/messages.js'
   import Header from './components/Header.svelte'
   import NavigationSidebar from './components/NavigationSidebar.svelte'
   import AddBookmark from './components/AddBookmark.svelte'
@@ -54,6 +59,7 @@
   })
 
   initializeStores()
+  const syncManager = new SyncManager()
 
   document.documentElement.lang = getLocale()
 
@@ -241,9 +247,12 @@
     // 初始化时触发一次
     locationChangeHandler()
     updateFilterComponentsCount()
+    initAutoSyncScheduler(syncManager)
 
     return () => {
       console.log('onDestroy - cleaning up')
+      stopAutoSyncScheduler()
+      syncManager.destroy()
       // 移除事件监听器
       removeEventListener(globalThis, 'locationchange', locationChangeHandler)
       removeEventListener(globalThis, 'resize', windowResizeHandler)

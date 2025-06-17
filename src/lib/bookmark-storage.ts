@@ -7,6 +7,7 @@ import type {
   BookmarkKey,
 } from '../types/bookmarks.js'
 import { isNonNullObject } from '../utils/index.js'
+import { prettyPrintJson } from '../utils/pretty-print-json.js'
 
 /**
  * Bookmark Storage Service
@@ -37,14 +38,14 @@ export class BookmarkStorage {
   }
 
   /**
-   * Saves bookmark store data to local storage
+   * Persists the entire bookmark store (data and metadata) to local storage.
    *
-   * @param bookmarksStore - The bookmark store data to save
-   * @param skipValidation - Whether to skip validation (useful for internal calls)
-   * @returns A promise that resolves when the data has been saved
-   * @throws Error if saving fails or data is invalid
+   * @param bookmarksStore - The complete bookmark store object to save.
+   * @param skipValidation - If true, skips the validation step. Useful for internal calls where data is already validated.
+   * @returns A promise that resolves when the data has been successfully saved.
+   * @throws Error if saving fails or if data is invalid (and validation is not skipped).
    */
-  async saveBookmarksStore(
+  async persistBookmarksStore(
     bookmarksStore: BookmarksStore,
     skipValidation = false
   ): Promise<void> {
@@ -66,11 +67,11 @@ export class BookmarkStorage {
   }
 
   /**
-   * Retrieves bookmark store data from local storage
+   * Retrieves the entire bookmark store (data and metadata) from local storage.
    *
-   * @returns A promise that resolves with the bookmark store data
-   * If no data exists, returns an initialized empty store
-   * @throws Error if the database version is incompatible or validation fails
+   * @returns A promise that resolves with the `BookmarksStore` object.
+   * If no data exists in local storage, it returns an initialized empty store.
+   * @throws Error if the stored data has an incompatible database version or if validation fails.
    */
   async getBookmarksStore(): Promise<BookmarksStore> {
     try {
@@ -91,9 +92,54 @@ export class BookmarkStorage {
   }
 
   /**
-   * Retrieves the 'data' part of the bookmark store.
+   * Replaces the entire `data` field within the bookmark store with the provided `BookmarksData`.
+   * This method overwrites any existing bookmarks data, but preserves other metadata.
+   * The `updated` timestamp in the store's metadata will be set to the current time.
    *
-   * @returns A promise that resolves with the BookmarksData.
+   * @param data - The new `BookmarksData` object to set as the store's data.
+   * @returns A promise that resolves when the data has been successfully overwritten and the store persisted.
+   * @throws Error if retrieving the current store or persisting the updated store fails.
+   */
+  async overwriteBookmarks(data: BookmarksData): Promise<void> {
+    try {
+      const bookmarksStore = await this.getBookmarksStore()
+
+      // Replace the existing bookmarks data
+      bookmarksStore.data = data
+
+      // Update the last modified timestamp
+      bookmarksStore.meta.updated = Date.now()
+
+      // Save the updated store, skipping validation as we are directly setting validated data structure (conceptually)
+      await this.persistBookmarksStore(bookmarksStore, true)
+    } catch (error) {
+      console.error('Failed to save bookmarks data with new data:', error) // More specific error message
+      throw error
+    }
+  }
+
+  /**
+   * Updates existing bookmarks or adds new ones based on the provided `BookmarksData` object.
+   * This method effectively merges the provided data into the existing bookmarks data.
+   * It converts the `BookmarksData` object into an array of key-value pairs and then calls `upsertBookmarks`.
+   *
+   * @param data - The `BookmarksData` object containing bookmarks to be updated or added.
+   * @returns A promise that resolves when the bookmarks have been successfully upserted and the store persisted.
+   * @throws Error if any part of the process (retrieving store, upserting, persisting) fails.
+   */
+  async upsertBookmarksFromData(data: BookmarksData): Promise<void> {
+    // Convert BookmarksData object to an array of key-value pairs for the upsertBookmarks method
+    const bookmarksToUpdate: BookmarkKeyValuePair[] = Object.entries(
+      data
+    ) as BookmarkKeyValuePair[]
+    // The upsertBookmarks method handles fetching the store, merging data, updating timestamp, and saving.
+    await this.upsertBookmarks(bookmarksToUpdate)
+  }
+
+  /**
+   * Retrieves only the `data` part (the actual bookmarks) from the bookmark store.
+   *
+   * @returns A promise that resolves with the `BookmarksData` object.
    * @throws Error if retrieving or validating the bookmark store fails.
    */
   async getBookmarksData(): Promise<BookmarksData> {
@@ -102,12 +148,13 @@ export class BookmarkStorage {
   }
 
   /**
-   * Retrieves all bookmarks as an array of key-value pairs
+   * Retrieves all bookmarks from the store's `data` field as an array of key-value pairs (entries).
    *
-   * @returns A promise that resolves with an array of bookmark key-value pairs
-   * Returns an empty array if retrieval fails
+   * @returns A promise that resolves with an array of `BookmarkKeyValuePair`.
+   * Returns an empty array if the store is empty or if retrieval fails (error will be logged).
+   * @throws Error if retrieving or validating the bookmark store fails (propagated from `getBookmarksStore`).
    */
-  async getBookmarksAsArray(): Promise<BookmarkKeyValuePair[]> {
+  async getAllBookmarksAsEntries(): Promise<BookmarkKeyValuePair[]> {
     try {
       const bookmarksStore = await this.getBookmarksStore()
       return Object.entries(bookmarksStore.data) as BookmarkKeyValuePair[]
@@ -118,13 +165,14 @@ export class BookmarkStorage {
   }
 
   /**
-   * Retrieves specific bookmarks as an array of key-value pairs based on provided keys
+   * Retrieves specific bookmarks as an array of key-value pairs (entries) based on the provided keys.
    *
-   * @param bookmarkKeys - Array of bookmark URLs to retrieve
-   * @returns A promise that resolves with an array of requested bookmark key-value pairs
-   * @throws Error if retrieval fails
+   * @param bookmarkKeys - An array of `BookmarkKey` (URLs) to retrieve.
+   * @returns A promise that resolves with an array of `BookmarkKeyValuePair` for the found bookmarks.
+   * Bookmarks not found for the given keys are silently ignored.
+   * @throws Error if retrieving or validating the bookmark store fails (propagated from `getBookmarksStore`).
    */
-  async getBookmarksAsArrayByKeys(
+  async getBookmarkEntriesByKeys(
     bookmarkKeys: BookmarkKey[]
   ): Promise<BookmarkKeyValuePair[]> {
     try {
@@ -142,15 +190,15 @@ export class BookmarkStorage {
   }
 
   /**
-   * Updates multiple bookmarks in batch
+   * Updates multiple existing bookmarks or adds new ones in batch.
+   * The `updated` timestamp in the store's metadata will be set to the current time.
    *
-   * @param bookmarks - An array of bookmark key-value pairs to update
-   * @returns A promise that resolves when all bookmarks have been updated
-   * @throws Error if updating fails
+   * @param bookmarks - An array of `BookmarkKeyValuePair` to update or add.
+   * @returns A promise that resolves when all bookmarks have been successfully upserted and the store persisted.
+   * @throws Error if retrieving the current store or persisting the updated store fails.
    */
-  async updateBookmarks(bookmarks: BookmarkKeyValuePair[]): Promise<void> {
+  async upsertBookmarks(bookmarks: BookmarkKeyValuePair[]): Promise<void> {
     try {
-      console.log('updateBookmarks', bookmarks)
       const bookmarksStore = await this.getBookmarksStore()
 
       // Update bookmark data
@@ -161,7 +209,7 @@ export class BookmarkStorage {
       // Update the last modified timestamp
       bookmarksStore.meta.updated = Date.now()
 
-      await this.saveBookmarksStore(bookmarksStore, true)
+      await this.persistBookmarksStore(bookmarksStore, true)
     } catch (error) {
       console.error('Failed to update bookmarks in batch:', error)
       throw error
@@ -169,14 +217,15 @@ export class BookmarkStorage {
   }
 
   /**
-   * Saves a single bookmark to local storage
+   * Updates a single existing bookmark or adds a new one.
+   * The `updated` timestamp in the store's metadata will be set to the current time.
    *
-   * @param key - The URL of the bookmark
-   * @param entry - The tags and metadata of the bookmark
-   * @returns A promise that resolves when the bookmark has been saved
-   * @throws Error if saving fails
+   * @param key - The `BookmarkKey` (URL) of the bookmark.
+   * @param entry - The `BookmarkTagsAndMetadata` for the bookmark.
+   * @returns A promise that resolves when the bookmark has been successfully upserted and the store persisted.
+   * @throws Error if retrieving the current store or persisting the updated store fails.
    */
-  async saveBookmark(
+  async upsertBookmark(
     key: BookmarkKey,
     entry: BookmarkTagsAndMetadata
   ): Promise<void> {
@@ -189,7 +238,7 @@ export class BookmarkStorage {
       // Update the last modified timestamp
       bookmarksStore.meta.updated = Date.now()
 
-      await this.saveBookmarksStore(bookmarksStore, true)
+      await this.persistBookmarksStore(bookmarksStore, true)
     } catch (error) {
       console.error('Failed to save bookmark:', error)
       throw error
@@ -197,11 +246,12 @@ export class BookmarkStorage {
   }
 
   /**
-   * Deletes bookmarks from storage
+   * Deletes multiple bookmarks from the store based on their keys.
+   * If any bookmarks are deleted, the `updated` timestamp in the store's metadata will be set to the current time.
    *
-   * @param keys - The list of URL of the bookmarks to delete
-   * @returns A promise that resolves when the bookmarks has been deleted
-   * @throws Error if deletion fails
+   * @param keys - An array of `BookmarkKey` (URLs) of the bookmarks to delete.
+   * @returns A promise that resolves when the bookmarks have been deleted and the store (if changed) has been persisted.
+   * @throws Error if retrieving the current store or persisting the updated store fails.
    */
   async deleteBookmarks(keys: BookmarkKey[]): Promise<void> {
     try {
@@ -220,7 +270,7 @@ export class BookmarkStorage {
       if (deletedCount > 0) {
         // Update the last modified timestamp
         bookmarksStore.meta.updated = Date.now()
-        await this.saveBookmarksStore(bookmarksStore, true)
+        await this.persistBookmarksStore(bookmarksStore, true)
       }
     } catch (error) {
       console.error('Failed to delete bookmarks:', error)
@@ -229,11 +279,12 @@ export class BookmarkStorage {
   }
 
   /**
-   * Deletes a bookmark from storage
+   * Deletes a single bookmark from the store based on its key.
+   * This is a convenience method that calls `deleteBookmarks` with a single key.
    *
-   * @param key - The URL of the bookmark to delete
-   * @returns A promise that resolves when the bookmark has been deleted
-   * @throws Error if deletion fails
+   * @param key - The `BookmarkKey` (URL) of the bookmark to delete.
+   * @returns A promise that resolves when the bookmark has been deleted.
+   * @throws Error if deletion fails (propagated from `deleteBookmarks`).
    */
   async deleteBookmark(key: BookmarkKey): Promise<void> {
     try {
@@ -246,10 +297,11 @@ export class BookmarkStorage {
   }
 
   /**
-   * Exports bookmarks store as a JSON string
+   * Exports the entire bookmark store as a JSON string, pretty-printed for readability.
+   * The `exported` timestamp in the store's metadata will be set to the current time before export.
    *
-   * @returns A promise that resolves with the bookmarks store as a JSON string
-   * @throws Error if export fails
+   * @returns A promise that resolves with the bookmarks store as a JSON string.
+   * @throws Error if retrieving the store or JSON stringification fails.
    */
   async exportBookmarks(): Promise<string> {
     try {
@@ -258,7 +310,7 @@ export class BookmarkStorage {
       // Update export timestamp
       bookmarksStore.meta.exported = Date.now()
 
-      return JSON.stringify(bookmarksStore, null, 2) // Pretty print for export
+      return prettyPrintJson(bookmarksStore)
     } catch (error) {
       console.error('Failed to export bookmarks:', error)
       throw error
@@ -266,11 +318,15 @@ export class BookmarkStorage {
   }
 
   /**
-   * Imports bookmarks from a JSON string
+   * Imports bookmarks from a JSON string representing a `BookmarksStore`.
+   * The imported bookmarks are merged with the existing bookmarks data.
+   * Metadata from the imported store (except for `updated` timestamp) is also merged.
+   * The `updated` timestamp of the current store is NOT modified by this import directly,
+   * but `persistBookmarksStore` will update it if data changes.
    *
-   * @param jsonData - The JSON string containing bookmarks data
-   * @returns A promise that resolves when the import is complete
-   * @throws Error if import fails or data is invalid
+   * @param jsonData - The JSON string containing the `BookmarksStore` data to import.
+   * @returns A promise that resolves when the import is complete and the merged store has been persisted.
+   * @throws Error if parsing the JSON, validating the imported data, or persisting the store fails.
    */
   async importBookmarks(jsonData: string): Promise<void> {
     try {
@@ -296,7 +352,7 @@ export class BookmarkStorage {
       }
 
       // Save the merged data (skip validation as we already validated)
-      await this.saveBookmarksStore(mergedStore, true)
+      await this.persistBookmarksStore(mergedStore, true)
 
       console.log('Bookmarks imported successfully')
     } catch (error) {
@@ -422,7 +478,7 @@ export class BookmarkStorage {
     if (saveAfterMigration) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        this.saveBookmarksStore(newStore, true) // Skip validation as we just validated
+        this.persistBookmarksStore(newStore, true) // Skip validation as we just validated
       } catch (error) {
         console.error('Failed to save migrated bookmarks:', error)
       }
