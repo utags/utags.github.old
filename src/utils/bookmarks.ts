@@ -1,8 +1,10 @@
 import { splitTags } from 'utags-utils'
 import type {
   BookmarkKeyValuePair,
+  BookmarkTagsAndMetadata,
   TagHierarchyItem,
 } from '../types/bookmarks.js'
+import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
 import { getHostName } from './url-utils.js'
 
 /**
@@ -231,4 +233,31 @@ export function filterBookmarksByUrls(
   urls: string[]
 ): BookmarkKeyValuePair[] {
   return bookmarks.filter(([url]) => urls.includes(url))
+}
+
+/**
+ * Checks if a bookmark is marked as deleted.
+ * A bookmark is considered deleted if its tags array includes the 'DELETED_BOOKMARK_TAG'.
+ * @param {BookmarkTagsAndMetadata | string[] | undefined | null} data - The bookmark data or tags array to check.
+ * @returns {boolean} True if the bookmark is marked as deleted, false otherwise.
+ */
+export function isMarkedAsDeleted(
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  data: BookmarkTagsAndMetadata | string[] | undefined | null
+): boolean {
+  if (!data) {
+    return false
+  }
+
+  // Check if data is an array of strings (tags array)
+  if (Array.isArray(data)) {
+    return data.includes(DELETED_BOOKMARK_TAG)
+  }
+
+  // Check if data is BookmarkTagsAndMetadata and has a tags property
+  if (typeof data === 'object' && Array.isArray(data.tags)) {
+    return data.tags.includes(DELETED_BOOKMARK_TAG)
+  }
+
+  return false
 }

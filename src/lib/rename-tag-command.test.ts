@@ -56,6 +56,9 @@ describe('RenameTagCommand', () => {
       'test',
       'testing'
     )
+    const timestampBeforExecute = Date.now()
+
+    expect(testBookmarks[0][1].meta.updated2).toBeUndefined()
 
     // Execute command
     command.execute(testBookmarks)
@@ -71,6 +74,10 @@ describe('RenameTagCommand', () => {
     expect(testBookmarks[0][1].tags).not.toContain('test')
     expect(testBookmarks[0][1].tags).toContain('testing')
     expect(testBookmarks[0][1].tags).toEqual(['example', 'common', 'testing'])
+    expect(testBookmarks[0][1].meta.updated2).toBeTypeOf('number')
+    expect(testBookmarks[0][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforExecute
+    )
     expect(testBookmarks[1][1].tags).not.toContain('test')
     expect(testBookmarks[1][1].tags).toContain('testing')
     expect(testBookmarks[1][1].tags).toEqual([
@@ -95,6 +102,8 @@ describe('RenameTagCommand', () => {
     ])
     expect(originalStates.has('https://other.net')).toBe(false)
 
+    const timestampBeforUndo = Date.now()
+
     // Undo command
     command.undo(testBookmarks)
 
@@ -102,6 +111,9 @@ describe('RenameTagCommand', () => {
     expect(testBookmarks[0][1].tags).toContain('test')
     expect(testBookmarks[0][1].tags).not.toContain('testing')
     expect(testBookmarks[0][1].tags).toEqual(['example', 'test', 'common'])
+    expect(testBookmarks[0][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforUndo
+    )
     expect(testBookmarks[1][1].tags).toContain('test')
     expect(testBookmarks[1][1].tags).not.toContain('testing')
     expect(testBookmarks[1][1].tags).toEqual(['test', 'organization', 'common'])

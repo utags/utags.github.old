@@ -229,7 +229,7 @@ function initializeSyncServices() {
   }
   settingsStore.set({
     // syncServices: [baseConfig, githubConfig, webdavConfig, extensionConfig],
-    syncServices: [extensionConfig],
+    syncServices: [baseConfig, extensionConfig],
     activeSyncServiceId: baseConfig.id,
   })
 }

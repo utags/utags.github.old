@@ -406,6 +406,7 @@ describe('batchDeleteBookmarks', () => {
     const originalBookmarkState = structuredClone(
       copyOfSampleBookmarks.data[url]
     )
+    expect(originalBookmarkState.meta.updated2).toBeUndefined()
 
     // Act: Soft delete the bookmark
     const result = await batchDeleteBookmarks(url, { skipConfirmation: true })
@@ -416,6 +417,12 @@ describe('batchDeleteBookmarks', () => {
     const bookmarksAfterDelete = getBookmarksStore()
     expect(bookmarksAfterDelete.data[url].tags).toContain(DELETED_BOOKMARK_TAG)
     expect(bookmarksAfterDelete.data[url].deletedMeta).toBeDefined()
+    expect(bookmarksAfterDelete.data[url].meta.updated).toEqual(
+      originalBookmarkState.meta.updated
+    )
+    expect(bookmarksAfterDelete.data[url].meta.updated2).toBeGreaterThan(
+      originalBookmarkState.meta.updated
+    )
 
     // Call the undo function
     if (result.undo) {
@@ -431,6 +438,11 @@ describe('batchDeleteBookmarks', () => {
     expect(restoredBookmark.deletedMeta).toBeUndefined()
     // Check if other properties are preserved (they should be, as soft delete only adds tags/meta)
     expect(restoredBookmark.tags).toEqual(originalBookmarkState.tags)
+    expect(restoredBookmark.meta.updated2).toBeGreaterThanOrEqual(
+      bookmarksAfterDelete.data[url].meta.updated2!
+    )
+    // Remove updated2
+    delete restoredBookmark.meta?.updated2
     expect(restoredBookmark.meta).toEqual(originalBookmarkState.meta)
   })
 

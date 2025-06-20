@@ -21,9 +21,11 @@ import {
   type BookmarkMetadata,
   type BookmarkTagsAndMetadata,
   type BookmarksData,
+  type BookmarksStore,
 } from '../types/bookmarks.js'
 import { mockEventListener } from '../utils/test/mock-event-listener.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
+import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import {
   mergeBookmarks,
@@ -77,16 +79,16 @@ class MockSyncAdapter implements SyncAdapter {
   }
 
   // Mocked methods - these will be spied on and customized in tests
-  init: vi.Mock<Promise<void>, [SyncServiceConfig]>
-  upload: vi.Mock<Promise<SyncMetadata>, [string, SyncMetadata?]>
-  download: vi.Mock<
+  init: Mock<Promise<void>, [SyncServiceConfig]>
+  upload: Mock<Promise<SyncMetadata>, [string, SyncMetadata?]>
+  download: Mock<
     Promise<{ data: string | undefined; remoteMeta: SyncMetadata | undefined }>,
     []
   >
 
-  getRemoteMetadata: vi.Mock<Promise<SyncMetadata | undefined>, []>
-  getAuthStatus: vi.Mock<Promise<AuthStatus>, []>
-  destroy: vi.Mock<void, []>
+  getRemoteMetadata: Mock<Promise<SyncMetadata | undefined>, []>
+  getAuthStatus: Mock<Promise<AuthStatus>, []>
+  destroy: Mock<void, []>
 
   // Optional methods from SyncAdapter, can be added if needed for specific tests
   // acquireLock?: () => Promise<boolean>;
@@ -127,9 +129,63 @@ Object.defineProperty(globalThis, 'dispatchEvent', {
 // vi.mock('./CustomApiSyncAdapter')
 // vi.mock('../lib/event-emitter') // SyncManager extends EventEmitter
 
+// Default timestamps
+const now = Date.now()
+const oneHourAgo = now - 3600 * 1000
+const twoHoursAgo = now - 2 * 3600 * 1000
+const threeHoursAgo = now - 3 * 3600 * 1000
+const defaultDateTimestamp = oneHourAgo - 1000 // new Date('2023-01-01T00:00:00.000Z').getTime()
+
+const defaultStoreMeta = {
+  databaseVersion: CURRENT_DATABASE_VERSION,
+  created: threeHoursAgo,
+  updated: threeHoursAgo,
+}
+
+function convertToDownloadData(remoteData: BookmarksData): string {
+  const bookmarksStore: BookmarksStore = {
+    data: remoteData,
+    meta: defaultStoreMeta,
+  }
+  return JSON.stringify(bookmarksStore)
+}
+
+function setUpdated2ForBookmarks(
+  bookmarksData: BookmarksData,
+  currentSyncTime: number,
+  exceptions: string[]
+) {
+  const exceptionsSet = new Set(exceptions)
+  for (const key of Object.keys(bookmarksData)) {
+    if (bookmarksData[key] && !exceptionsSet.has(key)) {
+      bookmarksData[key].meta.updated2 = currentSyncTime
+    }
+  }
+}
+
+function convertToUploadData(
+  remoteData: BookmarksData,
+  meta?: { created?: number; updated?: number }
+): string {
+  // Sort bookmarks before uploading to maintain a consistent order
+  const sortedBookmarks = Object.fromEntries(
+    sortBookmarks(Object.entries(remoteData), 'createdDesc')
+  )
+
+  const bookmarksStore: BookmarksStore = {
+    data: sortedBookmarks,
+    meta: {
+      ...defaultStoreMeta,
+      updated: now,
+      ...meta,
+    },
+  }
+
+  return prettyPrintJson(bookmarksStore)
+}
+
 describe('SyncManager', () => {
   let syncManager: SyncManager
-  const now = Date.now()
   // let customAdapter: CustomApiSyncAdapter; // Will be created by SyncManager
 
   const mockSyncServiceConfig: SyncServiceConfig = {
@@ -166,6 +222,7 @@ describe('SyncManager', () => {
   }
 
   beforeEach(() => {
+    vi.setSystemTime(new Date(now))
     localStorageMock.clear()
     // It's important to get a fresh instance or reset the store for each test
     // Assuming SettingsStore is a singleton or its state can be reset
@@ -185,6 +242,7 @@ describe('SyncManager', () => {
 
   afterEach(() => {
     // Reset any mocks or settings after each test
+    vi.useRealTimers()
     vi.restoreAllMocks() // Restore all mocks
     vi.clearAllMocks()
     syncManager.destroy()
@@ -443,7 +501,7 @@ describe('SyncManager', () => {
         type: 'merging',
         // progress: 0,
       }) // Assuming progress starts at 0
-      expect(statusChangeHandler).toHaveBeenCalledWith({
+      expect(statusChangeHandler).not.toHaveBeenCalledWith({
         type: 'merging',
         progress: 100,
       })
@@ -474,17 +532,17 @@ describe('SyncManager', () => {
 
       // Check interactions
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(localBookmarksToSync),
+        convertToUploadData(localBookmarksToSync, { created: now }),
         undefined
       ) // No remoteMeta for first upload
-      expect(saveStoreSpy).toHaveBeenCalledTimes(1) // Should save the (potentially merged) data
+      expect(saveStoreSpy).toHaveBeenCalledTimes(0) // Should save the (potentially merged) data
       // The data saved should be the localBookmarksToSync as it's a local_wins and no remote data
-      expect(saveStoreSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: localBookmarksToSync,
-        }),
-        true
-      )
+      // expect(saveStoreSpy).toHaveBeenCalledWith(
+      //   expect.objectContaining({
+      //     data: localBookmarksToSync,
+      //   }),
+      //   true
+      // )
 
       // Check final status
       expect(syncManager.getStatus()).toEqual({
@@ -591,7 +649,7 @@ describe('SyncManager', () => {
       const downloadSpy = vi
         .spyOn(CustomApiSyncAdapter.prototype, 'download')
         .mockResolvedValue({
-          data: JSON.stringify(remoteDataToOverwrite),
+          data: convertToDownloadData(remoteDataToOverwrite),
           remoteMeta: {
             version: 'remote-version-old',
             timestamp: now - 10_000,
@@ -602,6 +660,7 @@ describe('SyncManager', () => {
         .mockResolvedValue({ version: 'new-remote-version', timestamp: now })
 
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       const statusChangeHandler = vi.fn()
       const syncConflictHandler = vi.fn()
@@ -618,6 +677,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(syncResult).toBe(true) // Sync should succeed with local wins
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates for successful sync with local wins
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -646,8 +709,28 @@ describe('SyncManager', () => {
           remoteDataToOverwrite['http://example.com/remote-only'], // New remote items are added
       }
 
-      expectedMergedData['http://example.com/conflict'].meta.updated2 =
-        expectedMergedData['http://example.com/conflict'].meta.updated + 1
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/conflict',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        // remote
+        'http://example.com/remote-only',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       expect(syncSuccessHandler).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -677,7 +760,7 @@ describe('SyncManager', () => {
 
       // Check interactions - upload should be called with local data, store should be saved with local data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         {
           version: 'remote-version-old',
           timestamp: expect.any(Number),
@@ -724,7 +807,7 @@ describe('SyncManager', () => {
       expect(getRemoteMetadataSpy).toHaveBeenCalledTimes(2) // first call: _fetchRemoteData(), second call: _uploadData()
       expect(downloadSpy).toHaveBeenCalledTimes(1)
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(initialLocalBookmarks),
+        convertToUploadData(initialLocalBookmarks, { created: now }),
         undefined // No remote metadata expected for the first upload
       )
       expect(syncSuccessHandler).toHaveBeenCalledWith(
@@ -735,6 +818,9 @@ describe('SyncManager', () => {
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'downloading' })
       expect(statusChangeHandler).toHaveBeenCalledWith({
+        type: 'merging',
+      })
+      expect(statusChangeHandler).not.toHaveBeenCalledWith({
         type: 'merging',
         progress: 100,
       })
@@ -777,7 +863,7 @@ describe('SyncManager', () => {
       // Since remote is empty, local data (initialLocalBookmarks) should be uploaded.
       // The expectedRemoteMeta for upload should be the one from download.
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(initialLocalBookmarks),
+        convertToUploadData(initialLocalBookmarks, { created: now }),
         remoteMeta
       )
       expect(syncSuccessHandler).toHaveBeenCalledWith(
@@ -786,6 +872,9 @@ describe('SyncManager', () => {
         })
       )
       expect(statusChangeHandler).toHaveBeenCalledWith({
+        type: 'merging',
+      })
+      expect(statusChangeHandler).not.toHaveBeenCalledWith({
         type: 'merging',
         progress: 100,
       })
@@ -937,7 +1026,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(newerRemoteData),
+        data: convertToDownloadData(newerRemoteData),
         remoteMeta,
       })
       // const uploadSpy = vi.spyOn(currentAdapter, 'upload') // Should be called with merged data
@@ -946,6 +1035,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       const statusChangeHandler = vi.fn()
       const syncSuccessHandler = vi.fn()
@@ -960,6 +1050,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -989,15 +1083,33 @@ describe('SyncManager', () => {
         ] // Union of tags
       }
 
-      expectedMergedData['http://example.com/item1'].meta.updated2 =
-        expectedMergedData['http://example.com/item1'].meta.updated + 1
+      const expectedRemoteData = structuredClone(expectedMergedData)
 
-      expectedMergedData['http://example.com/item2'].meta.updated2 =
-        expectedMergedData['http://example.com/item2'].meta.updated + 1
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/item2',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        // remote
+        'http://example.com/item2',
+        'http://example.com/item3',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         remoteMeta // Previous remoteMeta is passed to upload
       )
 
@@ -1078,7 +1190,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(newerRemoteData),
+        data: convertToDownloadData(newerRemoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -1086,6 +1198,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       // Setup event handlers
       const statusChangeHandler = vi.fn()
@@ -1101,6 +1214,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -1122,14 +1239,14 @@ describe('SyncManager', () => {
             title: 'Remote Item 1', // Remote title (newer)
             description: 'Local description', // Preserved local field
             url: 'http://example.com/item1-updated', // Added remote field
-            updated2: now - 30_000 + 1, // Updated2 should be updated + 1
+            updated2: currentSyncTime, // Updated2 should be currentSyncTime
           },
         },
       }
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedMergedData),
         remoteMeta
       )
 
@@ -1223,7 +1340,7 @@ describe('SyncManager', () => {
         timestamp: now - 5000,
       })
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta: {
           version: 'remote-v1',
           timestamp: now - 5000,
@@ -1234,6 +1351,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       // Setup event handlers
       const statusChangeHandler = vi.fn()
@@ -1250,6 +1368,10 @@ describe('SyncManager', () => {
       // Assert
       expect(result).toBe(true)
 
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
+
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'downloading' })
@@ -1262,23 +1384,41 @@ describe('SyncManager', () => {
 
       // Expected merged data
       const expectedMergedData: BookmarksData = {
-        'http://example.com/shared-item': {
-          ...localData['http://example.com/shared-item'], // Prefer local data
-          meta: {
-            ...localData['http://example.com/shared-item'].meta,
-            updated2:
-              localData['http://example.com/shared-item'].meta.updated + 1,
-          },
-        },
-        'http://example.com/local-only':
-          localData['http://example.com/local-only'], // Keep local-only items
+        'http://example.com/shared-item':
+          localData['http://example.com/shared-item'], // Prefer local data
         'http://example.com/remote-only':
           remoteData['http://example.com/remote-only'], // Add remote-only items
+        'http://example.com/local-only':
+          localData['http://example.com/local-only'], // Keep local-only items
       }
+
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/shared-item',
+        'http://example.com/local-only',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        // remote
+        'http://example.com/remote-only',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Verify uploaded data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         expect.objectContaining({
           version: 'remote-v1',
           timestamp: expect.any(Number),
@@ -1389,7 +1529,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta: {
           version: 'remote-v1',
           timestamp: now,
@@ -1400,6 +1540,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       // Setup event handlers
       const statusChangeHandler = vi.fn()
@@ -1415,6 +1556,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -1438,13 +1583,33 @@ describe('SyncManager', () => {
           remoteData['http://example.com/new-remote'], // New remote item added
       }
 
-      // Add updated2 field for modified items
-      expectedMergedData['http://example.com/item1'].meta.updated2 =
-        expectedMergedData['http://example.com/item1'].meta.updated + 1
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/unchanged',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        // remote
+        'http://example.com/unchanged',
+        'http://example.com/new-remote',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Verify uploaded data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         expect.objectContaining({
           version: 'remote-v1',
           timestamp: expect.any(Number),
@@ -1543,7 +1708,7 @@ describe('SyncManager', () => {
           tags: ['local-only'],
           meta: {
             created: now - 50_000,
-            updated: now - 60_000, // Not modified after lastSyncTime
+            updated: now - 60_000, // Not modified after lastSyncTime, staled
             title: 'Local Modified',
           },
         },
@@ -1582,7 +1747,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -1590,6 +1755,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       // Setup event handlers
       const statusChangeHandler = vi.fn()
@@ -1605,6 +1771,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -1630,15 +1800,33 @@ describe('SyncManager', () => {
           remoteData['http://example.com/new-remote'], // New remote item added
       }
 
-      // Add updated2 field for modified items
-      expectedMergedData['http://example.com/modified-both'].meta.updated2 =
-        expectedMergedData['http://example.com/modified-both'].meta.updated + 1
-      expectedMergedData['http://example.com/modified-local'].meta.updated2 =
-        expectedMergedData['http://example.com/modified-local'].meta.updated + 1
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/unmodified',
+        'http://example.com/modified-local',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        'http://example.com/unmodified',
+        'http://example.com/new-remote',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         remoteMeta
       )
 
@@ -1754,7 +1942,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -1762,6 +1950,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       // Setup event handlers
       const statusChangeHandler = vi.fn()
@@ -1778,6 +1967,10 @@ describe('SyncManager', () => {
       // Assert
       expect(result).toBe(true)
 
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
+
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'downloading' })
@@ -1792,21 +1985,43 @@ describe('SyncManager', () => {
       const expectedMergedData: BookmarksData = {
         'http://example.com/unchanged':
           initialLocalData['http://example.com/unchanged'], // Unchanged
-        'http://example.com/local-modified':
-          initialLocalData['http://example.com/local-modified'], // Local is newer
-        'http://example.com/conflict':
-          remoteData['http://example.com/conflict'], // Remote is newer
         'http://example.com/remote-modified':
           remoteData['http://example.com/remote-modified'], // Remote is new
+        'http://example.com/conflict':
+          remoteData['http://example.com/conflict'], // Remote is newer
+        'http://example.com/local-modified':
+          initialLocalData['http://example.com/local-modified'], // Local is newer
       }
 
-      // Add updated2 field for modified items
-      expectedMergedData['http://example.com/conflict'].meta.updated2 =
-        remoteData['http://example.com/conflict'].meta.updated + 1
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/unchanged',
+        'http://example.com/local-modified',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        // remote
+        'http://example.com/unchanged',
+        'http://example.com/conflict',
+        'http://example.com/remote-modified',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         remoteMeta
       )
 
@@ -1931,7 +2146,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -1939,6 +2154,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       const statusChangeHandler = vi.fn()
       const syncSuccessHandler = vi.fn()
@@ -1953,6 +2169,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -1978,20 +2198,41 @@ describe('SyncManager', () => {
           tags: ['remote', 'new-tag'], // Based on 'newer' and remote being more recent
           meta: remoteData['http://example.com/remote_newer'].meta,
         },
-        'http://example.com/local_only_new':
-          initialLocalData['http://example.com/local_only_new'], // New local item
         'http://example.com/remote_only_new':
           remoteData['http://example.com/remote_only_new'], // New remote item
+        'http://example.com/local_only_new':
+          initialLocalData['http://example.com/local_only_new'], // New local item
       }
 
-      // Add/update updated2 for items that were merged/chosen
-      expectedMergedData['http://example.com/local_newer'].meta.updated2 =
-        initialLocalData['http://example.com/local_newer'].meta.updated + 1
-      expectedMergedData['http://example.com/remote_newer'].meta.updated2 =
-        remoteData['http://example.com/remote_newer'].meta.updated + 1
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      // Add updated2 for merged items
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/nochange',
+        'http://example.com/local_newer',
+        'http://example.com/local_only_new',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        // remote
+        'http://example.com/nochange',
+        'http://example.com/remote_newer',
+        'http://example.com/remote_only_new',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         remoteMeta
       )
       expect(saveStoreSpy).toHaveBeenCalledWith(
@@ -2102,7 +2343,7 @@ describe('SyncManager', () => {
           tags: ['not-updated'],
           meta: {
             created: lastSyncTimestamp - 8000,
-            updated: lastSyncTimestamp - 2000,
+            updated: lastSyncTimestamp - 2000, // staled
             title: 'Not Updated in Remote',
           },
         },
@@ -2126,7 +2367,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -2134,6 +2375,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       const statusChangeHandler = vi.fn()
       const syncSuccessHandler = vi.fn()
@@ -2148,6 +2390,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -2180,15 +2426,32 @@ describe('SyncManager', () => {
         },
       }
 
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
       // Add updated2 for merged items
-      for (const key of Object.keys(expectedMergedData)) {
-        expectedMergedData[key].meta.updated2 =
-          expectedMergedData[key].meta.updated + 1
-      }
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/local_updated',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        'http://example.com/both_updated',
+        'http://example.com/remote_updated',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         remoteMeta
       )
 
@@ -2429,7 +2692,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -2437,6 +2700,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks')
 
       const statusChangeHandler = vi.fn()
       const syncSuccessHandler = vi.fn()
@@ -2451,6 +2715,10 @@ describe('SyncManager', () => {
 
       // Assert
       expect(result).toBe(true)
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Check status updates
       expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
@@ -2588,19 +2856,28 @@ describe('SyncManager', () => {
         },
       }
 
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
       // Add updated2 for merged items that are not deleted
-      const exceptoins = new Set([
-        'http://example.com/local_del_remote_exists_newer',
+      const exceptions = [
+        // 'http://example.com/local_del_remote_exists_newer',
         'http://example.com/remote_del_local_exists_newer',
+        'http://example.com/local_updated_remote_stale',
         'http://example.com/only_local_new',
+        // 'http://example.com/only_remote_new',
+      ]
+      setUpdated2ForBookmarks(expectedMergedData, currentSyncTime, exceptions)
+
+      const exceptionsForRemote = [
         'http://example.com/only_remote_new',
-      ])
-      for (const key of Object.keys(expectedMergedData)) {
-        if (expectedMergedData[key] && !exceptoins.has(key)) {
-          expectedMergedData[key].meta.updated2 =
-            expectedMergedData[key].meta.updated + 1
-        }
-      }
+        'http://example.com/both_exist_remote_newer',
+        'http://example.com/local_del_remote_exists_newer',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
 
       // Manually remove the item that should be deleted (Scenario 4)
       delete expectedMergedData[
@@ -2611,7 +2888,7 @@ describe('SyncManager', () => {
       // Need to stringify then parse because of potential undefined fields from merge that JSON.stringify removes
       const uploadedData = JSON.parse(uploadSpy.mock.calls[0][0])
       expect(uploadedData).toEqual(
-        JSON.parse(JSON.stringify(expectedMergedData))
+        JSON.parse(convertToUploadData(expectedRemoteData))
       )
 
       // Check that bookmarkStorage was updated with the merged data
@@ -2857,7 +3134,7 @@ describe('SyncManager', () => {
           tags: [DELETED_BOOKMARK_TAG, 'remote-tag'],
           meta: {
             created: lastSyncTimestamp - 12_000,
-            updated: lastSyncTimestamp - 1000, // Older than local
+            updated: lastSyncTimestamp - 1000, // Older than local, staled
             title: 'Remote Deleted Older',
           },
           deletedMeta: {
@@ -2904,7 +3181,7 @@ describe('SyncManager', () => {
         remoteMeta
       )
       vi.spyOn(currentAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta,
       })
       const uploadSpy = vi.spyOn(currentAdapter, 'upload').mockResolvedValue({
@@ -2912,6 +3189,7 @@ describe('SyncManager', () => {
         timestamp: now,
       })
       const saveStoreSpy = vi.spyOn(bookmarkStorage, 'persistBookmarksStore')
+      const mergeBookmarksSpy = vi.spyOn(bookmarkMergeUtils, 'mergeBookmarks') // Spy on the actual mergeBookmarks function
 
       const statusChangeHandler = vi.fn()
       const syncSuccessHandler = vi.fn()
@@ -2937,6 +3215,10 @@ describe('SyncManager', () => {
         lastSyncTime: expect.any(Number),
       })
 
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
+
       // Expected merged data after sync
       const expectedMergedData: BookmarksData = {
         // Scenario 1: Local deleted newer wins over remote not deleted
@@ -2946,7 +3228,6 @@ describe('SyncManager', () => {
             created: lastSyncTimestamp - 15_000,
             updated: lastSyncTimestamp + 5000, // Local newer wins
             title: 'Local Deleted Newer',
-            updated2: lastSyncTimestamp + 5001,
           },
         },
 
@@ -2957,7 +3238,6 @@ describe('SyncManager', () => {
             created: lastSyncTimestamp - 16_000,
             updated: lastSyncTimestamp + 6000, // Remote newer wins
             title: 'Remote Not Deleted Newer',
-            updated2: lastSyncTimestamp + 6001,
           },
         },
 
@@ -2968,7 +3248,6 @@ describe('SyncManager', () => {
             created: lastSyncTimestamp - 10_000,
             updated: lastSyncTimestamp + 8000, // Remote newer wins
             title: 'Remote Deleted Newer',
-            updated2: lastSyncTimestamp + 8001,
           },
           deletedMeta: {
             deleted: lastSyncTimestamp + 8000,
@@ -2983,7 +3262,6 @@ describe('SyncManager', () => {
             created: lastSyncTimestamp - 12_000,
             updated: lastSyncTimestamp + 3000, // Local newer wins
             title: 'Local Not Deleted Newer',
-            updated2: lastSyncTimestamp + 3001,
           },
         },
 
@@ -2994,7 +3272,6 @@ describe('SyncManager', () => {
             created: lastSyncTimestamp - 13_000,
             updated: lastSyncTimestamp + 7000, // Local newer wins
             title: 'Both Deleted - Local Newer',
-            updated2: lastSyncTimestamp + 7001,
           },
           deletedMeta: {
             deleted: lastSyncTimestamp + 7000,
@@ -3009,7 +3286,6 @@ describe('SyncManager', () => {
             created: lastSyncTimestamp - 14_000,
             updated: lastSyncTimestamp + 9000, // Remote newer wins
             title: 'Both Deleted - Remote Newer',
-            updated2: lastSyncTimestamp + 9001,
           },
           deletedMeta: {
             deleted: lastSyncTimestamp + 9000,
@@ -3018,9 +3294,32 @@ describe('SyncManager', () => {
         },
       }
 
+      const expectedRemoteData = structuredClone(expectedMergedData)
+
+      const exceptionsForLocal = [
+        // local
+        'http://example.com/remote_deleted_older',
+      ]
+      setUpdated2ForBookmarks(
+        expectedMergedData,
+        currentSyncTime,
+        exceptionsForLocal
+      )
+
+      const exceptionsForRemote = [
+        'http://example.com/local_deleted_older',
+        'http://example.com/remote_deleted_newer',
+        'http://example.com/both_deleted_remote_newer',
+      ]
+      setUpdated2ForBookmarks(
+        expectedRemoteData,
+        currentSyncTime,
+        exceptionsForRemote
+      )
+
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        prettyPrintJson(expectedMergedData),
+        convertToUploadData(expectedRemoteData),
         remoteMeta
       )
 
@@ -3186,9 +3485,7 @@ describe('SyncManager', () => {
             `Common Unchanged ${i}`,
             ts
           )
-          remoteBookmarksData[id] = JSON.parse(
-            JSON.stringify(localBookmarks[id])
-          ) // Exact copy
+          remoteBookmarksData[id] = structuredClone(localBookmarks[id]) // Exact copy
         }
 
         // 4. Common bookmarks, local is newer (30)
@@ -3341,7 +3638,7 @@ describe('SyncManager', () => {
         // Total: 50+50+50+30+30+20+20+20+20+20+20 = 330 bookmarks
 
         await bookmarkStorage.overwriteBookmarks(
-          JSON.parse(JSON.stringify(localBookmarks)) // Deep copy
+          structuredClone(localBookmarks) // Deep copy
         )
 
         const remoteMeta: SyncMetadata = {
@@ -3353,7 +3650,9 @@ describe('SyncManager', () => {
           remoteMeta
         )
         vi.spyOn(activeAdapter, 'download').mockResolvedValue({
-          data: JSON.stringify(JSON.parse(JSON.stringify(remoteBookmarksData))), // Deep copy
+          data: convertToDownloadData(
+            structuredClone(remoteBookmarksData) // Deep copy
+          ), // Deep copy
           remoteMeta,
         })
 
@@ -3405,9 +3704,10 @@ describe('SyncManager', () => {
         // The first argument to uploadSpy is the stringified data, second is remoteMeta
         const uploadedDataString = uploadSpy.mock.calls[0][0]
         const uploadedRemoteMeta = uploadSpy.mock.calls[0][1]!
-        const uploadedBookmarksData = JSON.parse(
+        const uploadedBookmarksStore = JSON.parse(
           uploadedDataString
-        ) as BookmarksData
+        ) as BookmarksStore
+        const uploadedBookmarksData = uploadedBookmarksStore.data
 
         expect(uploadedRemoteMeta).toEqual(remoteMeta)
 
@@ -3695,7 +3995,7 @@ describe('SyncManager', () => {
       // Reset and re-initialize syncManager if it's not done in a global beforeEach
       // syncManager = new SyncManager();
       // addSyncService(...); // etc.
-      vi.useFakeTimers()
+      // vi.useFakeTimers()
     })
 
     afterEach(() => {
@@ -4164,7 +4464,7 @@ describe('SyncManager', () => {
     syncEndSpy.mockClear()
     statusChangeSpy.mockClear()
     vi.spyOn(mockAdapter, 'download').mockResolvedValueOnce({
-      data: JSON.stringify({}),
+      data: convertToDownloadData({}),
       remoteMeta: { etag: 'etag1', lastModified: 'some-date' },
     })
 
@@ -4279,7 +4579,7 @@ describe('SyncManager', () => {
         new Promise((resolve) =>
           setTimeout(() => {
             resolve({
-              data: JSON.stringify({}),
+              data: convertToDownloadData({}),
               remoteMeta: { etag: 'etag1', lastModified: 'date1' },
             })
           }, downloadDelay)
@@ -4327,7 +4627,7 @@ describe('SyncManager', () => {
     // Mock empty remote data
     vi.spyOn(mockAdapter, 'getRemoteMetadata').mockResolvedValue(undefined)
     vi.spyOn(mockAdapter, 'download').mockResolvedValue({
-      data: JSON.stringify({}),
+      data: convertToDownloadData({}),
       remoteMeta: undefined,
     })
 
@@ -4379,8 +4679,11 @@ describe('SyncManager', () => {
         lastModified: 'remote-last-modified',
       })
       vi.spyOn(mockAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify({
-          'http://remote.com': { meta: { title: 'Remote' }, tags: [] },
+        data: convertToDownloadData({
+          'http://remote.com': {
+            meta: { title: 'Remote', created: now, updated: now },
+            tags: [],
+          },
         }),
         remoteMeta: {
           etag: 'remote-etag',
@@ -4491,7 +4794,6 @@ describe('SyncManager', () => {
       // mergeStrategy is intentionally omitted
     }
 
-    const now = Date.now()
     const defaultMergeStrategyFromManager = {
       // This should match the defaultMergeStrategy in SyncManager.ts
       meta: 'merge',
@@ -4572,7 +4874,7 @@ describe('SyncManager', () => {
       }
 
       vi.spyOn(mockAdapter, 'download').mockResolvedValue({
-        data: prettyPrintJson(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta: {
           etag: 'remote-etag',
           lastModified: 'remote-last-modified',
@@ -4593,7 +4895,7 @@ describe('SyncManager', () => {
         remoteData,
         defaultMergeStrategyFromManager, // Check if this matches SyncManager's internal default
         expect.objectContaining({
-          currentTime: expect.any(Number),
+          currentSyncTime: expect.any(Number),
           // lastSyncTime will be 0 if not set in serviceConfig
         })
       )
@@ -4690,7 +4992,7 @@ describe('SyncManager', () => {
       }
 
       vi.spyOn(mockAdapter, 'download').mockResolvedValue({
-        data: prettyPrintJson(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta: {
           etag: 'remote-etag',
           lastModified: 'remote-last-modified',
@@ -4714,10 +5016,14 @@ describe('SyncManager', () => {
           meta: 'remote',
         },
         expect.objectContaining({
-          currentTime: expect.any(Number),
+          currentSyncTime: expect.any(Number),
           // lastSyncTime will be 0 if not set in serviceConfig
         })
       )
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Further assertions on the merged data can be added if needed,
       // to ensure the default strategy was indeed applied correctly.
@@ -4734,7 +5040,7 @@ describe('SyncManager', () => {
           localData['http://example.com/item1']?.meta.created,
           remoteData['http://example.com/item1']?.meta.created
         ),
-        updated2: remoteData['http://example.com/item1']?.meta.updated + 1,
+        updated2: currentSyncTime,
       })
       expect(finalData['http://example.com/item2']).toBeDefined()
       expect(finalData['http://example.com/item3']).toBeDefined()
@@ -4822,7 +5128,7 @@ describe('SyncManager', () => {
       }
 
       vi.spyOn(mockAdapter, 'download').mockResolvedValue({
-        data: prettyPrintJson(remoteData),
+        data: convertToDownloadData(remoteData),
         remoteMeta: {
           etag: 'remote-etag',
           lastModified: 'remote-last-modified',
@@ -4849,10 +5155,14 @@ describe('SyncManager', () => {
           defaultDate: 'invalid_strategy_value',
         },
         expect.objectContaining({
-          currentTime: expect.any(Number),
+          currentSyncTime: expect.any(Number),
           // lastSyncTime will be 0 if not set in serviceConfig
         })
       )
+
+      const currentSyncTime = mergeBookmarksSpy.mock.calls[0][3].currentSyncTime
+      expect(currentSyncTime).toBeGreaterThanOrEqual(now)
+      expect(currentSyncTime).toBeLessThanOrEqual(Date.now())
 
       // Further assertions on the merged data can be added if needed,
       // to ensure the default strategy was indeed applied correctly.
@@ -4870,7 +5180,7 @@ describe('SyncManager', () => {
           localData['http://example.com/item1']?.meta.created || DEFAULT_DATE,
           remoteData['http://example.com/item1']?.meta.created || DEFAULT_DATE
         ),
-        updated2: remoteData['http://example.com/item1']?.meta.updated + 1,
+        updated2: currentSyncTime,
       })
       expect(finalData['http://example.com/item2']).toBeDefined()
       expect(finalData['http://example.com/item3']).toBeDefined()
@@ -4881,7 +5191,6 @@ describe('SyncManager', () => {
 
   describe('Synchronize Method with Specific Config ID', () => {
     let syncManager: SyncManager
-    const now = Date.now()
 
     const serviceConfig1: SyncServiceConfig = {
       id: 'service-1',
@@ -4972,7 +5281,7 @@ describe('SyncManager', () => {
         },
       })
       const mockDownload = vi.fn().mockResolvedValue({
-        data: JSON.stringify({}),
+        data: convertToDownloadData({}),
         remoteMeta: { version: 'remote-v1', timestamp: now },
       })
       const mockUpload = vi
@@ -5319,7 +5628,7 @@ describe('SyncManager', () => {
       // Default mocks for adapter methods
       vi.spyOn(mockAdapter, 'getRemoteMetadata').mockResolvedValue(undefined)
       vi.spyOn(mockAdapter, 'download').mockResolvedValue({
-        data: JSON.stringify({}),
+        data: convertToDownloadData({}),
         remoteMeta: undefined,
       })
       vi.spyOn(mockAdapter, 'upload').mockResolvedValue({

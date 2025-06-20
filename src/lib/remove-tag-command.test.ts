@@ -42,6 +42,9 @@ describe('RemoveTagCommand', () => {
   it('should remove a tag from bookmarks that have it', () => {
     // Create command
     const command = new RemoveTagCommand(bookmarksToUrls(testBookmarks), 'test')
+    const timestampBeforExecute = Date.now()
+
+    expect(testBookmarks[0][1].meta.updated2).toBeUndefined()
 
     // Execute command
     command.execute(testBookmarks)
@@ -56,6 +59,10 @@ describe('RemoveTagCommand', () => {
     // Verify tags were removed
     expect(testBookmarks[0][1].tags).not.toContain('test')
     expect(testBookmarks[0][1].tags).toEqual(['example', 'common'])
+    expect(testBookmarks[0][1].meta.updated2).toBeTypeOf('number')
+    expect(testBookmarks[0][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforExecute
+    )
     expect(testBookmarks[1][1].tags).not.toContain('test')
     expect(testBookmarks[1][1].tags).toEqual(['organization', 'common'])
 
@@ -72,12 +79,17 @@ describe('RemoveTagCommand', () => {
       'common',
     ])
 
+    const timestampBeforUndo = Date.now()
+
     // Undo command
     command.undo(testBookmarks)
 
     // Verify tags were restored after undo
     expect(testBookmarks[0][1].tags).toContain('test')
     expect(testBookmarks[0][1].tags).toEqual(['example', 'test', 'common'])
+    expect(testBookmarks[0][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforUndo
+    )
     expect(testBookmarks[1][1].tags).toContain('test')
     expect(testBookmarks[1][1].tags).toEqual(['test', 'organization', 'common'])
   })

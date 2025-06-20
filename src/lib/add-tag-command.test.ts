@@ -43,6 +43,10 @@ describe('AddTagCommand', () => {
     // Create command
     const command = new AddTagCommand(bookmarksToUrls(testBookmarks), 'new-tag')
 
+    const timestampBeforExecute = Date.now()
+
+    expect(testBookmarks[0][1].meta.updated2).toBeUndefined()
+
     // Execute command
     command.execute(testBookmarks)
     const executionResult = command.getExecutionResult()
@@ -57,12 +61,20 @@ describe('AddTagCommand', () => {
     // Verify tags were added
     expect(testBookmarks[0][1].tags).toContain('new-tag')
     expect(testBookmarks[0][1].tags).toEqual(['example', 'test', 'new-tag'])
+    expect(testBookmarks[0][1].meta.updated2).toBeTypeOf('number')
+    expect(testBookmarks[0][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforExecute
+    )
     expect(testBookmarks[1][1].tags).toContain('new-tag')
     expect(testBookmarks[1][1].tags).toEqual([
       'test',
       'organization',
       'new-tag',
     ])
+    expect(testBookmarks[1][1].meta.updated2).toBeTypeOf('number')
+    expect(testBookmarks[1][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforExecute
+    )
 
     // Verify affected map contains original tags
     expect(originalStates.size).toBe(2)
@@ -75,14 +87,21 @@ describe('AddTagCommand', () => {
       'organization',
     ])
 
+    const timestampBeforUndo = Date.now()
     // Undo command
     command.undo(testBookmarks)
 
     // Verify tags were removed after undo
     expect(testBookmarks[0][1].tags).not.toContain('new-tag')
     expect(testBookmarks[0][1].tags).toEqual(['example', 'test'])
+    expect(testBookmarks[0][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforUndo
+    )
     expect(testBookmarks[1][1].tags).not.toContain('new-tag')
     expect(testBookmarks[1][1].tags).toEqual(['test', 'organization'])
+    expect(testBookmarks[1][1].meta.updated2).toBeGreaterThanOrEqual(
+      timestampBeforUndo
+    )
   })
 
   it('should not add a tag if bookmark already has it', () => {

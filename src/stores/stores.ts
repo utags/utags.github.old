@@ -283,11 +283,3 @@ function normalizeBookmark(
     meta.updated = created
   }
 }
-
-function mergeBookmarks(
-  existingBookmark: BookmarkTagsAndMetadata,
-  newBookmark: BookmarkTagsAndMetadata,
-  mergeStrategy: MergeStrategy
-) {
-  console.log('mergeBookmarks', existingBookmark, newBookmark)
-}

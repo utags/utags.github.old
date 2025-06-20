@@ -142,11 +142,6 @@
           "new-cap": 0
         }
       }
-    ],
-    "ignore": [
-      "src/sync2/*",
-      "src/sync3/*",
-      "src/utils/sync*"
     ]
   }
 }

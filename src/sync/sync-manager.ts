@@ -4,8 +4,9 @@ import {
   type BookmarksData,
   type BookmarksStore,
 } from '../types/bookmarks.js'
-import { DEFAULT_DATE } from '../config/constants.js'
+import { CURRENT_DATABASE_VERSION, DEFAULT_DATE } from '../config/constants.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
+import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import {
   settingsStore,
   getSyncServiceById,
@@ -355,30 +356,31 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         return false // Error handling done in _fetchRemoteData
       }
 
-      const { remoteBookmarks, remoteMetadata: downloadRemoteMeta } =
-        fetchResult
+      const { remoteBookmarks, remoteStoreMeta, remoteSyncMeta } = fetchResult
 
       // Stage 2: Merge Data
-      const syncTimestamp = Date.now() // The time of local data fetched
+      const currentSyncTimestamp = Date.now() // The time of local data fetched
       const mergeResult = await this._mergeData(
         remoteBookmarks,
         serviceConfig,
-        this.defaultMergeStrategy
+        this.defaultMergeStrategy,
+        currentSyncTimestamp
       )
       if (!mergeResult.success || !mergeResult.mergedBookmarks) {
         return false // Error handling done in _mergeData
       }
 
-      const { mergedBookmarks, hasChanges } = mergeResult
+      const { mergedBookmarks, hasChangesForRemote } = mergeResult
 
       // Stage 3: Upload Data
       const uploadSuccess = await this._uploadData(
         adapter,
         serviceConfig,
         mergedBookmarks,
-        downloadRemoteMeta,
-        hasChanges!,
-        syncTimestamp
+        remoteStoreMeta,
+        remoteSyncMeta,
+        hasChangesForRemote!,
+        currentSyncTimestamp
       )
 
       operationSuccessful = uploadSuccess // uploadSuccess is true if successful
@@ -451,31 +453,32 @@ export class SyncManager extends EventEmitter<SyncEvents> {
   ): Promise<{
     success: boolean
     remoteBookmarks?: BookmarksData
-    remoteMetadata?: SyncMetadata | undefined
+    remoteStoreMeta?: BookmarksStore['meta']
+    remoteSyncMeta?: SyncMetadata
   }> {
     try {
       this.updateStatus({ type: 'checking' })
       console.log(
         `[SyncManager] Fetching remote metadata for ${serviceConfig.name}...`
       )
-      const initialRemoteMetadata = await adapter.getRemoteMetadata()
+      const initialRemoteSyncMeta = await adapter.getRemoteMetadata()
 
       this.updateStatus({ type: 'downloading' })
       console.log(
         `[SyncManager] Downloading remote data for ${serviceConfig.name}...`
       )
-      // const { data: remoteDataString, remoteMeta: downloadRemoteMeta } =
-      //   initialRemoteMetadata
-      //     ? await adapter.download()
-      //     : { data: null, remoteMeta: null }
-      // Always attempt to download, regardless of initialRemoteMetadata
-      const { data: remoteDataString, remoteMeta: downloadRemoteMeta } =
+      const { data: remoteDataString, remoteMeta: downloadRemoteSyncMeta } =
         await adapter.download()
 
       let remoteBookmarks: BookmarksData | undefined
+      let remoteStoreMeta: BookmarksStore['meta'] | undefined
+
       if (remoteDataString && remoteDataString.trim() !== '') {
         try {
-          remoteBookmarks = JSON.parse(remoteDataString) as BookmarksData
+          const remoteStore = JSON.parse(remoteDataString) as BookmarksStore
+          remoteBookmarks = remoteStore.data
+          remoteStoreMeta = remoteStore.meta
+          // TODO: validate remoteStoreMeta and remoteBookmarks
         } catch (error: any) {
           console.error(
             `Failed to parse remote data for ${serviceConfig.name}:`,
@@ -499,7 +502,8 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       return {
         success: true,
         remoteBookmarks,
-        remoteMetadata: downloadRemoteMeta || initialRemoteMetadata,
+        remoteStoreMeta,
+        remoteSyncMeta: downloadRemoteSyncMeta || initialRemoteSyncMeta,
       }
     } catch (error: any) {
       console.error(
@@ -532,18 +536,19 @@ export class SyncManager extends EventEmitter<SyncEvents> {
   private async _mergeData(
     remoteBookmarks: BookmarksData | undefined,
     serviceConfig: SyncServiceConfig,
-    defaultMergeStrategy: MergeStrategy
+    defaultMergeStrategy: MergeStrategy,
+    currentSyncTimestamp: number
   ): Promise<{
     success: boolean
     mergedBookmarks?: BookmarksData
-    hasChanges?: boolean
+    hasChangesForRemote?: boolean
   }> {
     const mergeStrategy = {
       ...defaultMergeStrategy,
       ...serviceConfig.mergeStrategy,
     }
     const syncOption: SyncOption = {
-      currentTime: Date.now(),
+      currentSyncTime: currentSyncTimestamp,
       lastSyncTime: serviceConfig.lastSyncTimestamp || 0,
     }
 
@@ -554,45 +559,33 @@ export class SyncManager extends EventEmitter<SyncEvents> {
 
     try {
       const localData = await bookmarkStorage.getBookmarksData()
-      let mergedDataResult:
-        | {
-            merged: BookmarksData
-            deleted: string[]
-            conflicts?: any[]
-          }
-        | undefined
 
-      if (remoteBookmarks) {
-        mergedDataResult = await mergeBookmarks(
-          localData,
-          remoteBookmarks,
-          mergeStrategy,
-          syncOption
-        )
-      } else {
-        mergedDataResult = { merged: localData, deleted: [], conflicts: [] }
+      // If there's no remote data, return local data as is
+      if (!remoteBookmarks) {
+        return {
+          success: true,
+          mergedBookmarks: localData,
+          hasChangesForRemote: Object.keys(localData).length > 0,
+        }
       }
 
-      if (!mergedDataResult) {
-        // Should not happen if mergeBookmarks is robust
-        const errorMessage = `Bookmark merging resulted in no data for ${serviceConfig.name}.`
-        this.emit('error', {
-          message: errorMessage,
-          serviceId: serviceConfig.id,
-        })
-        this.updateStatus({
-          type: 'error',
-          error: errorMessage,
-          lastAttemptTime: Date.now(),
-        })
-        return { success: false }
-      }
+      const mergedDataResult = await mergeBookmarks(
+        localData,
+        remoteBookmarks,
+        mergeStrategy,
+        syncOption
+      )
 
       const {
-        merged: mergedBookmarks,
-        deleted: deletedUrls,
-        conflicts,
+        updatesForLocal,
+        updatesForRemote,
+        localDeletions,
+        remoteDeletions,
+        finalRemoteData,
       } = mergedDataResult
+
+      // Check for conflicts, not supported yet
+      const conflicts: string[] = []
 
       console.log('mergedDataResult', mergedDataResult)
 
@@ -613,30 +606,24 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         return { success: false }
       }
 
-      if (deletedUrls.length > 0) {
-        await bookmarkStorage.deleteBookmarks(deletedUrls)
-        this.emit('bookmarksRemoved', {
-          // No change needed, already matches new type
-          serviceId: serviceConfig.id,
-          urls: deletedUrls,
-        })
-      }
+      const hasChangesForLocal =
+        localDeletions.length > 0 || Object.keys(updatesForLocal).length > 0
+      const hasChangesForRemote =
+        remoteDeletions.length > 0 || Object.keys(updatesForRemote).length > 0
 
-      const mergedCount = Object.keys(mergedBookmarks).length
-
-      if (mergedCount > 0) {
+      if (hasChangesForLocal) {
         // Update bookmarks
-        await bookmarkStorage.upsertBookmarks(Object.entries(mergedBookmarks))
+        await bookmarkStorage.batchUpdateBookmarks(
+          localDeletions,
+          Object.entries(updatesForLocal)
+        )
       }
-
-      const localDataAfterMerge = await bookmarkStorage.getBookmarksData()
-      const hasChanges = deletedUrls.length > 0 || mergedCount > 0
 
       this.updateStatus({ type: 'merging', progress: 100 })
       return {
         success: true,
-        mergedBookmarks: localDataAfterMerge,
-        hasChanges,
+        mergedBookmarks: finalRemoteData,
+        hasChangesForRemote,
       }
     } catch (error: any) {
       if (error.name === 'MergeConflictError') {
@@ -688,17 +675,17 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     adapter: SyncAdapter,
     serviceConfig: SyncServiceConfig,
     mergedBookmarks: BookmarksData,
-    downloadRemoteMeta: SyncMetadata | undefined,
-    hasChanges: boolean,
-    syncTimestamp: number
+    remoteStoreMeta: BookmarksStore['meta'] | undefined,
+    remoteSyncMeta: SyncMetadata | undefined,
+    hasChangesForRemote: boolean,
+    currentSyncTimestamp: number
   ): Promise<boolean> {
     // if remote was empty (first sync) as a reason to upload
-    const isFirstSync =
-      !downloadRemoteMeta && !(await adapter.getRemoteMetadata()) // More robust check for first sync
+    const isFirstSync = !remoteSyncMeta && !(await adapter.getRemoteMetadata()) // More robust check for first sync
 
     // If there are changes or if it's the first sync (implied by !downloadRemoteMeta if remote was empty)
     if (
-      hasChanges ||
+      hasChangesForRemote ||
       (isFirstSync && Object.keys(mergedBookmarks).length > 0)
     ) {
       this.updateStatus({ type: 'uploading' })
@@ -707,19 +694,38 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       )
       // console.log('Uploading', prettyPrintJson(mergedBookmarks))
       try {
+        // Sort bookmarks before uploading to maintain a consistent order
+        const sortedBookmarks = Object.fromEntries(
+          sortBookmarks(Object.entries(mergedBookmarks), 'createdDesc')
+        )
+
+        const bookmarksStore: BookmarksStore = {
+          data: sortedBookmarks,
+          meta: {
+            ...(remoteStoreMeta || {
+              databaseVersion: CURRENT_DATABASE_VERSION,
+              created: Date.now(),
+            }),
+            updated: Date.now(),
+          },
+        }
+
         const newRemoteMeta = await adapter.upload(
-          prettyPrintJson(mergedBookmarks),
-          downloadRemoteMeta // Pass metadata for conditional upload
+          prettyPrintJson(bookmarksStore),
+          remoteSyncMeta // Pass metadata for conditional upload
         )
 
         const updatedServiceConfig: SyncServiceConfig = {
           ...serviceConfig,
-          lastSyncTimestamp: syncTimestamp,
+          lastSyncTimestamp: currentSyncTimestamp,
           lastSyncMeta: newRemoteMeta,
         }
         updateSyncService(updatedServiceConfig)
 
-        this.updateStatus({ type: 'success', lastSyncTime: syncTimestamp })
+        this.updateStatus({
+          type: 'success',
+          lastSyncTime: currentSyncTimestamp,
+        })
         this.emit('syncSuccess', {
           serviceId: serviceConfig.id,
         })
@@ -768,12 +774,12 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       )
       const updatedServiceConfig: SyncServiceConfig = {
         ...serviceConfig,
-        lastSyncTimestamp: syncTimestamp,
-        lastSyncMeta: downloadRemoteMeta || serviceConfig.lastSyncMeta,
+        lastSyncTimestamp: currentSyncTimestamp,
+        lastSyncMeta: remoteSyncMeta || serviceConfig.lastSyncMeta,
       }
       updateSyncService(updatedServiceConfig)
 
-      this.updateStatus({ type: 'success', lastSyncTime: syncTimestamp })
+      this.updateStatus({ type: 'success', lastSyncTime: currentSyncTimestamp })
       this.emit('syncSuccess', {
         serviceId: serviceConfig.id,
         noUploadNeeded: true,

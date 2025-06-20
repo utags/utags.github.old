@@ -8,6 +8,7 @@ import {
   addTags,
   removeTags,
   filterBookmarksByUrls,
+  isMarkedAsDeleted,
 } from '../utils/bookmarks.js'
 
 /**
@@ -178,6 +179,7 @@ export abstract class BaseTagCommand implements TagCommand {
       return
     }
 
+    const now = Date.now()
     // Filter resolvedBookmarks to only include those actually requested by the command,
     // as resolveBookmarksCallback might return more or less depending on its implementation.
     // This ensures the command operates on the exact set of bookmarks it was intended for.
@@ -196,13 +198,14 @@ export abstract class BaseTagCommand implements TagCommand {
       if (originalState) {
         // Restore the original tags. Create a new array to ensure reactivity if needed.
         bookmarkData.tags = [...originalState.tags]
+        bookmarkData.meta.updated2 = now
 
         // Restore deletedMeta if it was present in the original state.
         if (originalState.deletedMeta) {
           bookmarkData.deletedMeta = { ...originalState.deletedMeta } // Shallow copy deletedMeta
         } else if (
           bookmarkData.deletedMeta &&
-          !originalState.tags.includes(DELETED_BOOKMARK_TAG)
+          !isMarkedAsDeleted(originalState.tags)
         ) {
           // If originalState.deletedMeta is not set (bookmark wasn't deleted before),
           // but it currently exists on the bookmark (bookmarkData.deletedMeta is set),
@@ -341,6 +344,7 @@ export class AddTagCommand extends BaseTagCommand {
     const originalStates = new Map<string, OriginalBookmarkData>()
     let affectedCount = 0
     let deletedCount = 0
+    const now = Date.now()
     const deletionTimestamp = this.getTimestamp() // Timestamp for deletion marking
     // Provide a default actionType if not specified during construction and DELETED_BOOKMARK_TAG is added
     const currentActionType = this.actionType || 'BATCH_DELETE_BOOKMARKS'
@@ -362,11 +366,12 @@ export class AddTagCommand extends BaseTagCommand {
         })
 
         bookmarkData.tags = addTags(bookmarkData.tags, tagsToAdd)
+        bookmarkData.meta.updated2 = now
         affectedCount++
 
         // If DELETED_BOOKMARK_TAG was one of the tags added,
         // populate the deletedMeta property.
-        if (tagsToAdd.includes(DELETED_BOOKMARK_TAG)) {
+        if (isMarkedAsDeleted(tagsToAdd)) {
           deletedCount++
           bookmarkData.deletedMeta = {
             deleted: deletionTimestamp,
@@ -483,11 +488,11 @@ export class RemoveTagCommand extends BaseTagCommand {
     const originalStates = new Map<string, OriginalBookmarkData>()
     let affectedCount = 0
     let deletedCount = 0
+    const now = Date.now()
     const deletionTimestamp = this.getTimestamp()
     const currentActionType = this.actionType || 'BATCH_REMOVE_TAGS'
     const tagsToRemove = this.sourceTags // Already normalized and deduplicated by base class
-    const isRemovingDeletedBookmarkTag =
-      tagsToRemove.includes(DELETED_BOOKMARK_TAG)
+    const isRemovingDeletedBookmarkTag = isMarkedAsDeleted(tagsToRemove)
 
     for (const bookmark of targetBookmarks) {
       const bookmarkUrl = bookmark[0]
@@ -508,6 +513,7 @@ export class RemoveTagCommand extends BaseTagCommand {
         })
 
         const tagsAfterRemoval = removeTags(bookmarkData.tags, tagsToRemove)
+        bookmarkData.meta.updated2 = now
         affectedCount++
 
         // Scenario 1: Undeleting a bookmark.
@@ -531,8 +537,7 @@ export class RemoveTagCommand extends BaseTagCommand {
           //   a) No tags remain after the removal operation (tagsAfterRemoval is empty).
           //   b) The only tag remaining after removal is DELETED_BOOKMARK_TAG (e.g., other tags were removed from an already deleted item).
           tagsAfterRemoval.length === 0 ||
-          (tagsAfterRemoval.length === 1 &&
-            tagsAfterRemoval.includes(DELETED_BOOKMARK_TAG))
+          (tagsAfterRemoval.length === 1 && isMarkedAsDeleted(tagsAfterRemoval))
         ) {
           // The bookmark is now considered deleted.
           // CRITICAL: Preserve the original tags (tags *before* this removal operation) for display purposes when viewing deleted items.
@@ -640,8 +645,8 @@ export class RenameTagCommand extends BaseTagCommand {
     if (
       this.sourceTags.length === 0 ||
       this.targetTags.length === 0 ||
-      this.sourceTags.includes(DELETED_BOOKMARK_TAG) ||
-      this.targetTags.includes(DELETED_BOOKMARK_TAG)
+      isMarkedAsDeleted(this.sourceTags) ||
+      isMarkedAsDeleted(this.targetTags)
     ) {
       console.error(
         'Invalid tag names provided for rename operation. Source/Target tags cannot be empty or include DELETED_BOOKMARK_TAG.'
@@ -665,6 +670,7 @@ export class RenameTagCommand extends BaseTagCommand {
 
     const originalStates = new Map<string, OriginalBookmarkData>()
     let affectedCount = 0
+    const now = Date.now()
 
     // Determine which of the source tags need to be explicitly removed.
     // This logic is crucial for maintaining the original order of tags after renaming.
@@ -700,6 +706,7 @@ export class RenameTagCommand extends BaseTagCommand {
 
         // Add all target tags. The addTags utility handles duplicates, ensuring tags are unique.
         bookmarkData.tags = addTags(remainingTags, this.targetTags)
+        bookmarkData.meta.updated2 = now
         affectedCount++
       }
     }

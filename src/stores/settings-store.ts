@@ -79,6 +79,8 @@ export function addSyncService(config: SyncServiceConfig): void {
   }))
 }
 
+globalThis.addSyncService = addSyncService
+
 /**
  * Updates an existing sync service configuration.
  * @param updatedConfig - The updated sync service configuration.

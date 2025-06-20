@@ -144,3 +144,89 @@ export function isNonNullObject(value: unknown): boolean {
 export function getType(value: any) {
   return Object.prototype.toString.call(value).slice(8, -1)
 }
+
+/**
+ * Checks if two arrays are shallowly equal.
+ * Returns true if both arrays are undefined.
+ * Returns false if only one array is undefined.
+ * Otherwise, it checks if the arrays have the same length and if each corresponding element is strictly equal (===).
+ * This function does not perform a deep comparison; for arrays of objects or nested arrays, it compares references, not values.
+ *
+ * @param arr1 - The first array to compare, or undefined.
+ * @param arr2 - The second array to compare, or undefined.
+ * @returns True if the arrays are considered equal, false otherwise.
+ */
+export function areArraysEqual(
+  arr1: unknown[] | undefined,
+  arr2: unknown[] | undefined
+): boolean {
+  if (arr1 === undefined && arr2 === undefined) {
+    return true // Both are undefined, considered equal
+  }
+
+  if (arr1 === undefined || arr2 === undefined) {
+    return false // Only one is undefined, not equal
+  }
+
+  // Both are defined, proceed with array comparison
+  if (arr1.length !== arr2.length) {
+    return false
+  }
+
+  // eslint-disable-next-line unicorn/no-for-loop
+  for (let i = 0; i < arr1.length; i++) {
+    // Performs a shallow comparison of elements.
+    if (arr1[i] !== arr2[i]) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
+ * Checks if two objects are shallowly equal based on their properties.
+ * Returns true if both objects are undefined.
+ * Returns false if only one object is undefined.
+ * Otherwise, it checks if the objects have the same number of enumerable own properties
+ * (excluding those in `ignoredKeys`) and if the values of these properties are strictly equal (===).
+ * This function does not perform a deep comparison; for properties that are objects or arrays, it compares references, not values.
+ *
+ * @param obj1 - The first object to compare, or undefined.
+ * @param obj2 - The second object to compare, or undefined.
+ * @param ignoredKeys - An array of keys to ignore during comparison. Defaults to an empty array.
+ * @returns True if the objects are considered equal (after ignoring specified keys), false otherwise.
+ */
+export function areObjectsEqual(
+  obj1: Record<string, unknown> | undefined,
+  obj2: Record<string, unknown> | undefined,
+  ignoredKeys: string[] = []
+): boolean {
+  if (obj1 === undefined && obj2 === undefined) {
+    return true // Both are undefined, considered equal
+  }
+
+  if (obj1 === undefined || obj2 === undefined) {
+    return false // Only one is undefined, not equal
+  }
+
+  // Both are defined, proceed with object comparison
+  const keys1 = Object.keys(obj1)
+  const keys2 = Object.keys(obj2)
+
+  const filteredKeys1 = keys1.filter((key) => !ignoredKeys.includes(key))
+  const filteredKeys2 = keys2.filter((key) => !ignoredKeys.includes(key))
+
+  if (filteredKeys1.length !== filteredKeys2.length) {
+    return false
+  }
+
+  for (const key of filteredKeys1) {
+    // Ensures the key exists in obj2 and performs a shallow comparison of property values.
+    if (!Object.hasOwn(obj2, key) || obj1[key] !== obj2[key]) {
+      return false
+    }
+  }
+
+  return true
+}

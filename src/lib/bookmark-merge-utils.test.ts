@@ -1,18 +1,28 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type {
   BookmarksData,
   BookmarkTagsAndMetadata,
 } from '../types/bookmarks.js'
-import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
+import { DELETED_BOOKMARK_TAG, DEFAULT_DATE } from '../config/constants.js'
 import {
   type MergeMetaStrategy,
   type MergeTagsStrategy,
 } from '../config/merge-options.js'
+import { areArraysEqual, areObjectsEqual } from '../utils/index.js'
+import { mockLocalStorage } from '../utils/test/mock-local-storage.js'
+import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import {
   mergeBookmarks,
   type MergeStrategy,
   type SyncOption,
 } from './bookmark-merge-utils.js'
+
+const localStorageMock = mockLocalStorage()
+// Add dispatchEvent mock to prevent errors
+Object.defineProperty(globalThis, 'dispatchEvent', {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  value() {},
+})
 
 // Helper function to create a bookmark entry
 const createBookmarkEntry = (
@@ -20,6 +30,7 @@ const createBookmarkEntry = (
   updated: number,
   title: string,
   tags: string[],
+  extraFileds?: Record<string, unknown>,
   updated2?: number,
   deletedMeta?: BookmarkTagsAndMetadata['deletedMeta']
 ): BookmarkTagsAndMetadata => ({
@@ -28,6 +39,7 @@ const createBookmarkEntry = (
     updated,
     title,
     updated2,
+    ...extraFileds,
   },
   tags,
   deletedMeta,
@@ -45,8 +57,12 @@ type TestMergeBookmarksParams = {
   remoteData: BookmarksData
   strategy: MergeStrategy
   syncOption: SyncOption
-  expectedMerged: BookmarksData
-  expectedDeleted?: string[]
+  expectedUpdatesForLocal: BookmarksData
+  expectedLocalDeletions?: string[]
+  expectedUpdatesForRemote?: BookmarksData
+  expectedRemoteDeletions?: string[]
+  expectedLocalEqualsToRemote?: boolean
+  ignoreCompareAfterMerge?: boolean
 }
 
 const runMergeTest = async ({
@@ -54,8 +70,12 @@ const runMergeTest = async ({
   remoteData,
   strategy,
   syncOption,
-  expectedMerged,
-  expectedDeleted = [],
+  expectedUpdatesForLocal,
+  expectedLocalDeletions = [],
+  expectedUpdatesForRemote = {},
+  expectedRemoteDeletions = [],
+  expectedLocalEqualsToRemote = false,
+  ignoreCompareAfterMerge = false,
 }: TestMergeBookmarksParams) => {
   const result = await mergeBookmarks(
     localData,
@@ -63,8 +83,111 @@ const runMergeTest = async ({
     strategy,
     syncOption
   )
-  expect(result.merged).toEqual(expectedMerged)
-  expect(result.deleted.sort()).toEqual(expectedDeleted.sort()) // Sort for consistent comparison
+  expect(result.updatesForLocal).toEqual(expectedUpdatesForLocal)
+  expect(result.localDeletions.sort()).toEqual(expectedLocalDeletions.sort()) // Sort for consistent comparison
+  expect(result.updatesForRemote).toEqual(
+    expectedLocalEqualsToRemote
+      ? expectedUpdatesForLocal
+      : expectedUpdatesForRemote
+  )
+  expect(result.remoteDeletions.sort()).toEqual(expectedRemoteDeletions.sort()) // Sort for consistent comparison
+
+  if (ignoreCompareAfterMerge) {
+    return
+  }
+
+  const localDataAfterMerge = await getMergedData(
+    localData,
+    result.updatesForLocal,
+    result.localDeletions
+  )
+  const remoteDataAfterMerge = await getMergedData(
+    remoteData,
+    result.updatesForRemote,
+    result.remoteDeletions
+  )
+
+  // Verify that localDataAfterMerge and remoteDataAfterMerge are the same,
+  // ignoring created, updated, and updated2 fields in meta.
+  const localKeys = Object.keys(localDataAfterMerge).sort()
+  const remoteKeys = Object.keys(remoteDataAfterMerge).sort()
+  const finalLocalKeys = Object.keys(result.finalLocalData).sort()
+  const finalRemoteKeys = Object.keys(result.finalRemoteData).sort()
+
+  expect(localKeys).toEqual(remoteKeys)
+  expect(finalLocalKeys).toEqual(localKeys)
+  expect(finalRemoteKeys).toEqual(remoteKeys)
+
+  for (const key of localKeys) {
+    const localBookmark = localDataAfterMerge[key]
+    const remoteBookmark = remoteDataAfterMerge[key]
+    const finalLocalBookmark = result.finalLocalData[key]
+    const finalRemoteBookmark = result.finalRemoteData[key]
+
+    expect(remoteBookmark).toBeDefined()
+    expect(finalLocalBookmark).toBeDefined()
+    expect(finalRemoteBookmark).toBeDefined()
+
+    // Compare tags
+    expect(areArraysEqual(localBookmark.tags, remoteBookmark.tags)).toBe(true)
+    expect(areArraysEqual(localBookmark.tags, finalLocalBookmark.tags)).toBe(
+      true
+    )
+    expect(areArraysEqual(localBookmark.tags, finalRemoteBookmark.tags)).toBe(
+      true
+    )
+
+    expect(localBookmark.meta).toEqual(finalLocalBookmark.meta)
+    expect(remoteBookmark.meta).toEqual(finalRemoteBookmark.meta)
+    expect({ ...localBookmark.meta, updated2: 0 }).toEqual({
+      ...remoteBookmark.meta,
+      updated2: 0,
+    })
+
+    // Compare meta, ignoring specified keys
+    const ignoredMetaKeys = ['updated2']
+    expect(
+      areObjectsEqual(localBookmark.meta, remoteBookmark.meta, ignoredMetaKeys)
+    ).toBe(true)
+
+    // Compare deletedMeta
+    expect(
+      areObjectsEqual(localBookmark.deletedMeta, remoteBookmark.deletedMeta, [])
+    ).toBe(true)
+    expect(
+      areObjectsEqual(
+        localBookmark.deletedMeta,
+        finalLocalBookmark.deletedMeta,
+        []
+      )
+    ).toBe(true)
+    expect(
+      areObjectsEqual(
+        localBookmark.deletedMeta,
+        finalRemoteBookmark.deletedMeta,
+        []
+      )
+    ).toBe(true)
+
+    expect(localBookmark).toEqual(finalLocalBookmark)
+    expect(remoteBookmark).toEqual(finalRemoteBookmark)
+
+    finalLocalBookmark.meta.updated2 = 0
+    finalRemoteBookmark.meta.updated2 = 0
+    expect(finalLocalBookmark).toEqual(finalRemoteBookmark)
+  }
+}
+
+async function getMergedData(
+  orgData: BookmarksData,
+  updates: BookmarksData,
+  deletions: string[]
+): Promise<BookmarksData> {
+  localStorageMock.clear() // Ensure a clean state
+  await bookmarkStorage.overwriteBookmarks(orgData)
+  await bookmarkStorage.deleteBookmarks(deletions)
+  await bookmarkStorage.upsertBookmarksFromData(updates)
+  return bookmarkStorage.getBookmarksData()
 }
 
 describe('mergeBookmarks', () => {
@@ -78,7 +201,7 @@ describe('mergeBookmarks', () => {
       defaultDate: defaultDateTimestamp,
     }
     baseSyncOption = {
-      currentTime: now,
+      currentSyncTime: now,
       lastSyncTime: twoHoursAgo, // Default last sync time
     }
   })
@@ -91,25 +214,218 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Local A',
           ['tag1'],
+          {
+            localField: 'local field',
+          },
           oneHourAgo
         ),
       }
       const remoteData: BookmarksData = {
         'http://example.com/a': createBookmarkEntry(
           oneHourAgo, // Remote created later but updated earlier
-          oneHourAgo,
+          oneHourAgo + 1,
           'Remote A',
           ['tag2'],
-          oneHourAgo + 1
+          {
+            remoteField: 'remote field',
+          },
+          oneHourAgo
         ),
       }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://example.com/a': {
           meta: {
             created: oneHourAgo,
+            updated: oneHourAgo + 1,
+            title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated logic
+            remoteField: 'remote field',
+            updated2: now,
+          },
+          tags: ['tag1', 'tag2'], // 'union' tags strategy
+        },
+      }
+      const expectedUpdatesForLocal2: BookmarksData = {
+        'http://example.com/a': {
+          meta: {
+            created: oneHourAgo,
+            updated: oneHourAgo + 1,
+            title: 'Local A', // 'local' meta strategy, remote is effectively newer due to updated logic
+            localField: 'local field',
+            updated2: now,
+          },
+          tags: ['tag1', 'tag2'], // 'union' tags strategy
+        },
+      }
+      const expectedUpdatesForMerge: BookmarksData = {
+        'http://example.com/a': {
+          meta: {
+            created: oneHourAgo,
+            updated: oneHourAgo + 1,
+            title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated logic
+            localField: 'local field',
+            remoteField: 'remote field',
+            updated2: now,
+          },
+          tags: ['tag1', 'tag2'], // 'union' tags strategy
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'newer' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'remote' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'local' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdatesForLocal2,
+        expectedLocalEqualsToRemote: true,
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'merge' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdatesForMerge,
+        expectedLocalEqualsToRemote: true,
+      })
+
+      // Use defferent tags strategy
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'newer', tags: 'newer' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {
+          'http://example.com/a': {
+            meta: {
+              created: oneHourAgo,
+              updated: oneHourAgo + 1,
+              title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated logic
+              remoteField: 'remote field',
+              updated2: now,
+            },
+            tags: ['tag2'], // 'newer' tags strategy
+          },
+        },
+        expectedUpdatesForRemote: {},
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'remote', tags: 'remote' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {
+          'http://example.com/a': {
+            meta: {
+              created: oneHourAgo,
+              updated: oneHourAgo + 1,
+              title: 'Remote A', // 'remote' meta strategy, remote is effectively newer due to updated logic
+              remoteField: 'remote field',
+              updated2: now,
+            },
+            tags: ['tag2'], // 'remote' tags strategy
+          },
+        },
+        expectedUpdatesForRemote: {},
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'local', tags: 'local' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {
+          'http://example.com/a': {
+            meta: {
+              created: oneHourAgo,
+              updated: oneHourAgo + 1,
+              title: 'Local A', // 'local' meta strategy, remote is effectively newer due to updated logic
+              localField: 'local field',
+              updated2: now,
+            },
+            tags: ['tag1'], // 'local' tags strategy
+          },
+        },
+        expectedLocalEqualsToRemote: true,
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: {
+          ...baseStrategy,
+          meta: 'local',
+          tags: 'local',
+          preferNewestUpdated: false,
+        },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {
+          'http://example.com/a': {
+            meta: {
+              created: oneHourAgo,
+              updated: oneHourAgo,
+              title: 'Local A', // 'local' meta strategy, remote is effectively newer due to updated logic
+              localField: 'local field',
+              updated2: now,
+            },
+            tags: ['tag1'], // 'local' tags strategy
+          },
+        },
+      })
+    })
+
+    it('should keep local data when both local and remote have valid data and have same updated timestamp', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/a': createBookmarkEntry(
+          oneHourAgo - 2000,
+          oneHourAgo,
+          'Local A',
+          ['tag1'],
+          {
+            localField: 'local field',
+          },
+          oneHourAgo
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/a': createBookmarkEntry(
+          oneHourAgo - 2000,
+          oneHourAgo,
+          'Remote A',
+          ['tag2'],
+          {
+            remoteField: 'remote field',
+          },
+          oneHourAgo
+        ),
+      }
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/a': {
+          meta: {
+            created: oneHourAgo - 2000,
             updated: oneHourAgo,
-            title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated2 logic
-            updated2: oneHourAgo + 2,
+            title: 'Local A', // 'newer' meta strategy, local is effectively newer due to updated logic
+            localField: 'local field',
+            updated2: now,
           },
           tags: ['tag1', 'tag2'], // 'union' tags strategy
         },
@@ -119,7 +435,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -133,12 +450,14 @@ describe('mergeBookmarks', () => {
         ),
       }
       const remoteData: BookmarksData = {}
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
         'http://example.com/b': createBookmarkEntry(
           oneHourAgo,
           oneHourAgo,
           'Local B',
-          ['local']
+          ['local'],
+          {},
+          now
         ),
       }
       await runMergeTest({
@@ -146,7 +465,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
       })
     })
 
@@ -160,12 +480,14 @@ describe('mergeBookmarks', () => {
           ['remote']
         ),
       }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://example.com/c': createBookmarkEntry(
           oneHourAgo,
           oneHourAgo,
           'Remote C',
-          ['remote']
+          ['remote'],
+          {},
+          now
         ),
       }
       await runMergeTest({
@@ -173,7 +495,7 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
       })
     })
 
@@ -187,14 +509,14 @@ describe('mergeBookmarks', () => {
         ),
       }
       const remoteData: BookmarksData = {}
-      const expectedMerged: BookmarksData = {}
+      const expectedUpdatesForLocal: BookmarksData = {}
       await runMergeTest({
         localData,
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
-        expectedDeleted: ['http://example.com/d'],
+        expectedUpdatesForLocal,
+        expectedLocalDeletions: ['http://example.com/d'],
       })
     })
 
@@ -208,20 +530,296 @@ describe('mergeBookmarks', () => {
           ['old']
         ),
       }
-      const expectedMerged: BookmarksData = {}
+      const expectedUpdatesForLocal: BookmarksData = {}
       await runMergeTest({
         localData,
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
-        expectedDeleted: ['http://example.com/e'],
+        expectedUpdatesForLocal,
+        expectedRemoteDeletions: ['http://example.com/e'],
+      })
+    })
+
+    it('should filter out invalid URLs and merge valid ones', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/valid-local': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Valid Local',
+          ['local']
+        ),
+        'invalid-url': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Invalid Local',
+          ['invalid']
+        ),
+        'http://example.com/another-valid': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Another Valid Local',
+          ['local', 'extra']
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/valid-remote': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Valid Remote',
+          ['remote']
+        ),
+        'another-invalid-url': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Invalid Remote',
+          ['invalid']
+        ),
+        'http://example.com/another-valid': createBookmarkEntry(
+          twoHoursAgo, // Older
+          twoHoursAgo,
+          'Another Valid Remote Old',
+          ['remote']
+        ),
+      }
+
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/valid-remote': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Valid Remote',
+          ['remote'],
+          {},
+          now
+        ),
+        // 'http://example.com/another-valid' should take local's version as it's newer
+        // and merge tags
+        'http://example.com/another-valid': createBookmarkEntry(
+          twoHoursAgo, // from remote (older)
+          oneHourAgo, // from local (newer)
+          'Another Valid Local', // from local (newer)
+          ['local', 'extra'], // tags union, but remote is staled
+          {},
+          now
+        ),
+      }
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/valid-local': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Valid Local',
+          ['local'],
+          {},
+          now
+        ),
+        'http://example.com/another-valid': createBookmarkEntry(
+          twoHoursAgo, // from remote (older)
+          oneHourAgo, // from local (newer)
+          'Another Valid Local', // from local (newer)
+          ['local', 'extra'], // tags union, but remote is staled
+          {},
+          now
+        ),
+      }
+
+      // Spy on console.warn
+      const consoleWarnSpy = vi.spyOn(console, 'warn')
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+        expectedUpdatesForRemote,
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
+        ignoreCompareAfterMerge: true,
+      })
+
+      // Check if console.warn was called with the expected messages
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'Invalid URL found and skipped: invalid-url'
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'Invalid URL found and skipped: another-invalid-url'
+      )
+
+      // Restore console.warn
+      consoleWarnSpy.mockRestore()
+    })
+  })
+
+  describe('MergeTarget Zero Scenarios (Identical Data)', () => {
+    it('should result in mergeTarget === 0 (no updates) when local and remote data are identical and not modified since lastSyncTime', async () => {
+      const identicalBookmark = createBookmarkEntry(
+        threeHoursAgo, // Older than lastSyncTime
+        threeHoursAgo,
+        'Identical Bookmark',
+        ['tagA', 'tagB'],
+        { customField: 'value' },
+        threeHoursAgo
+      )
+      const localData: BookmarksData = {
+        'http://example.com/identical': identicalBookmark,
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/identical': { ...identicalBookmark }, // Ensure a clone for safety
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption, // lastSyncTime is twoHoursAgo
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {},
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
+      })
+    })
+
+    it('should result in mergeTarget === 0 (no updates) when local and remote data are identical and modified since lastSyncTime but content remains the same', async () => {
+      const identicalBookmarkModified = createBookmarkEntry(
+        oneHourAgo, // Newer than lastSyncTime
+        oneHourAgo,
+        'Identical Modified Bookmark',
+        ['tagX', 'tagY'],
+        { anotherField: 'anotherValue' },
+        oneHourAgo
+      )
+      const localData: BookmarksData = {
+        'http://example.com/identical-modified': identicalBookmarkModified,
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/identical-modified': {
+          ...identicalBookmarkModified,
+        }, // Ensure a clone
+      }
+
+      // Modify syncOption to ensure bookmarks are considered 'valid'
+      const syncOptionForValid = {
+        ...baseSyncOption,
+        lastSyncTime: twoHoursAgo, // Bookmarks updated at oneHourAgo are valid
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'local' },
+        syncOption: syncOptionForValid,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {},
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'remote' },
+        syncOption: syncOptionForValid,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {},
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'newer' },
+        syncOption: syncOptionForValid,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {},
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
+      })
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'merge' },
+        syncOption: syncOptionForValid,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {},
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
+      })
+    })
+
+    it('should result in mergeTarget === 0 when local and remote are identical, valid, and timestamps are also identical', async () => {
+      const bookmarkData = createBookmarkEntry(
+        oneHourAgo, // valid
+        oneHourAgo, // valid
+        'Identical Valid Bookmark',
+        ['tag1', 'tag2'],
+        { field: 'value' },
+        oneHourAgo // valid
+      )
+      const localData: BookmarksData = {
+        'http://example.com/identical-valid': bookmarkData,
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/identical-valid': { ...bookmarkData },
+      }
+
+      const result = await mergeBookmarks(
+        localData,
+        remoteData,
+        baseStrategy,
+        baseSyncOption
+      )
+
+      // Expect no updates or deletions because data is identical and valid on both sides
+      expect(result.updatesForLocal).toEqual({})
+      expect(result.updatesForRemote).toEqual({})
+      expect(result.localDeletions).toEqual([])
+      expect(result.remoteDeletions).toEqual([])
+    })
+
+    it('should result in mergeTarget === 0 when local and remote are identical and both marked as deleted (and valid)', async () => {
+      const deletedBookmarkEntry = createBookmarkEntry(
+        oneHourAgo, // created
+        oneHourAgo, // updated (deletion time)
+        'Identical Deleted Bookmark',
+        [DELETED_BOOKMARK_TAG, 'archived'],
+        { originalTitle: 'Was Deleted Bookmark' }, // extra meta fields
+        oneHourAgo, // updated2 (deletion time)
+        {
+          deleted: oneHourAgo, // Renamed from deletedAt to match expected type
+          actionType: 'SYNC', // Corrected to a valid DeleteActionType based on type definition
+        }
+      )
+
+      const localData: BookmarksData = {
+        'http://example.com/identical-deleted': deletedBookmarkEntry,
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/identical-deleted': { ...deletedBookmarkEntry }, // Ensure a clone
+      }
+
+      // syncOption ensures the deletion is considered 'valid' (occurred after lastSyncTime)
+      const syncOptionForValidDeletion = {
+        ...baseSyncOption,
+        lastSyncTime: twoHoursAgo, // Deletion at oneHourAgo is more recent
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: syncOptionForValidDeletion,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: {},
+        expectedLocalDeletions: [],
+        expectedRemoteDeletions: [],
       })
     })
   })
 
   describe('Timestamp and Validity', () => {
-    it('should use local data if local is valid and remote is not', async () => {
+    it('should use local data if local is valid and remote is stale', async () => {
       const localData: BookmarksData = {
         'http://example.com/f': createBookmarkEntry(
           oneHourAgo,
@@ -232,19 +830,39 @@ describe('mergeBookmarks', () => {
       }
       const remoteData: BookmarksData = {
         'http://example.com/f': createBookmarkEntry(
-          threeHoursAgo,
+          threeHoursAgo, // Staled remote data
           threeHoursAgo,
           'Invalid Remote F',
           ['remote']
         ),
       }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/f': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Valid Local F',
+          ['local'],
+          {},
+          now
+        ),
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+      })
+
+      const expectedUpdates: BookmarksData = {
         'http://example.com/f': createBookmarkEntry(
           threeHoursAgo,
           oneHourAgo,
           'Valid Local F',
           ['local'],
-          oneHourAgo + 1
+          {},
+          now
         ),
       }
       await runMergeTest({
@@ -252,14 +870,43 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedUpdatesForRemote: expectedUpdates,
+      })
+
+      const localDataWithOldCreated: BookmarksData = {
+        'http://example.com/f': createBookmarkEntry(
+          threeHoursAgo,
+          oneHourAgo,
+          'Valid Local F',
+          ['local']
+        ),
+      }
+
+      const expectedUpdatesForRemote2: BookmarksData = {
+        'http://example.com/f': createBookmarkEntry(
+          threeHoursAgo,
+          oneHourAgo,
+          'Valid Local F',
+          ['local'],
+          {},
+          now
+        ),
+      }
+      await runMergeTest({
+        localData: localDataWithOldCreated,
+        remoteData,
+        strategy: { ...baseStrategy, preferOldestCreated: true },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: expectedUpdatesForRemote2,
       })
     })
 
-    it('should use remote data if remote is valid and local is not', async () => {
+    it('should use remote data if remote is valid and local is stale', async () => {
       const localData: BookmarksData = {
         'http://example.com/g': createBookmarkEntry(
-          threeHoursAgo,
+          threeHoursAgo, // Stale local data
           threeHoursAgo,
           'Invalid Local G',
           ['local']
@@ -273,13 +920,32 @@ describe('mergeBookmarks', () => {
           ['remote']
         ),
       }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/g': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Valid Remote G',
+          ['remote'],
+          {},
+          now
+        ),
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+      })
+
+      const expectedUpdates: BookmarksData = {
         'http://example.com/g': createBookmarkEntry(
           threeHoursAgo,
           oneHourAgo,
           'Valid Remote G',
           ['remote'],
-          oneHourAgo + 1
+          {},
+          now
         ),
       }
       await runMergeTest({
@@ -287,39 +953,104 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedLocalEqualsToRemote: true,
+      })
+
+      const remoteDataWithOlderCreated: BookmarksData = {
+        'http://example.com/g': createBookmarkEntry(
+          threeHoursAgo,
+          oneHourAgo,
+          'Valid Remote G',
+          ['remote']
+        ),
+      }
+
+      const expectedUpdatesForLocal2: BookmarksData = {
+        'http://example.com/g': createBookmarkEntry(
+          threeHoursAgo,
+          oneHourAgo,
+          'Valid Remote G',
+          ['remote'],
+          {},
+          now
+        ),
+      }
+      await runMergeTest({
+        localData,
+        remoteData: remoteDataWithOlderCreated,
+        strategy: { ...baseStrategy, preferOldestCreated: true },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdatesForLocal2,
       })
     })
 
-    it('should return undefined (effectively deleting) if both local and remote are invalid', async () => {
+    // Test case: Verifies behavior when a bookmark is stale (updated < lastSyncTime) on both local and remote.
+    // It also tests the scenario where the bookmark is considered valid if lastSyncTime is older than the bookmark's update time.
+    it('should exclude bookmark from merge result if both local and remote are stale, but merge if valid relative to lastSyncTime', async () => {
       const localData: BookmarksData = {
         'http://example.com/h': createBookmarkEntry(
           threeHoursAgo,
-          threeHoursAgo,
-          'Invalid Local H',
-          ['local']
+          threeHoursAgo, // updated timestamp
+          'Stale Local H',
+          ['local'],
+          {
+            localField: 'local field',
+          }
         ),
       }
       const remoteData: BookmarksData = {
         'http://example.com/h': createBookmarkEntry(
           threeHoursAgo,
-          threeHoursAgo,
-          'Invalid Remote H',
-          ['remote']
+          threeHoursAgo, // updated timestamp
+          'Stale Remote H',
+          ['remote'],
+          {
+            remoteField: 'remote field',
+          }
         ),
       }
-      const expectedMerged: BookmarksData = {}
-      // In the current implementation, if both are invalid, mergeBothSources returns undefined,
-      // which leads to the item not being included in merged. This implies deletion.
-      // However, the deletedURLs array is not populated in this specific path within mergeBothSources.
-      // This might be an area for review in the main function if explicit deletion marking is always needed.
+
+      // Scenario 1: Both local and remote are stale (updated < lastSyncTime).
+      // In this case, mergeBothSources returns undefined. This means the item is excluded from the merged result.
+      // It's important to note that the item is NOT explicitly deleted from local or remote storage in this scenario.
+      // The deletedURLs array is not populated for this type of exclusion.
+      // This situation can occur if data diverged (e.g., due to manual edits on local/remote without updating timestamps)
+      // after the last successful sync, making both versions appear older than the sync record.
+      const expectedUpdatesForLocalStale: BookmarksData = {}
       await runMergeTest({
         localData,
         remoteData,
         strategy: baseStrategy,
-        syncOption: baseSyncOption,
-        expectedMerged,
-        expectedDeleted: [],
+        syncOption: baseSyncOption, // lastSyncTime is 'now', which is > threeHoursAgo
+        expectedUpdatesForLocal: expectedUpdatesForLocalStale,
+        expectedLocalDeletions: [], // No explicit deletion from local/remote, item is just not included in merge result
+        ignoreCompareAfterMerge: true, // Merged result will be empty for this item
+      })
+
+      // Scenario 2: Both local and remote are considered valid (updated > lastSyncTime).
+      // If lastSyncTime is older than the bookmark's 'updated' timestamp, the bookmark is treated as valid and should be merged.
+      const expectedUpdatesForValid: BookmarksData = {
+        'http://example.com/h': {
+          meta: {
+            created: threeHoursAgo,
+            updated: threeHoursAgo,
+            title: 'Stale Local H', // Assuming 'local' strategy for meta if not specified, or merged based on strategy
+            localField: 'local field',
+            remoteField: 'remote field',
+            updated2: now,
+          },
+          tags: ['local', 'remote'], // 'union' strategy for tags
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'merge', tags: 'union' }, // Explicitly use merge for meta and union for tags
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo - 20_000 }, // lastSyncTime is now older than bookmark's updated time
+        expectedUpdatesForLocal: expectedUpdatesForValid,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -337,13 +1068,13 @@ describe('mergeBookmarks', () => {
         },
       }
       const remoteData: BookmarksData = {}
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
         'http://example.com/i': {
           meta: {
             created: defaultDateTimestamp,
             updated: defaultDateTimestamp,
             title: 'Local I',
-            // updated2 will not be set by normalizeBookmark alone if not present
+            updated2: now,
           },
           tags: ['local'],
         },
@@ -353,7 +1084,10 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        // Don't update local data even it's timestamps are invalid
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
       })
     })
 
@@ -370,12 +1104,13 @@ describe('mergeBookmarks', () => {
         },
       }
       const remoteData: BookmarksData = {}
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
         'http://example.com/j': {
           meta: {
             created: oneHourAgo,
             updated: oneHourAgo, // Should fall back to created because updated is invalid
             title: 'Local J',
+            updated2: now,
           },
           tags: ['local'],
         },
@@ -385,7 +1120,9 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
       })
     })
 
@@ -401,12 +1138,13 @@ describe('mergeBookmarks', () => {
         },
       }
       const remoteData: BookmarksData = {}
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
         'http://example.com/k': {
           meta: {
             created: oneHourAgo,
             updated: oneHourAgo, // Should fall back to created because updated is invalid
             title: 'Local K',
+            updated2: now,
           },
           tags: ['local'],
         },
@@ -416,7 +1154,9 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
       })
     })
   })
@@ -427,6 +1167,7 @@ describe('mergeBookmarks', () => {
       oneHourAgo,
       'Local Title',
       ['common', 'local'],
+      {},
       oneHourAgo
     )
     const remoteEntryNewer = createBookmarkEntry(
@@ -434,6 +1175,7 @@ describe('mergeBookmarks', () => {
       now,
       'Remote Newer Title',
       ['common', 'remote'],
+      {},
       now
     )
     const remoteEntryOlder = createBookmarkEntry(
@@ -441,6 +1183,7 @@ describe('mergeBookmarks', () => {
       threeHoursAgo,
       'Remote Older Title',
       ['common'],
+      {},
       threeHoursAgo
     )
 
@@ -448,7 +1191,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, meta: 'local' }
       const localData = { 'http://item.com': localEntry }
       const remoteData = { 'http://item.com': remoteEntryNewer } // Remote is newer
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...localEntry.meta,
@@ -464,7 +1207,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -472,7 +1216,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, meta: 'remote' }
       const localData = { 'http://item.com': localEntry } // Local is older
       const remoteData = { 'http://item.com': remoteEntryNewer }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
@@ -488,7 +1232,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -496,7 +1241,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, meta: 'newer' }
       const localData = { 'http://item.com': localEntry }
       const remoteData = { 'http://item.com': remoteEntryNewer }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta, // Newer meta base
@@ -512,7 +1257,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -520,7 +1266,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, meta: 'newer' }
       const localData = { 'http://item.com': remoteEntryNewer } // Local is newer now
       const remoteData = { 'http://item.com': localEntry }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
@@ -536,7 +1282,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -546,7 +1293,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, meta: 'merge' } // 'merge' is default in implementation if not 'local', 'remote', 'newer'
       const localData = { 'http://item.com': localEntry } // local older
       const remoteData = { 'http://item.com': remoteEntryNewer } // remote newer
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             // created: localEntry.meta.created, // 'merge' takes newer for all fields
@@ -564,7 +1311,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -575,6 +1323,7 @@ describe('mergeBookmarks', () => {
         now,
         'Local Newer Title',
         ['common', 'local'],
+        {},
         now
       )
       const remoteOlderEntry = createBookmarkEntry(
@@ -582,11 +1331,12 @@ describe('mergeBookmarks', () => {
         oneHourAgo,
         'Remote Older Title',
         ['common', 'remote'],
+        {},
         oneHourAgo
       )
       const localData = { 'http://item.com': localNewerEntry }
       const remoteData = { 'http://item.com': remoteOlderEntry }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...localNewerEntry.meta,
@@ -602,7 +1352,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
   })
@@ -613,6 +1364,7 @@ describe('mergeBookmarks', () => {
       oneHourAgo,
       'Title local',
       ['tagL1', 'common'],
+      {},
       oneHourAgo
     )
     const remoteEntryNewer = createBookmarkEntry(
@@ -620,6 +1372,7 @@ describe('mergeBookmarks', () => {
       now,
       'Title remote',
       ['tagR1', 'common'],
+      {},
       now
     )
 
@@ -627,7 +1380,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, tags: 'local' }
       const localData = { 'http://item.com': localEntry }
       const remoteData = { 'http://item.com': remoteEntryNewer }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta, // meta strategy is 'newer'
@@ -642,7 +1395,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -650,7 +1404,23 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, tags: 'remote' }
       const localData = { 'http://item.com': localEntry }
       const remoteData = { 'http://item.com': remoteEntryNewer }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://item.com': {
+          meta: {
+            ...remoteEntryNewer.meta,
+            updated2: now + 1,
+          },
+          tags: ['tagR1', 'common'], // Explicitly remote tags
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...strategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+      })
+      const expectedUpdates: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
@@ -665,7 +1435,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
@@ -673,7 +1444,24 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, tags: 'newer' }
       const localData = { 'http://item.com': localEntry }
       const remoteData = { 'http://item.com': remoteEntryNewer }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://item.com': {
+          meta: {
+            ...remoteEntryNewer.meta,
+            updated2: now + 1,
+          },
+          tags: ['tagR1', 'common'], // Newer tags
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...strategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+      })
+
+      const expectedUpdates: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
@@ -688,17 +1476,23 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
     it('tags strategy: newer - should use local tags if local is newer', async () => {
-      const strategy: MergeStrategy = { ...baseStrategy, tags: 'newer' }
+      const strategy: MergeStrategy = {
+        ...baseStrategy,
+        tags: 'newer',
+        preferOldestCreated: false,
+      }
       const localNewerEntry = createBookmarkEntry(
         now,
         now,
         'Title local newer',
         ['tagL-new', 'common-new'],
+        {},
         now
       )
       const remoteOlderEntry = createBookmarkEntry(
@@ -706,11 +1500,30 @@ describe('mergeBookmarks', () => {
         oneHourAgo,
         'Title remote older',
         ['tagR-old', 'common-old'],
+        {},
         oneHourAgo
       )
       const localData = { 'http://item.com': localNewerEntry }
       const remoteData = { 'http://item.com': remoteOlderEntry }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://item.com': {
+          meta: {
+            ...localNewerEntry.meta, // meta strategy is 'newer' by default
+            updated2: now + 1,
+          },
+          tags: ['tagL-new', 'common-new'], // Newer tags from local
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+      })
+
+      const expectedUpdates: BookmarksData = {
         'http://item.com': {
           meta: {
             ...localNewerEntry.meta, // meta strategy is 'newer' by default
@@ -723,9 +1536,10 @@ describe('mergeBookmarks', () => {
       await runMergeTest({
         localData,
         remoteData,
-        strategy,
+        strategy: { ...strategy, preferOldestCreated: true },
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedUpdatesForRemote: expectedUpdates,
       })
     })
 
@@ -733,7 +1547,7 @@ describe('mergeBookmarks', () => {
       const strategy: MergeStrategy = { ...baseStrategy, tags: 'union' }
       const localData = { 'http://item.com': localEntry }
       const remoteData = { 'http://item.com': remoteEntryNewer }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
@@ -744,13 +1558,14 @@ describe('mergeBookmarks', () => {
         },
       }
       // Adjust expected tags to be sorted as Set conversion might change order
-      // expectedMerged['http://item.com'].tags.sort()
+      // expectedUpdatesForLocal['http://item.com'].tags.sort()
       await runMergeTest({
         localData,
         remoteData,
         strategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
       })
     })
   })
@@ -759,10 +1574,11 @@ describe('mergeBookmarks', () => {
     it('should merge normally if local is deleted but remote is newer and not deleted', async () => {
       const localData: BookmarksData = {
         'http://deleted.com': createBookmarkEntry(
-          threeHoursAgo,
+          threeHoursAgo, // Staled
           threeHoursAgo,
           'Local Deleted',
           [DELETED_BOOKMARK_TAG, 'local'],
+          {},
           threeHoursAgo,
           { deleted: threeHoursAgo, actionType: 'DELETE' }
         ),
@@ -773,18 +1589,38 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Remote Active',
           ['remote'],
+          {},
           oneHourAgo
         ),
       }
       // Default strategy: meta 'newer', tags 'union'
       // Remote is newer and not deleted, so remote should win.
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://deleted.com': {
+          meta: {
+            created: oneHourAgo,
+            updated: oneHourAgo,
+            title: 'Remote Active',
+            updated2: now,
+          },
+          tags: ['remote'], // Remote's tags, as it's the chosen version
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+      })
+
+      const expectedUpdates: BookmarksData = {
         'http://deleted.com': {
           meta: {
             created: threeHoursAgo,
             updated: oneHourAgo,
             title: 'Remote Active',
-            updated2: oneHourAgo + 1,
+            updated2: now,
           },
           tags: ['remote'], // Remote's tags, as it's the chosen version
         },
@@ -794,37 +1630,61 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedLocalEqualsToRemote: true,
       })
     })
 
-    it('should merge normally if remote is deleted but local is newer and not deleted', async () => {
+    it('should merge normally if remote is deleted but local is newer and not deleted - 1', async () => {
       const localData: BookmarksData = {
         'http://deleted.com': createBookmarkEntry(
           oneHourAgo,
           oneHourAgo,
           'Local Active',
           ['local'],
+          {},
           oneHourAgo
         ),
       }
+      // Stale
       const remoteData: BookmarksData = {
         'http://deleted.com': createBookmarkEntry(
           threeHoursAgo,
           threeHoursAgo,
           'Remote Deleted',
           [DELETED_BOOKMARK_TAG, 'remote'],
+          {},
           threeHoursAgo,
           { deleted: threeHoursAgo, actionType: 'DELETE' }
         ),
       }
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://deleted.com': {
+          meta: {
+            created: oneHourAgo,
+            updated: oneHourAgo,
+            title: 'Local Active',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+      })
+
+      const expectedUpdates: BookmarksData = {
         'http://deleted.com': {
           meta: {
             created: threeHoursAgo,
             updated: oneHourAgo,
             title: 'Local Active',
-            updated2: oneHourAgo + 1,
+            updated2: now,
           },
           tags: ['local'],
         },
@@ -834,51 +1694,213 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedUpdatesForRemote: expectedUpdates,
       })
     })
 
-    it('should keep deleted status if both are deleted and newer strategy picks the deleted one', async () => {
+    it('should merge normally if remote is deleted but local is newer and not deleted - 2', async () => {
+      const localData: BookmarksData = {
+        'http://deleted.com': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Local Active',
+          ['local'],
+          {},
+          oneHourAgo
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://deleted.com': createBookmarkEntry(
+          twoHoursAgo + 10_000,
+          twoHoursAgo + 20_000,
+          'Remote Deleted',
+          [DELETED_BOOKMARK_TAG, 'remote'],
+          {},
+          twoHoursAgo + 30_000,
+          { deleted: threeHoursAgo, actionType: 'DELETE' }
+        ),
+      }
+      const expectedUpdates: BookmarksData = {
+        'http://deleted.com': {
+          meta: {
+            created: twoHoursAgo + 10_000,
+            updated: oneHourAgo,
+            title: 'Local Active',
+            updated2: now,
+          },
+          tags: ['local', DELETED_BOOKMARK_TAG, 'remote'],
+          deletedMeta: { deleted: threeHoursAgo, actionType: 'DELETE' },
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedUpdatesForRemote: expectedUpdates,
+      })
+    })
+
+    it('should merge normally if remote is deleted but local is newer and not deleted - 3', async () => {
+      const localData: BookmarksData = {
+        'http://deleted.com': createBookmarkEntry(
+          oneHourAgo,
+          oneHourAgo,
+          'Local Active',
+          ['local'],
+          {},
+          oneHourAgo
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://deleted.com': createBookmarkEntry(
+          twoHoursAgo + 10_000,
+          twoHoursAgo + 20_000,
+          'Remote Deleted',
+          [DELETED_BOOKMARK_TAG, 'remote'],
+          {},
+          twoHoursAgo + 30_000,
+          { deleted: threeHoursAgo, actionType: 'DELETE' }
+        ),
+      }
+      const expectedUpdates: BookmarksData = {
+        'http://deleted.com': {
+          meta: {
+            created: twoHoursAgo + 10_000,
+            updated: oneHourAgo,
+            title: 'Local Active',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'newer', tags: 'newer' },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedUpdatesForRemote: expectedUpdates,
+      })
+    })
+
+    it('should keep deleted status if both are deleted and newer strategy picks the deleted one - 1', async () => {
       const localData: BookmarksData = {
         'http://deleted.com': createBookmarkEntry(
           oneHourAgo, // Newer
           oneHourAgo,
           'Local Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'local'],
+          {},
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
       }
+      // Stale
       const remoteData: BookmarksData = {
         'http://deleted.com': createBookmarkEntry(
           threeHoursAgo, // Older
           threeHoursAgo,
           'Remote Deleted Older',
           [DELETED_BOOKMARK_TAG, 'remote'],
+          {},
           threeHoursAgo,
           { deleted: threeHoursAgo, actionType: 'SYNC' }
         ),
       }
       // Meta: newer, Tags: union. Local is newer.
-      const expectedMerged: BookmarksData = {
+      const expectedUpdates: BookmarksData = {
         'http://deleted.com': {
           meta: {
-            created: threeHoursAgo,
+            created: oneHourAgo,
             updated: oneHourAgo,
             title: 'Local Deleted Newer',
-            updated2: oneHourAgo + 1,
+            updated2: now,
           },
           tags: [DELETED_BOOKMARK_TAG, 'local'],
           deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' }, // from local
         },
       }
-      // expectedMerged['http://deleted.com'].tags.sort()
+      // expectedUpdatesForLocal['http://deleted.com'].tags.sort()
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, preferOldestCreated: false },
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote: expectedUpdates,
+      })
+
+      const expectedUpdates2: BookmarksData = {
+        'http://deleted.com': {
+          meta: {
+            created: threeHoursAgo,
+            updated: oneHourAgo,
+            title: 'Local Deleted Newer',
+            updated2: now,
+          },
+          tags: [DELETED_BOOKMARK_TAG, 'local'],
+          deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' }, // from local
+        },
+      }
+      // expectedUpdatesForLocal['http://deleted.com'].tags.sort()
       await runMergeTest({
         localData,
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal: expectedUpdates2,
+        expectedUpdatesForRemote: expectedUpdates2,
+      })
+    })
+
+    it('should keep deleted status if both are deleted and newer strategy picks the deleted one - 2', async () => {
+      const localData: BookmarksData = {
+        'http://deleted.com': createBookmarkEntry(
+          oneHourAgo, // Newer
+          oneHourAgo,
+          'Local Deleted Newer',
+          [DELETED_BOOKMARK_TAG, 'local'],
+          {},
+          oneHourAgo,
+          { deleted: oneHourAgo, actionType: 'DELETE' }
+        ),
+      }
+
+      const remoteData: BookmarksData = {
+        'http://deleted.com': createBookmarkEntry(
+          twoHoursAgo + 1000, // Older
+          twoHoursAgo + 2000,
+          'Remote Deleted Older',
+          [DELETED_BOOKMARK_TAG, 'remote'],
+          {},
+          twoHoursAgo + 3000,
+          { deleted: threeHoursAgo, actionType: 'SYNC' }
+        ),
+      }
+      // Meta: newer, Tags: union. Local is newer.
+      const expectedUpdates: BookmarksData = {
+        'http://deleted.com': {
+          meta: {
+            created: twoHoursAgo + 1000,
+            updated: oneHourAgo,
+            title: 'Local Deleted Newer',
+            updated2: now,
+          },
+          tags: [DELETED_BOOKMARK_TAG, 'local', 'remote'],
+          deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' }, // from local
+        },
+      }
+      // expectedUpdatesForLocal['http://deleted.com'].tags.sort()
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdates,
+        expectedUpdatesForRemote: expectedUpdates,
       })
     })
 
@@ -890,6 +1912,9 @@ describe('mergeBookmarks', () => {
           now,
           'Local Deleted',
           [DELETED_BOOKMARK_TAG, 'local-tag'],
+          {
+            localField: 'local deleted newer',
+          },
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -900,6 +1925,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Remote Active',
           ['remote-tag'],
+          {
+            remoteField: 'remote avtive older',
+          },
           oneHourAgo
         ),
       }
@@ -910,6 +1938,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Local Deleted Old',
           [DELETED_BOOKMARK_TAG, 'local-tag-old'],
+          {
+            localField: 'local deleted older',
+          },
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' } // older deletion time
         ),
@@ -920,6 +1951,9 @@ describe('mergeBookmarks', () => {
           now,
           'Remote Active New',
           ['remote-tag-new'],
+          {
+            remoteField: 'remote avtive newer',
+          },
           now
         ),
       }
@@ -931,83 +1965,196 @@ describe('mergeBookmarks', () => {
         {
           localData: BookmarksData
           remoteData: BookmarksData
-          expectedMeta: BookmarkTagsAndMetadata['meta']
-          expectedTags: string[]
-          expectedDeletedMeta?: BookmarkTagsAndMetadata['deletedMeta']
+          expectedLocalTagsAndMetadata: BookmarkTagsAndMetadata | undefined
+          expectedRemoteTagsAndMetadata?: BookmarkTagsAndMetadata
+          expectedLocalEqualsToRemote?: boolean
         },
+        preferOldestCreated?: boolean,
+        preferNewestUpdated?: boolean,
       ]
 
       const testCases: TestCase[] = [
         [
           'newer',
           'newer',
-          'local deleted (newer), remote active (older)',
+          'local deleted (newer), remote active (older) - 1',
           {
             localData: localDeletedNewerData,
             remoteData: remoteActiveOlderData,
-            expectedMeta: {
-              created: oneHourAgo,
-              updated: now,
-              title: 'Local Deleted',
-              updated2: now + 1, // Assuming updated2 is based on the newer item's update time + 1
+            expectedLocalTagsAndMetadata: undefined,
+            expectedRemoteTagsAndMetadata: {
+              meta: {
+                created: now,
+                updated: now,
+                title: 'Local Deleted',
+                localField: 'local deleted newer',
+                updated2: now + 1, // Assuming updated2 is based on the newer item's update time + 1
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
-            expectedTags: [DELETED_BOOKMARK_TAG, 'local-tag'],
-            expectedDeletedMeta: { deleted: now, actionType: 'DELETE' },
+          },
+          false,
+        ],
+        [
+          'newer',
+          'newer',
+          'local deleted (newer), remote active (older) - 2',
+          {
+            localData: localDeletedNewerData,
+            remoteData: remoteActiveOlderData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo,
+                updated: now,
+                title: 'Local Deleted',
+                localField: 'local deleted newer',
+                updated2: now + 1, // Assuming updated2 is based on the newer item's update time + 1
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
+            },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
           'local',
           'newer',
-          'local deleted (newer), remote active (older)',
+          'local deleted (newer), remote active (older) - 1',
           {
             localData: localDeletedNewerData,
             remoteData: remoteActiveOlderData,
-            expectedMeta: {
-              created: oneHourAgo,
-              updated: now,
-              title: 'Local Deleted', // from local
-              updated2: now + 1,
+            expectedLocalTagsAndMetadata: undefined,
+            expectedRemoteTagsAndMetadata: {
+              meta: {
+                created: now,
+                updated: now,
+                title: 'Local Deleted', // from local
+                localField: 'local deleted newer', // from local
+                updated2: now + 1,
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
-            expectedTags: [DELETED_BOOKMARK_TAG, 'local-tag'],
-            expectedDeletedMeta: { deleted: now, actionType: 'DELETE' },
+          },
+          false,
+        ],
+        [
+          'local',
+          'newer',
+          'local deleted (newer), remote active (older) - 2',
+          {
+            localData: localDeletedNewerData,
+            remoteData: remoteActiveOlderData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo,
+                updated: now,
+                title: 'Local Deleted', // from local
+                localField: 'local deleted newer', // from local
+                updated2: now + 1,
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
+            },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
           'remote',
           'newer',
-          'local deleted (newer), remote active (older)',
+          'local deleted (newer), remote active (older) - 1',
           {
             localData: localDeletedNewerData,
             remoteData: remoteActiveOlderData,
-            expectedMeta: {
-              created: oneHourAgo, // from older (remote)
-              updated: now, // from newer (local)
-              title: 'Remote Active', // from remote
-              updated2: now + 1, // from newer (local)
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from older (remote)
+                updated: now, // from newer (local)
+                title: 'Remote Active', // from remote
+                remoteField: 'remote avtive older', // from remote
+                updated2: now + 1, // from newer (local)
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
+              // If meta is remote, and remote is not deleted, deletedMeta should be undefined.
+              // Since tags from local (newer tags) are chosen, and tags contains DELETED_BOOKMARK_TAG,
+              // the deletedMeta should be copy from local.
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
-            expectedTags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
-            // If meta is remote, and remote is not deleted, deletedMeta should be undefined.
-            // Since tags from local (newer tags) are chosen, and tags contains DELETED_BOOKMARK_TAG,
-            // the deletedMeta should be copy from local.
-            expectedDeletedMeta: { deleted: now, actionType: 'DELETE' },
+            expectedLocalEqualsToRemote: true,
+          },
+        ],
+        [
+          'remote',
+          'newer',
+          'local deleted (newer), remote active (older) - 2',
+          {
+            localData: localDeletedNewerData,
+            remoteData: remoteActiveOlderData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from older (remote)
+                updated: oneHourAgo, // from newer (local)
+                title: 'Remote Active', // from remote
+                remoteField: 'remote avtive older', // from remote
+                updated2: now + 1, // from newer (local)
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
+              // If meta is remote, and remote is not deleted, deletedMeta should be undefined.
+              // Since tags from local (newer tags) are chosen, and tags contains DELETED_BOOKMARK_TAG,
+              // the deletedMeta should be copy from local.
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
+            },
+            expectedLocalEqualsToRemote: true,
+          },
+          false,
+          false,
+        ],
+        [
+          'merge',
+          'newer',
+          'local deleted (newer), remote active (older) - 1',
+          {
+            localData: localDeletedNewerData,
+            remoteData: remoteActiveOlderData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from older (remote)
+                updated: now, // from newer (local)
+                title: 'Local Deleted', // from newer (local)
+                localField: 'local deleted newer', // from local
+                remoteField: 'remote avtive older', // from remote
+                updated2: now + 1, // from newer (local)
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
+            },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
           'merge',
           'newer',
-          'local deleted (newer), remote active (older)',
+          'local deleted (newer), remote active (older) - 2',
           {
             localData: localDeletedNewerData,
             remoteData: remoteActiveOlderData,
-            expectedMeta: {
-              created: oneHourAgo, // from older (remote)
-              updated: now, // from newer (local)
-              title: 'Local Deleted', // from newer (local)
-              updated2: now + 1, // from newer (local)
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: now, // from newer (local)
+                updated: now, // from newer (local)
+                title: 'Local Deleted', // from newer (local)
+                localField: 'local deleted newer', // from local
+                remoteField: 'remote avtive older', // from remote
+                updated2: now + 1, // from newer (local)
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
-            expectedTags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
-            expectedDeletedMeta: { deleted: now, actionType: 'DELETE' },
+            expectedLocalEqualsToRemote: true,
           },
+          false,
+          false,
         ],
         [
           'newer',
@@ -1016,19 +2163,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderData,
             remoteData: remoteActiveNewerData,
-            expectedMeta: {
-              created: oneHourAgo, // from local (older)
-              updated: now, // from remote (newer)
-              title: 'Remote Active New', // from remote (newer)
-              updated2: now + 1, // from remote (newer) + 1
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from local (older)
+                updated: now, // from remote (newer)
+                title: 'Remote Active New', // from remote (newer)
+                remoteField: 'remote avtive newer', // from remote
+                updated2: now + 1, // from remote (newer) + 1
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag-old', 'remote-tag-new'],
+              deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta,
             },
-            expectedTags: [
-              DELETED_BOOKMARK_TAG,
-              'local-tag-old',
-              'remote-tag-new',
-            ],
-            expectedDeletedMeta:
-              localDeletedOlderData['http://item.com'].deletedMeta,
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1038,19 +2184,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderData,
             remoteData: remoteActiveNewerData,
-            expectedMeta: {
-              created: oneHourAgo, // from local (older)
-              updated: now, // from remote (newer)
-              title: 'Local Deleted Old', // from local (older)
-              updated2: now + 1, // from remote (newer) + 1
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from local (older)
+                updated: now, // from remote (newer)
+                title: 'Local Deleted Old', // from local (older)
+                localField: 'local deleted older', // from local
+                updated2: now + 1, // from remote (newer) + 1
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag-old', 'remote-tag-new'],
+              deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta,
             },
-            expectedTags: [
-              DELETED_BOOKMARK_TAG,
-              'local-tag-old',
-              'remote-tag-new',
-            ],
-            expectedDeletedMeta:
-              localDeletedOlderData['http://item.com'].deletedMeta,
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1060,19 +2205,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderData,
             remoteData: remoteActiveNewerData,
-            expectedMeta: {
-              created: oneHourAgo, // from local (older)
-              updated: now, // from remote (newer)
-              title: 'Remote Active New', // from remote (newer)
-              updated2: now + 1, // from remote (newer) + 1
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from local (older)
+                updated: now, // from remote (newer)
+                title: 'Remote Active New', // from remote (newer)
+                remoteField: 'remote avtive newer', // from remote
+                updated2: now + 1, // from remote (newer) + 1
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag-old', 'remote-tag-new'],
+              deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta,
             },
-            expectedTags: [
-              DELETED_BOOKMARK_TAG,
-              'local-tag-old',
-              'remote-tag-new',
-            ],
-            expectedDeletedMeta:
-              localDeletedOlderData['http://item.com'].deletedMeta,
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1082,26 +2226,30 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderData,
             remoteData: remoteActiveNewerData,
-            expectedMeta: {
-              created: oneHourAgo, // from local (older)
-              updated: now, // from remote (newer)
-              title: 'Remote Active New', // from remote (newer)
-              updated2: now + 1, // from remote (newer) + 1
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from local (older)
+                updated: now, // from remote (newer)
+                title: 'Remote Active New', // from remote (newer)
+                localField: 'local deleted older', // from local
+                remoteField: 'remote avtive newer', // from remote
+                updated2: now + 1, // from remote (newer) + 1
+              },
+              // If remote (newer) is chosen for meta, and it's not deleted, then the merged item is not deleted.
+              // Tags are 'local', so DELETED_BOOKMARK_TAG comes from local.
+              // This combination (merge meta favoring newer-active, but tags from older-deleted) is complex.
+              // The presence of DELETED_BOOKMARK_TAG from 'local' tags would trigger mergeDeletedMeta.
+              // mergeDeletedMeta with 'merge' strategy would then look at the main item's newer status.
+              // Since remote is newer and active, its (non-existent) deletedMeta would be preferred.
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag-old'],
+              deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta, // Because DELETED_BOOKMARK_TAG is present from 'local' tags strategy
+              // and mergeDeletedMeta will pick based on newer item (remote), which has no deletedMeta.
+              // Wait, if remote is newer and active, and meta is 'merge', the resulting item should be active.
+              // The DELETED_BOOKMARK_TAG from 'local' tags would make it deleted.
+              // This needs careful re-evaluation of the expected outcome based on merge logic.
+              // For now, sticking to the original test's implication that deletedMeta is present.
             },
-            // If remote (newer) is chosen for meta, and it's not deleted, then the merged item is not deleted.
-            // Tags are 'local', so DELETED_BOOKMARK_TAG comes from local.
-            // This combination (merge meta favoring newer-active, but tags from older-deleted) is complex.
-            // The presence of DELETED_BOOKMARK_TAG from 'local' tags would trigger mergeDeletedMeta.
-            // mergeDeletedMeta with 'merge' strategy would then look at the main item's newer status.
-            // Since remote is newer and active, its (non-existent) deletedMeta would be preferred.
-            expectedTags: [DELETED_BOOKMARK_TAG, 'local-tag-old'],
-            expectedDeletedMeta:
-              localDeletedOlderData['http://item.com'].deletedMeta, // Because DELETED_BOOKMARK_TAG is present from 'local' tags strategy
-            // and mergeDeletedMeta will pick based on newer item (remote), which has no deletedMeta.
-            // Wait, if remote is newer and active, and meta is 'merge', the resulting item should be active.
-            // The DELETED_BOOKMARK_TAG from 'local' tags would make it deleted.
-            // This needs careful re-evaluation of the expected outcome based on merge logic.
-            // For now, sticking to the original test's implication that deletedMeta is present.
+            expectedLocalEqualsToRemote: true,
           },
         ],
       ]
@@ -1115,18 +2263,25 @@ describe('mergeBookmarks', () => {
           {
             localData,
             remoteData,
-            expectedMeta,
-            expectedTags,
-            expectedDeletedMeta,
-          }
+            expectedLocalTagsAndMetadata,
+            expectedRemoteTagsAndMetadata,
+            expectedLocalEqualsToRemote,
+          },
+          preferOldestCreated = true,
+          preferNewestUpdated = true
         ) => {
-          const expectedMerged: BookmarksData = {
-            'http://item.com': {
-              meta: expectedMeta,
-              tags: expectedTags,
-              deletedMeta: expectedDeletedMeta,
-            },
-          }
+          const expectedUpdatesForLocal: BookmarksData =
+            expectedLocalTagsAndMetadata
+              ? {
+                  'http://item.com': expectedLocalTagsAndMetadata,
+                }
+              : {}
+          const expectedUpdatesForRemote: BookmarksData =
+            expectedRemoteTagsAndMetadata
+              ? {
+                  'http://item.com': expectedRemoteTagsAndMetadata,
+                }
+              : {}
 
           await runMergeTest({
             localData,
@@ -1135,9 +2290,13 @@ describe('mergeBookmarks', () => {
               ...baseStrategy,
               meta: metaStrategy,
               tags: tagsStrategy,
+              preferOldestCreated,
+              preferNewestUpdated,
             },
             syncOption: baseSyncOption,
-            expectedMerged,
+            expectedUpdatesForLocal,
+            expectedUpdatesForRemote,
+            expectedLocalEqualsToRemote,
           })
         }
       )
@@ -1150,6 +2309,9 @@ describe('mergeBookmarks', () => {
           now,
           'Local Active Newer',
           ['local-tag-newer'],
+          {
+            localField: 'active newer',
+          },
           now
         ),
       }
@@ -1159,6 +2321,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Remote Deleted Older',
           [DELETED_BOOKMARK_TAG, 'remote-tag-older'],
+          {
+            remoteField: 'deleted older',
+          },
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -1170,6 +2335,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Local Active Older',
           ['local-tag-older'],
+          {
+            localField: 'active older',
+          },
           oneHourAgo
         ),
       }
@@ -1179,6 +2347,9 @@ describe('mergeBookmarks', () => {
           now,
           'Remote Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'remote-tag-newer'],
+          {
+            remoteField: 'deleted newer',
+          },
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -1191,28 +2362,55 @@ describe('mergeBookmarks', () => {
         {
           localData: BookmarksData
           remoteData: BookmarksData
-          expected: BookmarkTagsAndMetadata
+          expectedLocalTagsAndMetadata: BookmarkTagsAndMetadata
+          expectedRemoteTagsAndMetadata?: BookmarkTagsAndMetadata
+          expectedLocalEqualsToRemote?: boolean
         },
+        preferOldestCreated?: boolean,
+        preferNewestUpdated?: boolean,
       ]
 
       it.each([
         [
           'newer' as MergeMetaStrategy,
           'newer' as MergeTagsStrategy,
-          'local active (newer), remote deleted (older)',
+          'local active (newer), remote deleted (older) - 1',
           {
             localData: localActiveNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: undefined,
+            expectedRemoteTagsAndMetadata: {
               meta: {
-                created: oneHourAgo,
+                created: now,
                 updated: now,
                 title: 'Local Active Newer',
+                localField: 'active newer',
                 updated2: now + 1,
               },
               tags: ['local-tag-newer'], // from local (newer)
             },
           },
+          false,
+        ],
+        [
+          'newer' as MergeMetaStrategy,
+          'newer' as MergeTagsStrategy,
+          'local active (newer), remote deleted (older) - 2',
+          {
+            localData: localActiveNewerData,
+            remoteData: remoteDeletedOlderData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo,
+                updated: now,
+                title: 'Local Active Newer',
+                localField: 'active newer',
+                updated2: now + 1,
+              },
+              tags: ['local-tag-newer'], // from local (newer)
+            },
+            expectedLocalEqualsToRemote: true,
+          },
         ],
         [
           'newer' as MergeMetaStrategy,
@@ -1221,11 +2419,12 @@ describe('mergeBookmarks', () => {
           {
             localData: localActiveNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Local Active Newer',
+                localField: 'active newer',
                 updated2: now + 1,
               },
               tags: [
@@ -1235,6 +2434,7 @@ describe('mergeBookmarks', () => {
               ],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1244,11 +2444,12 @@ describe('mergeBookmarks', () => {
           {
             localData: localActiveNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Local Active Newer',
+                localField: 'active newer',
                 updated2: now + 1,
               },
               tags: [
@@ -1258,6 +2459,7 @@ describe('mergeBookmarks', () => {
               ],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1267,11 +2469,12 @@ describe('mergeBookmarks', () => {
           {
             localData: localActiveNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Remote Deleted Older',
+                remoteField: 'deleted older',
                 updated2: now + 1,
               },
               tags: [
@@ -1281,6 +2484,7 @@ describe('mergeBookmarks', () => {
               ],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1290,11 +2494,13 @@ describe('mergeBookmarks', () => {
           {
             localData: localActiveNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Local Active Newer',
+                localField: 'active newer',
+                remoteField: 'deleted older',
                 updated2: now + 1,
               },
               tags: [
@@ -1304,25 +2510,49 @@ describe('mergeBookmarks', () => {
               ],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
           'newer' as MergeMetaStrategy,
           'newer' as MergeTagsStrategy,
-          'local active (older), remote deleted (newer)',
+          'local active (older), remote deleted (newer) - 1',
           {
             localData: localActiveOlderData,
             remoteData: remoteDeletedNewerData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
-                created: oneHourAgo, // from local (older, but remote is deleted)
+                created: now, // from local (older, but remote is deleted)
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
+                remoteField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
             },
+          },
+          false,
+        ],
+        [
+          'newer' as MergeMetaStrategy,
+          'newer' as MergeTagsStrategy,
+          'local active (older), remote deleted (newer) - 2',
+          {
+            localData: localActiveOlderData,
+            remoteData: remoteDeletedNewerData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo, // from local (older, but remote is deleted)
+                updated: now, // from remote (newer)
+                title: 'Remote Deleted Newer', // from remote (newer)
+                remoteField: 'deleted newer',
+                updated2: now + 1,
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
+              deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
+            },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1332,35 +2562,60 @@ describe('mergeBookmarks', () => {
           {
             localData: localActiveOlderData,
             remoteData: remoteDeletedNewerData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo, // from local (older, but remote is deleted)
                 updated: now, // from remote (newer)
                 title: 'Local Active Older', // from local
+                localField: 'active older',
+                updated2: now + 1,
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
+              deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
+            },
+            expectedLocalEqualsToRemote: true,
+          },
+        ],
+        [
+          'remote' as MergeMetaStrategy,
+          'newer' as MergeTagsStrategy,
+          'local active (older), remote deleted (newer) - 1',
+          {
+            localData: localActiveOlderData,
+            remoteData: remoteDeletedNewerData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: now, // from local (older, but remote is deleted)
+                updated: now, // from remote (newer)
+                title: 'Remote Deleted Newer', // from remote (newer)
+                remoteField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
             },
           },
+          false,
         ],
         [
           'remote' as MergeMetaStrategy,
           'newer' as MergeTagsStrategy,
-          'local active (older), remote deleted (newer)',
+          'local active (older), remote deleted (newer) - 2',
           {
             localData: localActiveOlderData,
             remoteData: remoteDeletedNewerData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo, // from local (older, but remote is deleted)
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
+                remoteField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1370,16 +2625,19 @@ describe('mergeBookmarks', () => {
           {
             localData: localActiveOlderData,
             remoteData: remoteDeletedNewerData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo, // from local (older, but remote is deleted)
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
+                localField: 'active older',
+                remoteField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
       ] as TestCase[])(
@@ -1388,11 +2646,28 @@ describe('mergeBookmarks', () => {
           metaStrategy,
           tagsStrategy,
           description,
-          { localData, remoteData, expected }
+          {
+            localData,
+            remoteData,
+            expectedLocalTagsAndMetadata,
+            expectedRemoteTagsAndMetadata,
+            expectedLocalEqualsToRemote,
+          },
+          preferOldestCreated = true,
+          preferNewestUpdated = true
         ) => {
-          const expectedMerged: BookmarksData = {
-            'http://item.com': expected,
-          }
+          const expectedUpdatesForLocal: BookmarksData =
+            expectedLocalTagsAndMetadata
+              ? {
+                  'http://item.com': expectedLocalTagsAndMetadata,
+                }
+              : {}
+          const expectedUpdatesForRemote: BookmarksData =
+            expectedRemoteTagsAndMetadata
+              ? {
+                  'http://item.com': expectedRemoteTagsAndMetadata,
+                }
+              : {}
 
           await runMergeTest({
             localData,
@@ -1401,9 +2676,13 @@ describe('mergeBookmarks', () => {
               ...baseStrategy,
               meta: metaStrategy,
               tags: tagsStrategy,
+              preferOldestCreated,
+              preferNewestUpdated,
             },
             syncOption: baseSyncOption,
-            expectedMerged,
+            expectedUpdatesForLocal,
+            expectedUpdatesForRemote,
+            expectedLocalEqualsToRemote,
           })
         }
       )
@@ -1416,6 +2695,9 @@ describe('mergeBookmarks', () => {
           now,
           'Local Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
+          {
+            localField: 'deleted newer',
+          },
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -1426,6 +2708,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Remote Deleted Older',
           [DELETED_BOOKMARK_TAG, 'remote-tag-older'],
+          {
+            remoteField: 'deleted older',
+          },
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -1437,6 +2722,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Local Deleted Older',
           [DELETED_BOOKMARK_TAG, 'local-tag-older'],
+          {
+            localField: 'deleted older',
+          },
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -1447,6 +2735,9 @@ describe('mergeBookmarks', () => {
           now,
           'Remote Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'remote-tag-newer'],
+          {
+            remoteField: 'deleted newer',
+          },
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -1458,6 +2749,9 @@ describe('mergeBookmarks', () => {
           oneHourAgo,
           'Local Deleted Older',
           [DELETED_BOOKMARK_TAG, 'local-tag-older'],
+          {
+            localField: 'deleted older no deleted metadata',
+          },
           oneHourAgo
         ),
       }
@@ -1467,6 +2761,9 @@ describe('mergeBookmarks', () => {
           now,
           'Remote Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'remote-tag-newer'],
+          {
+            remoteField: 'deleted newer no deleted metadata',
+          },
           now
         ),
       }
@@ -1478,28 +2775,57 @@ describe('mergeBookmarks', () => {
         {
           localData: BookmarksData
           remoteData: BookmarksData
-          expected: BookmarkTagsAndMetadata
+          expectedLocalTagsAndMetadata: BookmarkTagsAndMetadata
+          expectedRemoteTagsAndMetadata?: BookmarkTagsAndMetadata
+          expectedLocalEqualsToRemote?: boolean
         },
+        preferOldestCreated?: boolean,
+        preferNewestUpdated?: boolean,
       ]
 
       it.each([
         [
           'local' as MergeMetaStrategy,
           'local' as MergeTagsStrategy,
-          'local deleted (newer), remote deleted (older) - local strategy',
+          'local deleted (newer), remote deleted (older) - local strategy - 1',
           {
             localData: localDeletedNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: undefined,
+            expectedRemoteTagsAndMetadata: {
               meta: {
-                created: oneHourAgo,
+                created: now,
                 updated: now,
                 title: 'Local Deleted Newer',
+                localField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
+          },
+          false,
+          false,
+        ],
+        [
+          'local' as MergeMetaStrategy,
+          'local' as MergeTagsStrategy,
+          'local deleted (newer), remote deleted (older) - local strategy - 2',
+          {
+            localData: localDeletedNewerData,
+            remoteData: remoteDeletedOlderData,
+            expectedLocalTagsAndMetadata: {
+              meta: {
+                created: oneHourAgo,
+                updated: now,
+                title: 'Local Deleted Newer',
+                localField: 'deleted newer',
+                updated2: now + 1,
+              },
+              tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
+              deletedMeta: { deleted: now, actionType: 'DELETE' },
+            },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1509,16 +2835,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Local Deleted Newer',
+                localField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-older'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1528,16 +2856,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Remote Deleted Older',
+                remoteField: 'deleted older',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-older'],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1547,16 +2877,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Remote Deleted Older',
+                remoteField: 'deleted older',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1566,16 +2898,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Local Deleted Newer',
+                localField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1585,16 +2919,18 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderData,
             remoteData: remoteDeletedNewerData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo,
                 updated: now,
                 title: 'Remote Deleted Newer',
+                remoteField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1604,11 +2940,13 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedNewerData,
             remoteData: remoteDeletedOlderData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo, // union takes older created
                 updated: now, // union takes newer updated
                 title: 'Local Deleted Newer', // union takes newer title
+                localField: 'deleted newer',
+                remoteField: 'deleted older',
                 updated2: now + 1,
               },
               tags: [
@@ -1618,6 +2956,7 @@ describe('mergeBookmarks', () => {
               ], // union of tags
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // union takes newer deletedMeta
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1627,11 +2966,13 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderData,
             remoteData: remoteDeletedNewerData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo, // union takes older created
                 updated: now, // union takes newer updated
                 title: 'Remote Deleted Newer', // union takes newer title
+                localField: 'deleted older',
+                remoteField: 'deleted newer',
                 updated2: now + 1,
               },
               tags: [
@@ -1641,6 +2982,7 @@ describe('mergeBookmarks', () => {
               ], // union of tags
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // union takes newer deletedMeta
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
         [
@@ -1650,11 +2992,13 @@ describe('mergeBookmarks', () => {
           {
             localData: localDeletedOlderNoDeleteMetaData,
             remoteData: remoteDeletedNewerNoDeleteMetaData,
-            expected: {
+            expectedLocalTagsAndMetadata: {
               meta: {
                 created: oneHourAgo, // union takes older created
                 updated: now, // union takes newer updated
                 title: 'Remote Deleted Newer', // union takes newer title
+                localField: 'deleted older no deleted metadata',
+                remoteField: 'deleted newer no deleted metadata',
                 updated2: now + 1,
               },
               tags: [
@@ -1663,6 +3007,7 @@ describe('mergeBookmarks', () => {
                 'remote-tag-newer',
               ], // union of tags
             },
+            expectedLocalEqualsToRemote: true,
           },
         ],
       ] as TestCase[])(
@@ -1671,11 +3016,28 @@ describe('mergeBookmarks', () => {
           metaStrategy,
           tagsStrategy,
           description,
-          { localData, remoteData, expected }
+          {
+            localData,
+            remoteData,
+            expectedLocalTagsAndMetadata,
+            expectedRemoteTagsAndMetadata,
+            expectedLocalEqualsToRemote = false,
+          },
+          preferOldestCreated = true,
+          preferNewestUpdated = true
         ) => {
-          const expectedMerged: BookmarksData = {
-            'http://item.com': expected,
-          }
+          const expectedUpdatesForLocal: BookmarksData =
+            expectedLocalTagsAndMetadata
+              ? {
+                  'http://item.com': expectedLocalTagsAndMetadata,
+                }
+              : {}
+          const expectedUpdatesForRemote: BookmarksData =
+            expectedRemoteTagsAndMetadata
+              ? {
+                  'http://item.com': expectedRemoteTagsAndMetadata,
+                }
+              : {}
 
           await runMergeTest({
             localData,
@@ -1684,9 +3046,13 @@ describe('mergeBookmarks', () => {
               ...baseStrategy,
               meta: metaStrategy,
               tags: tagsStrategy,
+              preferOldestCreated,
+              preferNewestUpdated,
             },
             syncOption: baseSyncOption,
-            expectedMerged,
+            expectedUpdatesForLocal,
+            expectedUpdatesForRemote,
+            expectedLocalEqualsToRemote,
           })
         }
       )
@@ -1702,14 +3068,14 @@ describe('mergeBookmarks', () => {
         ),
       }
       const remoteData: BookmarksData = {}
-      const expectedMerged: BookmarksData = {}
+      const expectedUpdatesForLocal: BookmarksData = {}
       await runMergeTest({
         localData,
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
-        expectedDeleted: ['http://gone.com'],
+        expectedUpdatesForLocal,
+        expectedLocalDeletions: ['http://gone.com'],
       })
     })
   })
@@ -1722,6 +3088,7 @@ describe('mergeBookmarks', () => {
           twoHoursAgo, // updated
           'Local',
           ['tag', 'local'],
+          {},
           oneHourAgo // updated2 (newer than updated)
         ),
       }
@@ -1737,7 +3104,7 @@ describe('mergeBookmarks', () => {
       // local effective last update: oneHourAgo (from updated2)
       // remote effective last update: now (from updated)
       // max is 'now'
-      const expectedMerged: BookmarksData = {
+      const expectedUpdatesForLocal: BookmarksData = {
         'http://updated2.com': {
           meta: {
             created: twoHoursAgo,
@@ -1753,7 +3120,8 @@ describe('mergeBookmarks', () => {
         remoteData,
         strategy: baseStrategy,
         syncOption: baseSyncOption,
-        expectedMerged,
+        expectedUpdatesForLocal,
+        expectedUpdatesForRemote: expectedUpdatesForLocal,
       })
     })
   })
@@ -1769,8 +3137,8 @@ describe('mergeBookmarks', () => {
         baseStrategy,
         baseSyncOption
       )
-      expect(result.merged).toEqual({}) // or remoteData, depending on desired behavior for undefined inputs
-      expect(result.deleted).toEqual([])
+      expect(result.updatesForLocal).toEqual({}) // or remoteData, depending on desired behavior for undefined inputs
+      expect(result.localDeletions).toEqual([])
     })
 
     it('should return empty merged and deleted if remoteData is undefined', async () => {
@@ -1783,14 +3151,711 @@ describe('mergeBookmarks', () => {
         baseStrategy,
         baseSyncOption
       )
-      expect(result.merged).toEqual({}) // or localData
-      expect(result.deleted).toEqual([])
+      expect(result.updatesForLocal).toEqual({}) // or localData
+      expect(result.localDeletions).toEqual([])
     })
 
     it('should handle empty local and remote data', async () => {
       const result = await mergeBookmarks({}, {}, baseStrategy, baseSyncOption)
-      expect(result.merged).toEqual({})
-      expect(result.deleted).toEqual([])
+      expect(result.updatesForLocal).toEqual({})
+      expect(result.localDeletions).toEqual([])
+    })
+  })
+
+  describe('Advanced Merge Scenarios', () => {
+    // Scenario 1: Local new, Remote none
+    it('should add local new item to remote and update updated2', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/new-local': createBookmarkEntry(
+          now - 2000, // Created now - 2000
+          now - 1000, // Updated now - 1000
+          'New Local Item',
+          ['local-tag']
+        ),
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/new-local': createBookmarkEntry(
+          now - 2000,
+          now - 1000,
+          'New Local Item',
+          ['local-tag'],
+          {},
+          baseSyncOption.currentSyncTime // updated2 should be currentSyncTime
+        ),
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+      })
+    })
+
+    // Scenario 2: Remote new, Local none
+    it('should add remote new item to local and update updated2', async () => {
+      const localData: BookmarksData = {}
+      const remoteData: BookmarksData = {
+        'http://example.com/new-remote': createBookmarkEntry(
+          now - 2000, // Created now - 2000
+          now - 1000, // Updated now - 1000
+          'New Remote Item',
+          ['remote-tag']
+        ),
+      }
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/new-remote': createBookmarkEntry(
+          now - 2000,
+          now - 1000,
+          'New Remote Item',
+          ['remote-tag'],
+          {},
+          baseSyncOption.currentSyncTime // updated2 should be currentSyncTime
+        ),
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+        expectedUpdatesForRemote: {},
+      })
+    })
+
+    // Scenario 3: Local updated, Remote not updated (local is newer)
+    it('should update remote with local changes when local is newer', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/item1': createBookmarkEntry(
+          twoHoursAgo, // Original creation
+          oneHourAgo, // Local updated recently
+          'Updated Local Item 1',
+          ['local-updated'],
+          {},
+          oneHourAgo // local updated2 reflects its update time
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/item1': createBookmarkEntry(
+          twoHoursAgo,
+          twoHoursAgo, // Remote not updated recently
+          'Original Item 1',
+          ['original'],
+          {},
+          twoHoursAgo // remote updated2 is old
+        ),
+      }
+
+      let expectedUpdatesForLocal = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/item1': {
+          meta: {
+            created: twoHoursAgo,
+            updated: oneHourAgo,
+            title: 'Updated Local Item 1',
+            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+          },
+          tags: ['local-updated'], // Assuming 'local' tag strategy or similar if not union
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, tags: 'newer' }, // meta: 'newer', tags: 'newer'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal,
+        expectedUpdatesForRemote,
+      })
+
+      // If tags strategy is 'union', tags would be ['original', 'local-updated']
+      // For simplicity, let's assume a 'local' or 'newer' like behavior for tags if not specified, or adjust if needed.
+      // Given baseStrategy.tags = 'union', the tags should be merged.
+      if (baseStrategy.tags === 'union') {
+        expectedUpdatesForRemote['http://example.com/item1'].tags = [
+          'original',
+          'local-updated',
+        ].sort()
+        expectedUpdatesForLocal = expectedUpdatesForRemote
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy, // meta: 'newer', tags: 'union'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal,
+        expectedUpdatesForRemote,
+      })
+    })
+
+    // Scenario 4: Remote updated, Local not updated (remote is newer)
+    it('should update local with remote changes when remote is newer', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/item2': createBookmarkEntry(
+          twoHoursAgo,
+          twoHoursAgo, // Local not updated recently
+          'Original Item 2',
+          ['original'],
+          {},
+          twoHoursAgo
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/item2': createBookmarkEntry(
+          twoHoursAgo, // Original creation
+          oneHourAgo, // Remote updated recently
+          'Updated Remote Item 2',
+          ['remote-updated'],
+          {},
+          oneHourAgo
+        ),
+      }
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/item2': {
+          meta: {
+            created: twoHoursAgo,
+            updated: oneHourAgo,
+            title: 'Updated Remote Item 2', // meta: 'newer'
+            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+          },
+          tags: ['original', 'remote-updated'].sort(), // tags: 'union'
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy, // meta: 'newer', tags: 'union'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal,
+        expectedUpdatesForRemote: {},
+        expectedLocalEqualsToRemote: true, // if mergeTarget is 3, remote also gets this update
+      })
+    })
+
+    // Scenario 5: Both local and remote updated (conflict)
+    it('should merge based on strategy when both local and remote are updated', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/conflict': createBookmarkEntry(
+          twoHoursAgo,
+          oneHourAgo, // Local updated
+          'Local Conflict Version',
+          ['tag-local'],
+          { localOnly: 'yes' },
+          oneHourAgo
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/conflict': createBookmarkEntry(
+          twoHoursAgo, // Same creation time
+          oneHourAgo + 1000, // Remote updated slightly later
+          'Remote Conflict Version',
+          ['tag-remote'],
+          { remoteOnly: 'yes' },
+          oneHourAgo + 1000
+        ),
+      }
+      // With meta: 'newer', remote title wins. With tags: 'union', tags are merged.
+      let expectedMergedData: BookmarksData = {
+        'http://example.com/conflict': {
+          meta: {
+            created: twoHoursAgo,
+            updated: oneHourAgo + 1000, // Newer update time
+            title: 'Remote Conflict Version', // Newer title
+            remoteOnly: 'yes', // Newer meta object properties win
+            updated2: Math.max(
+              oneHourAgo + 1000 + 1,
+              baseSyncOption.currentSyncTime
+            ),
+          },
+          tags: ['tag-local', 'tag-remote'].sort(),
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy, // meta: 'newer', tags: 'union'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal: expectedMergedData,
+        expectedUpdatesForRemote: expectedMergedData, // mergeTarget should be 3
+        expectedLocalEqualsToRemote: true,
+      })
+
+      // With meta: 'merge' and tags: 'union', tags are merged.
+      expectedMergedData = {
+        'http://example.com/conflict': {
+          meta: {
+            created: twoHoursAgo,
+            updated: oneHourAgo + 1000, // Newer update time
+            title: 'Remote Conflict Version', // Newer title
+            localOnly: 'yes',
+            remoteOnly: 'yes', // Newer meta object properties win
+            updated2: Math.max(
+              oneHourAgo + 1000 + 1,
+              baseSyncOption.currentSyncTime
+            ),
+          },
+          tags: ['tag-local', 'tag-remote'].sort(),
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: { ...baseStrategy, meta: 'merge' }, // meta: 'merge', tags: 'union'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal: expectedMergedData,
+        expectedUpdatesForRemote: expectedMergedData, // mergeTarget should be 3
+        expectedLocalEqualsToRemote: true,
+      })
+    })
+
+    // Scenario 6: Local deleted, Remote exists
+    it('should mark remote as deleted if local is deleted (and strategy implies local wins or merge)', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/tobedeleted-local': createBookmarkEntry(
+          twoHoursAgo,
+          oneHourAgo, // Updated recently to mark as deleted
+          'To Be Deleted by Local',
+          [DELETED_BOOKMARK_TAG, 'other-tag'],
+          {},
+          oneHourAgo // updated2 reflects this deletion change
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/tobedeleted-local': createBookmarkEntry(
+          twoHoursAgo,
+          twoHoursAgo, // Not deleted on remote, older update
+          'Existing on Remote',
+          ['remote-tag'],
+          {},
+          twoHoursAgo
+        ),
+      }
+      // Expected: local is newer and deleted, so remote should also be marked deleted.
+      // The merged result will have the DELETED_BOOKMARK_TAG.
+      // The title and other meta might come from local due to 'newer' strategy if local's deletion timestamp is newer.
+      const expectedMergedData: BookmarksData = {
+        'http://example.com/tobedeleted-local': {
+          meta: {
+            created: twoHoursAgo,
+            updated: oneHourAgo, // from local, as it's newer
+            title: 'To Be Deleted by Local',
+            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+          },
+          tags: [DELETED_BOOKMARK_TAG, 'other-tag', 'remote-tag'].sort(), // Union of tags, including DELETED_BOOKMARK_TAG
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy, // meta: 'newer', tags: 'union'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal: expectedMergedData,
+        expectedUpdatesForRemote: expectedMergedData,
+        // If local is deleted and newer, remote should be updated to reflect deletion.
+        // The item itself is not added to remoteDeletions array, but its content is updated to be a deleted bookmark.
+      })
+    })
+
+    // Scenario 7: Remote deleted, Local exists
+    it('should mark local as deleted if remote is deleted (and strategy implies remote wins or merge)', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/tobedeleted-remote': createBookmarkEntry(
+          twoHoursAgo,
+          twoHoursAgo, // Not deleted on local, older update
+          'Existing on Local',
+          ['local-tag'],
+          {},
+          twoHoursAgo
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/tobedeleted-remote': createBookmarkEntry(
+          twoHoursAgo,
+          oneHourAgo, // Updated recently to mark as deleted
+          'To Be Deleted by Remote',
+          [DELETED_BOOKMARK_TAG, 'other-tag'],
+          {},
+          oneHourAgo // updated2 reflects this deletion change
+        ),
+      }
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/tobedeleted-remote': {
+          meta: {
+            created: twoHoursAgo,
+            updated: oneHourAgo, // from remote, as it's newer
+            title: 'To Be Deleted by Remote',
+            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+          },
+          tags: ['local-tag', DELETED_BOOKMARK_TAG, 'other-tag'],
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy, // meta: 'newer', tags: 'union'
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo }, // Ensure both are 'valid'
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true, // if mergeTarget is 3 (or 1), local gets updated
+      })
+    })
+
+    // Scenario 8: Local exists but invalid, Remote none
+    it('should add local item to localDeletions if it exists locally but is invalid, and not on remote', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/invalid-local-only': createBookmarkEntry(
+          threeHoursAgo, // Older than lastSyncTime (twoHoursAgo)
+          threeHoursAgo,
+          'Invalid Local Only',
+          ['old-local']
+        ),
+      }
+      const remoteData: BookmarksData = {}
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption, // lastSyncTime is twoHoursAgo
+        expectedUpdatesForLocal: {},
+        expectedLocalDeletions: ['http://example.com/invalid-local-only'],
+        expectedUpdatesForRemote: {},
+      })
+    })
+
+    // Scenario 9: Remote exists but invalid, Local none
+    it('should add remote item to remoteDeletions if it exists remotely but is invalid, and not on local', async () => {
+      const localData: BookmarksData = {}
+      const remoteData: BookmarksData = {
+        'http://example.com/invalid-remote-only': createBookmarkEntry(
+          threeHoursAgo, // Older than lastSyncTime (twoHoursAgo)
+          threeHoursAgo,
+          'Invalid Remote Only',
+          ['old-remote']
+        ),
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption, // lastSyncTime is twoHoursAgo
+        expectedUpdatesForLocal: {},
+        expectedRemoteDeletions: ['http://example.com/invalid-remote-only'],
+      })
+    })
+  })
+
+  describe('MergeStrategy default and invalid property values', () => {
+    it('should use DEFAULT_DATE when strategy.defaultDate is an empty string and bookmark date is invalid', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/invalid-date': createBookmarkEntry(
+          // @ts-expect-error - Invalid date string
+          'invalid',
+          'invalid',
+          'Local Invalid Date',
+          ['tag1']
+        ),
+      }
+      const remoteData: BookmarksData = {}
+      const strategy: MergeStrategy = {
+        ...baseStrategy,
+        defaultDate: '', // Empty string for defaultDate
+      }
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/invalid-date': {
+          meta: {
+            created: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
+            updated: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
+            title: 'Local Invalid Date',
+            updated2: now,
+          },
+          tags: ['tag1'],
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy,
+        syncOption: { ...baseSyncOption, lastSyncTime: 0 },
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true, // Timestamps are tricky with DEFAULT_DATE vs test's defaultDateTimestamp
+      })
+    })
+
+    it('should use DEFAULT_DATE when strategy.defaultDate is an invalid date string and bookmark date is invalid', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/invalid-date-str': createBookmarkEntry(
+          // @ts-expect-error - Invalid date string
+          'invalid',
+          'invalid',
+          'Local Invalid Date Str',
+          ['tag1']
+        ),
+      }
+      const remoteData: BookmarksData = {}
+      const strategy: MergeStrategy = {
+        ...baseStrategy,
+        defaultDate: 'not-a-valid-date', // Invalid date string for defaultDate
+      }
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/invalid-date-str': {
+          meta: {
+            created: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
+            updated: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
+            title: 'Local Invalid Date Str',
+            updated2: now,
+          },
+          tags: ['tag1'],
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy,
+        syncOption: { ...baseSyncOption, lastSyncTime: 0 },
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true, // Timestamps are tricky with DEFAULT_DATE vs test's defaultDateTimestamp
+      })
+    })
+
+    it('should prefer oldest created timestamp when strategy.preferOldestCreated is undefined (defaults to true)', async () => {
+      const localCreated = oneHourAgo - 1000
+      const remoteCreated = oneHourAgo
+      const localData: BookmarksData = {
+        'http://example.com/created-check': createBookmarkEntry(
+          localCreated, // Older
+          oneHourAgo,
+          'Local Title',
+          ['tagL']
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/created-check': createBookmarkEntry(
+          remoteCreated, // Newer
+          oneHourAgo,
+          'Remote Title',
+          ['tagR']
+        ),
+      }
+      const strategy: MergeStrategy = {
+        ...baseStrategy,
+        meta: 'remote', // Remote meta wins
+        preferOldestCreated: undefined, // Test default behavior
+      }
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/created-check': {
+          meta: {
+            created: localCreated, // Expect oldest created
+            updated: oneHourAgo, // Timestamps from remote due to 'remote' meta strategy for other fields
+            title: 'Remote Title',
+            updated2: now,
+          },
+          tags: ['tagL', 'tagR'], // Union
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
+      })
+    })
+
+    it('should prefer newest updated timestamp when strategy.preferNewestUpdated is undefined (defaults to true)', async () => {
+      const localUpdated = oneHourAgo + 1000 // Newer
+      const remoteUpdated = oneHourAgo
+      const localData: BookmarksData = {
+        'http://example.com/updated-check': createBookmarkEntry(
+          oneHourAgo,
+          localUpdated, // Newer
+          'Local Title',
+          ['tagL']
+        ),
+      }
+      const remoteData: BookmarksData = {
+        'http://example.com/updated-check': createBookmarkEntry(
+          oneHourAgo,
+          remoteUpdated, // Older
+          'Remote Title',
+          ['tagR']
+        ),
+      }
+      const strategy: MergeStrategy = {
+        ...baseStrategy,
+        meta: 'remote', // Remote meta wins for title, etc.
+        preferNewestUpdated: undefined, // Test default behavior
+      }
+      const expectedUpdatesForLocal: BookmarksData = {
+        'http://example.com/updated-check': {
+          meta: {
+            created: oneHourAgo,
+            updated: localUpdated, // Expect newest updated
+            title: 'Remote Title',
+            updated2: now,
+          },
+          tags: ['tagL', 'tagR'], // Union
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal,
+        expectedLocalEqualsToRemote: true,
+      })
+
+      // ====
+
+      const strategy2: MergeStrategy = {
+        ...baseStrategy,
+        meta: 'remote', // Remote meta wins for title, etc.
+        preferNewestUpdated: false, // Test default behavior
+      }
+      const expectedUpdatesForLocal2: BookmarksData = {
+        'http://example.com/updated-check': {
+          meta: {
+            created: oneHourAgo,
+            updated: remoteUpdated, // Expect updated of remote
+            title: 'Remote Title',
+            updated2: now,
+          },
+          tags: ['tagL', 'tagR'], // Union
+        },
+      }
+
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: strategy2,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: expectedUpdatesForLocal2,
+        expectedLocalEqualsToRemote: true,
+      })
+    })
+  })
+
+  describe('MergeStrategy edge cases for meta and tags properties', () => {
+    let baseStrategy: MergeStrategy // Define baseStrategy here
+    beforeEach(() => {
+      // Initialize it
+      baseStrategy = {
+        meta: 'newer',
+        tags: 'union',
+        defaultDate: defaultDateTimestamp,
+      }
+    })
+
+    const dummyLocalData: BookmarksData = {
+      'http://example.com/item1': createBookmarkEntry(
+        oneHourAgo,
+        oneHourAgo,
+        'Local Item 1',
+        ['tagA']
+      ),
+    }
+    const dummyRemoteData: BookmarksData = {
+      'http://example.com/item1': createBookmarkEntry(
+        twoHoursAgo,
+        twoHoursAgo,
+        'Remote Item 1',
+        ['tagB']
+      ),
+    }
+    const dummySyncOption: SyncOption = {
+      currentSyncTime: now,
+      lastSyncTime: threeHoursAgo,
+    }
+
+    it('should throw an error if strategy itself is null', async () => {
+      await expect(
+        mergeBookmarks(
+          dummyLocalData,
+          dummyRemoteData,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          null as any, // Testing null strategy
+          dummySyncOption
+        )
+      ).rejects.toThrowError() // Or a more specific error if known
+    })
+
+    it('should throw an error if strategy itself is undefined', async () => {
+      await expect(
+        mergeBookmarks(
+          dummyLocalData,
+          dummyRemoteData,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          undefined as any, // Testing undefined strategy
+          dummySyncOption
+        )
+      ).rejects.toThrowError() // Or a more specific error if known
+    })
+
+    it('should use default meta strategy (merge) when strategy.meta is an empty string', async () => {
+      const strategyWithEmptyMeta: MergeStrategy = {
+        ...baseStrategy,
+        meta: '' as any, // Testing empty string meta strategy
+      }
+      const strategyWithDefaultMeta: MergeStrategy = {
+        ...baseStrategy,
+        meta: 'merge', // Explicitly use default meta strategy
+      }
+
+      const resultWithEmptyMeta = await mergeBookmarks(
+        dummyLocalData,
+        dummyRemoteData,
+        strategyWithEmptyMeta,
+        dummySyncOption
+      )
+
+      const resultWithDefaultMeta = await mergeBookmarks(
+        dummyLocalData,
+        dummyRemoteData,
+        strategyWithDefaultMeta,
+        dummySyncOption
+      )
+
+      expect(resultWithEmptyMeta).toEqual(resultWithDefaultMeta)
+    })
+
+    it('should use default tags strategy (union) when strategy.tags is an empty string', async () => {
+      const strategyWithEmptyTags: MergeStrategy = {
+        ...baseStrategy,
+        tags: '' as any, // Testing empty string tags strategy
+      }
+      const strategyWithDefaultTags: MergeStrategy = {
+        ...baseStrategy,
+        tags: 'union', // Explicitly use default tags strategy
+      }
+
+      const resultWithEmptyTags = await mergeBookmarks(
+        dummyLocalData,
+        dummyRemoteData,
+        strategyWithEmptyTags,
+        dummySyncOption
+      )
+
+      const resultWithDefaultTags = await mergeBookmarks(
+        dummyLocalData,
+        dummyRemoteData,
+        strategyWithDefaultTags,
+        dummySyncOption
+      )
+
+      expect(resultWithEmptyTags).toEqual(resultWithDefaultTags)
     })
   })
 })
@@ -1806,7 +3871,7 @@ describe('mergeBookmarks Batch Processing', () => {
       defaultDate: defaultDateTimestamp,
     }
     baseSyncOption = {
-      currentTime: now,
+      currentSyncTime: now,
       lastSyncTime: twoHoursAgo,
     }
   })
@@ -1814,7 +3879,7 @@ describe('mergeBookmarks Batch Processing', () => {
   it('should process all bookmarks when the number of URLs exceeds batchSize', async () => {
     const localData: BookmarksData = {}
     const remoteData: BookmarksData = {}
-    const expectedMergedData: BookmarksData = {}
+    const expectedUpdatesForLocalData: BookmarksData = {}
     const numBookmarks = 250 // More than default batchSize of 100
 
     for (let i = 0; i < numBookmarks; i++) {
@@ -1822,15 +3887,16 @@ describe('mergeBookmarks Batch Processing', () => {
       // For simplicity, we'll make remote newer so it's always chosen
       remoteData[url] = createBookmarkEntry(
         oneHourAgo,
-        now, // remote is newer
+        now - 10_000, // remote is newer
         `Remote Page ${i}`,
         [`tag${i}`],
-        now
+        {},
+        now - 5000
       )
-      expectedMergedData[url] = {
+      expectedUpdatesForLocalData[url] = {
         meta: {
           created: oneHourAgo,
-          updated: now,
+          updated: now - 10_000,
           title: `Remote Page ${i}`,
           updated2: now,
         },
@@ -1845,8 +3911,8 @@ describe('mergeBookmarks Batch Processing', () => {
       baseSyncOption
     )
 
-    expect(Object.keys(result.merged).length).toBe(numBookmarks)
-    expect(result.merged).toEqual(expectedMergedData)
-    expect(result.deleted.length).toBe(0)
+    expect(Object.keys(result.updatesForLocal).length).toBe(numBookmarks)
+    expect(result.updatesForLocal).toEqual(expectedUpdatesForLocalData)
+    expect(result.localDeletions.length).toBe(0)
   })
 })

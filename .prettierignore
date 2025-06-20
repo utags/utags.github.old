@@ -8,6 +8,3 @@ tsconfig.tsbuildinfo
 dist/*
 coverage/*
 src/paraglide/**
-
-srs/sync2/**
-src/sync3/**

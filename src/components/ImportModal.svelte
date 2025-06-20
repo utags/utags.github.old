@@ -183,7 +183,7 @@
 
     // Define a default sync option for import
     const syncOption: SyncOption = {
-      currentTime: Date.now(),
+      currentSyncTime: Date.now(),
       lastSyncTime: 0, // For import, lastSyncTime can be 0
     }
 
@@ -200,31 +200,31 @@
 
     try {
       // Call mergeBookmarks
-      const { merged, deleted } = await mergeBookmarks(
+      const { updatesForLocal, localDeletions } = await mergeBookmarks(
         localData,
         remoteData,
         currentMergeStrategy,
         syncOption
       )
 
-      if (deleted.length > 0) {
+      if (localDeletions.length > 0) {
         // Delete bookmarks first
-        await bookmarkStorage.deleteBookmarks(deleted)
+        await bookmarkStorage.deleteBookmarks(localDeletions)
       }
       // Update bookmarks
-      await bookmarkStorage.upsertBookmarks(Object.entries(merged))
+      await bookmarkStorage.upsertBookmarks(Object.entries(updatesForLocal))
 
       // Dispatch import finished event with stats (can be enhanced)
       const importFinishedEvent = new CustomEvent('importFinished', {
         detail: {
           // You might want to calculate more detailed stats from the 'merged' and 'deleted' data
-          mergedCount: Object.keys(merged).length,
-          deletedCount: deleted.length,
+          mergedCount: Object.keys(updatesForLocal).length,
+          deletedCount: localDeletions.length,
         },
       })
       globalThis.dispatchEvent(importFinishedEvent)
 
-      console.log('Import successful:', { merged, deleted })
+      console.log('Import successful:', { updatesForLocal, localDeletions })
     } catch (error) {
       console.error('Error during import:', error)
       // Handle error, e.g., show a message to the user

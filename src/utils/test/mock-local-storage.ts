@@ -21,7 +21,7 @@ export function mockLocalStorage() {
   Object.defineProperty(globalThis, 'localStorage', {
     value: localStorageMock,
   })
-  vi.stubGlobal('localStorage', localStorageMock)
+  // vi.stubGlobal('localStorage', localStorageMock)
 
   return localStorageMock
 }

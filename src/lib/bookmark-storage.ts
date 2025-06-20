@@ -1,4 +1,7 @@
-import { STORAGE_KEY_BOOKMARKS } from '../config/constants.js'
+import {
+  CURRENT_DATABASE_VERSION,
+  STORAGE_KEY_BOOKMARKS,
+} from '../config/constants.js'
 import type {
   BookmarksStore,
   BookmarksData,
@@ -26,8 +29,7 @@ export class BookmarkStorage {
    * Current database version
    * @private
    */
-  // eslint-disable-next-line @typescript-eslint/class-literal-property-style
-  private readonly currentVersion: number = 3
+  private readonly currentVersion: number = CURRENT_DATABASE_VERSION
 
   /**
    * Creates a new BookmarkStorage instance
@@ -199,17 +201,7 @@ export class BookmarkStorage {
    */
   async upsertBookmarks(bookmarks: BookmarkKeyValuePair[]): Promise<void> {
     try {
-      const bookmarksStore = await this.getBookmarksStore()
-
-      // Update bookmark data
-      for (const [key, entry] of bookmarks) {
-        bookmarksStore.data[key] = entry
-      }
-
-      // Update the last modified timestamp
-      bookmarksStore.meta.updated = Date.now()
-
-      await this.persistBookmarksStore(bookmarksStore, true)
+      await this.batchUpdateBookmarksInternal([], bookmarks)
     } catch (error) {
       console.error('Failed to update bookmarks in batch:', error)
       throw error
@@ -230,15 +222,7 @@ export class BookmarkStorage {
     entry: BookmarkTagsAndMetadata
   ): Promise<void> {
     try {
-      const bookmarksStore = await this.getBookmarksStore()
-
-      // Update or add the bookmark
-      bookmarksStore.data[key] = entry
-
-      // Update the last modified timestamp
-      bookmarksStore.meta.updated = Date.now()
-
-      await this.persistBookmarksStore(bookmarksStore, true)
+      await this.batchUpdateBookmarksInternal([], [[key, entry]])
     } catch (error) {
       console.error('Failed to save bookmark:', error)
       throw error
@@ -255,23 +239,7 @@ export class BookmarkStorage {
    */
   async deleteBookmarks(keys: BookmarkKey[]): Promise<void> {
     try {
-      const bookmarksStore = await this.getBookmarksStore()
-      let deletedCount = 0
-      // Remove bookmarks from the store
-      for (const key of keys) {
-        if (bookmarksStore.data[key]) {
-          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-          delete bookmarksStore.data[key]
-          deletedCount++
-        }
-      }
-
-      // Only save if bookmarks were actually deleted
-      if (deletedCount > 0) {
-        // Update the last modified timestamp
-        bookmarksStore.meta.updated = Date.now()
-        await this.persistBookmarksStore(bookmarksStore, true)
-      }
+      await this.batchUpdateBookmarksInternal(keys, [])
     } catch (error) {
       console.error('Failed to delete bookmarks:', error)
       throw error
@@ -289,9 +257,31 @@ export class BookmarkStorage {
   async deleteBookmark(key: BookmarkKey): Promise<void> {
     try {
       // Call deleteBookmarks with a single key
-      await this.deleteBookmarks([key])
+      await this.batchUpdateBookmarksInternal([key], [])
     } catch (error) {
       console.error('Failed to delete bookmark:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Batch updates bookmarks by handling both deletions and modifications in a single operation.
+   * Only persists changes if there are actual modifications or deletions.
+   * The `updated` timestamp in the store's metadata will be set to the current time if changes occur.
+   *
+   * @param deletions - An array of `BookmarkKey` (URLs) of the bookmarks to delete, can be empty.
+   * @param modifications - An array of `BookmarkKeyValuePair` to update or add, can be empty.
+   * @returns A promise that resolves when all operations are complete and the store (if changed) has been persisted.
+   * @throws Error if retrieving the current store or persisting the updated store fails.
+   */
+  async batchUpdateBookmarks(
+    deletions: BookmarkKey[] = [],
+    modifications: BookmarkKeyValuePair[] = []
+  ): Promise<void> {
+    try {
+      await this.batchUpdateBookmarksInternal(deletions, modifications)
+    } catch (error) {
+      console.error('Failed to batch update bookmarks:', error)
       throw error
     }
   }
@@ -357,6 +347,51 @@ export class BookmarkStorage {
       console.log('Bookmarks imported successfully')
     } catch (error) {
       console.error('Failed to import bookmarks:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Batch updates bookmarks by handling both deletions and modifications in a single operation.
+   * Only persists changes if there are actual modifications or deletions.
+   * The `updated` timestamp in the store's metadata will be set to the current time if changes occur.
+   *
+   * @param deletions - An array of `BookmarkKey` (URLs) of the bookmarks to delete, can be empty.
+   * @param modifications - An array of `BookmarkKeyValuePair` to update or add, can be empty.
+   * @returns A promise that resolves when all operations are complete and the store (if changed) has been persisted.
+   * @throws Error if retrieving the current store or persisting the updated store fails.
+   */
+  private async batchUpdateBookmarksInternal(
+    deletions: BookmarkKey[] = [],
+    modifications: BookmarkKeyValuePair[] = []
+  ): Promise<void> {
+    try {
+      const bookmarksStore = await this.getBookmarksStore()
+      let hasChanges = false
+
+      // Handle deletions
+      for (const key of deletions) {
+        if (bookmarksStore.data[key]) {
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete bookmarksStore.data[key]
+          hasChanges = true
+        }
+      }
+
+      // Handle modifications
+      for (const [key, entry] of modifications) {
+        bookmarksStore.data[key] = entry
+        hasChanges = true
+      }
+
+      // Only persist if there were actual changes
+      if (hasChanges) {
+        // Update the last modified timestamp
+        bookmarksStore.meta.updated = Date.now()
+        await this.persistBookmarksStore(bookmarksStore, true)
+      }
+    } catch (error) {
+      // Throw the error to be caught and handled by the caller
       throw error
     }
   }
@@ -514,3 +549,89 @@ export class BookmarkStorage {
 
 // Create singleton instance
 export const bookmarkStorage = new BookmarkStorage()
+
+/**
+ * TODO: Potential Optimizations
+ *
+ * 1. Error Handling Improvements:
+ *    - Add custom BookmarkStorageError class for better error differentiation
+ *    - Enhance error messages with more context
+ *    - Improve migration failure error handling
+ *
+ * 2. Data Validation Enhancements:
+ *    - Add BookmarkTagsAndMetadata field validation
+ *    - Implement data integrity checks
+ *    - Add URL format validation
+ *
+ * 3. Performance Optimizations:
+ *    - Optimize hasChanges flag in batchUpdateBookmarksInternal
+ *    - Use Set for deletion operations
+ *    - Implement batch processing for large datasets
+ *
+ * 4. Migration System Improvements:
+ *    - Implement concrete migration logic
+ *    - Add migration rollback mechanism
+ *    - Add migration progress notifications
+ *
+ * 5. Event System Enhancements:
+ *    - Add more event types (delete, update, migrate)
+ *    - Include additional context in events
+ *    - Implement event subscription system
+ *
+ * 6. Code Organization Improvements:
+ *    - Extract validation logic to separate class
+ *    - Create dedicated migration manager
+ *    - Implement strategy pattern for migrations
+ *
+ * 7. Storage Backend Extensions:
+ *    - Add support for multiple storage backends
+ *    - Implement storage adapter interface
+ *    - Add data compression options
+ */
+
+/**
+ * TODO: Additional test cases needed for batchUpdateBookmarksInternal method:
+ *
+ * 1. Edge Cases:
+ *    - Test with empty input parameters
+ *    - Test with invalid bookmark keys
+ *    - Test with non-existent bookmarks
+ *    - Test with maximum allowed batch size
+ *    - Test with duplicate keys in delete and update arrays
+ *
+ * 2. Error Handling and Exception Cases:
+ *    - Test error handling for invalid data structures
+ *    - Test error handling for storage failures
+ *    - Test error handling for concurrent modifications
+ *    - Test error handling for version conflicts
+ *
+ * 3. Data Integrity Validation:
+ *    - Verify all required fields are preserved after updates
+ *    - Verify timestamps are correctly updated
+ *    - Verify data consistency after partial failures
+ *    - Verify no unintended side effects on other bookmarks
+ *
+ * 4. Event Handling:
+ *    - Test event emission for successful operations
+ *    - Test event emission for failed operations
+ *    - Test event emission order for combined operations
+ *    - Test event payload correctness
+ *
+ * 5. Storage Isolation:
+ *    - Test operations do not affect other storage instances
+ *    - Test operations are atomic within the same instance
+ *    - Test concurrent access handling
+ *    - Test storage cleanup after operations
+ *
+ * 6. Version Compatibility:
+ *    - Test backward compatibility with older data formats
+ *    - Test forward compatibility with newer features
+ *    - Test migration handling during operations
+ *    - Test version number updates
+ *
+ * 7. Performance and Load Testing:
+ *    - Test with large datasets
+ *    - Test with high frequency operations
+ *    - Test memory usage patterns
+ *    - Test operation timing and optimization
+ */

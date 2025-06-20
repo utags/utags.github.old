@@ -1,7 +1,7 @@
 <script lang="ts">
   import { trimTitle } from 'utags-utils'
   import * as m from '../paraglide/messages'
-  import { DELETED_BOOKMARK_TAG } from '../config/constants.js'
+  import { isMarkedAsDeleted } from '../utils/bookmarks.js'
   import {
     bookmarks,
     checkBookmarksDataReady,
@@ -131,7 +131,7 @@
       const entry = $bookmarks.data[url]
       isMergeMode = false
       if (entry) {
-        const isDeleted = entry.tags.includes(DELETED_BOOKMARK_TAG)
+        const isDeleted = isMarkedAsDeleted(entry)
         // If this is a marked as deleted bookmark, treat it as a new bookmark
         if (isDeleted) {
           // Do nothing, allow re-adding a deleted bookmark
@@ -220,7 +220,7 @@
     }
 
     const entry = $bookmarks.data[url]
-    const isDeleted = entry && entry.tags.includes(DELETED_BOOKMARK_TAG)
+    const isDeleted = isMarkedAsDeleted(entry)
     if (entry && !isDeleted) {
       const clonedEntry = structuredClone(entry)
       entry.tags = $state.snapshot(tagsArray)

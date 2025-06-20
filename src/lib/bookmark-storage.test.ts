@@ -462,6 +462,121 @@ describe('BookmarkStorage', () => {
     })
   })
 
+  describe('batchUpdateBookmarks', () => {
+    it('should handle both deletions and modifications in a single operation', async () => {
+      // Setup initial data
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+
+      // Prepare test data
+      const deletions = ['https://example.com']
+      const modifications: BookmarkKeyValuePair[] = [
+        [
+          'https://test.org',
+          {
+            tags: ['test', 'organization', 'updated'],
+            meta: {
+              title: 'Updated Test Organization',
+              created: Date.now(),
+              updated: Date.now(),
+            },
+          },
+        ],
+        [
+          'https://new.com',
+          {
+            tags: ['new'],
+            meta: {
+              title: 'New Website',
+              created: Date.now(),
+              updated: Date.now(),
+            },
+          },
+        ],
+      ]
+
+      await bookmarkStorage.batchUpdateBookmarks(deletions, modifications)
+      const store = await bookmarkStorage.getBookmarksStore()
+
+      // Verify deletions
+      expect(store.data['https://example.com']).toBeUndefined()
+
+      // Verify modifications
+      expect(store.data['https://test.org'].tags).toContain('updated')
+      expect(store.data['https://test.org'].meta.title).toBe(
+        'Updated Test Organization'
+      )
+      expect(store.data['https://new.com']).toBeDefined()
+      expect(store.data['https://new.com'].tags).toEqual(['new'])
+    })
+
+    it('should handle empty deletions and modifications arrays', async () => {
+      // Setup initial data
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+      const initialStore = await bookmarkStorage.getBookmarksStore()
+
+      // Call with empty arrays
+      await bookmarkStorage.batchUpdateBookmarks([], [])
+      const store = await bookmarkStorage.getBookmarksStore()
+
+      // Verify no changes were made
+      expect(store.data).toEqual(initialStore.data)
+      expect(store.meta.updated).toBe(initialStore.meta.updated)
+    })
+
+    it('should only persist changes when actual modifications occur', async () => {
+      // Setup initial data
+      await bookmarkStorage.persistBookmarksStore(validBookmarksStore)
+      const initialStore = await bookmarkStorage.getBookmarksStore()
+
+      // Try to delete non-existent bookmark
+      await bookmarkStorage.batchUpdateBookmarks(
+        ['https://nonexistent.com'],
+        []
+      )
+      const store = await bookmarkStorage.getBookmarksStore()
+
+      // Verify no changes were made
+      expect(store.data).toEqual(initialStore.data)
+      expect(store.meta.updated).toBe(initialStore.meta.updated)
+    })
+
+    it('should throw error when getBookmarksStore fails', async () => {
+      vi.spyOn(bookmarkStorage, 'getBookmarksStore').mockRejectedValueOnce(
+        new Error('Failed to get store')
+      )
+
+      await expect(
+        bookmarkStorage.batchUpdateBookmarks(
+          ['https://example.com'],
+          [
+            [
+              'https://new.com',
+              { tags: [], meta: { title: '', created: 0, updated: 0 } },
+            ],
+          ]
+        )
+      ).rejects.toThrow('Failed to get store')
+    })
+
+    it('should throw error when persistBookmarksStore fails', async () => {
+      vi.spyOn(bookmarkStorage, 'persistBookmarksStore').mockRejectedValueOnce(
+        new Error('Failed to save store')
+      )
+
+      await expect(
+        bookmarkStorage.batchUpdateBookmarks(
+          ['https://example.com'],
+          [
+            [
+              'https://new.com',
+              { tags: [], meta: { title: '', created: 0, updated: 0 } },
+            ],
+          ]
+        )
+      ).rejects.toThrow('Failed to save store')
+    })
+  })
+
   describe('overwriteBookmarks', () => {
     it('should replace existing bookmarks data with new data', async () => {
       // Initial data
@@ -1080,9 +1195,7 @@ describe('BookmarkStorage', () => {
       expect(Object.keys(afterUpdate.data)).toEqual(
         Object.keys(beforeUpdate.data)
       )
-      expect(afterUpdate.meta.updated).toBeGreaterThan(
-        beforeUpdate.meta.updated!
-      )
+      expect(afterUpdate.meta.updated).toEqual(beforeUpdate.meta.updated!)
     })
   })
 
