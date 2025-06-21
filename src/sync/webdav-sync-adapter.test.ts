@@ -382,6 +382,18 @@ describe('WebDAVSyncAdapter', () => {
       expect(metadata).toBeUndefined()
     })
 
+    it('should return undefined if the path is not found (409)', async () => {
+      server.use(
+        createPropfindHandler(serviceConfig, filePath, {
+          status: 409, // Simulate a conflict/path not found
+          checkAuth: true,
+        })
+      )
+
+      const metadata = await adapter.getRemoteMetadata()
+      expect(metadata).toBeUndefined()
+    })
+
     it('should throw an error if API call fails with other errors (500)', async () => {
       server.use(
         createPropfindHandler(serviceConfig, filePath, {
@@ -554,6 +566,19 @@ describe('WebDAVSyncAdapter', () => {
       server.use(
         createPropfindHandler(serviceConfig, filePath, {
           status: 404,
+          checkAuth: true,
+        })
+      )
+
+      const result = await adapter.download()
+      expect(result.data).toBeUndefined()
+      expect(result.remoteMeta).toBeUndefined()
+    })
+
+    it('should return undefined data and metadata if path is not found (409 on PROPFIND)', async () => {
+      server.use(
+        createPropfindHandler(serviceConfig, filePath, {
+          status: 409, // Simulate a conflict/path not found
           checkAuth: true,
         })
       )
@@ -750,6 +775,44 @@ describe('WebDAVSyncAdapter', () => {
           checkAuth: true,
           once: true,
         }),
+        createPropfindHandler(serviceConfig, dirPath, {
+          status: 404,
+          checkAuth: true,
+          once: false,
+        }),
+        createMkcolHandler(serviceConfig, dirPath, {
+          checkAuth: true,
+          once: true,
+        }),
+        mockSuccessfulPut(),
+        createPropfindHandler(serviceConfig, filePath, {
+          etag: newEtag,
+          lastModified: newLastMod,
+          checkAuth: true,
+        })
+      )
+
+      const result = await adapter.upload(mockUploadData)
+      expect(result).toEqual({
+        version: newEtag.replaceAll('"', ''),
+        sha: newEtag.replaceAll('"', ''),
+        timestamp: new Date(newLastMod).getTime(),
+      })
+    })
+
+    it('should create parent directory and upload file when parent dir check returns 409', async () => {
+      server.use(
+        createPropfindHandler(serviceConfig, filePath, {
+          status: 409,
+          checkAuth: true,
+          once: true,
+        }),
+        createPropfindHandler(serviceConfig, dirPath, {
+          status: 409,
+          checkAuth: true,
+          once: true,
+        }),
+        // dir check should return 404 not 409
         createPropfindHandler(serviceConfig, dirPath, {
           status: 404,
           checkAuth: true,

@@ -23,6 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables
+.env
+
 ._*
 mock-data.json
 mock-server/.mock-data/

@@ -94,8 +94,11 @@ export class WebDAVSyncAdapter
         // size: stat.size,
       }
     } catch (error: any) {
-      if (error.status === 404) {
-        console.log(`WebDAV metadata: file not found at ${filePath}`)
+      // Handle file not found (404) or conflict (409) which can indicate the file/path doesn't exist.
+      if (error.status === 404 || error.status === 409) {
+        console.log(
+          `WebDAV metadata: file or path not found at ${filePath} (status: ${error.status})`
+        )
         return undefined
       }
 
@@ -133,9 +136,11 @@ export class WebDAVSyncAdapter
         },
       }
     } catch (error: any) {
-      // Handle file not found (typically a 404 error)
-      if (error.status === 404) {
-        console.log(`WebDAV file not found at ${filePath}`)
+      // Handle file not found (404) or conflict (409) which can indicate the file/path doesn't exist.
+      if (error.status === 404 || error.status === 409) {
+        console.log(
+          `WebDAV file or path not found at ${filePath} (status: ${error.status})`
+        )
         return { data: undefined, remoteMeta: undefined }
       }
 
@@ -174,7 +179,8 @@ export class WebDAVSyncAdapter
           )
         }
       } catch (error: any) {
-        if (error.status === 404) {
+        // A 404 or 409 status indicates that the directory does not exist.
+        if (error.status === 404 || error.status === 409) {
           // Directory does not exist, create it recursively
           try {
             await this.client.createDirectory(parentPath, { recursive: true })
