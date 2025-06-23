@@ -57,12 +57,17 @@ import { SyncManager } from './sync-manager.js'
 
 // Define MockSyncAdapter
 class MockSyncAdapter implements SyncAdapter {
-  private readonly config: SyncServiceConfig
+  private config!: SyncServiceConfig
 
-  constructor(config: SyncServiceConfig) {
-    this.config = config
+  constructor(config?: SyncServiceConfig) {
+    if (config) {
+      this.config = config
+    }
+
     // Initialize spies for all methods to allow per-test mocking
-    this.init = vi.fn().mockResolvedValue(undefined)
+    this.init = vi.fn(async (config: SyncServiceConfig) => {
+      this.config = config
+    })
     this.upload = vi
       .fn()
       .mockResolvedValue({ version: 'mock-version', timestamp: Date.now() })
@@ -75,20 +80,20 @@ class MockSyncAdapter implements SyncAdapter {
   }
 
   getConfig(): SyncServiceConfig {
+    if (!this.config) {
+      throw new Error('Adapter not initialized')
+    }
+
     return this.config
   }
 
   // Mocked methods - these will be spied on and customized in tests
-  init: Mock<Promise<void>, [SyncServiceConfig]>
-  upload: Mock<Promise<SyncMetadata>, [string, SyncMetadata?]>
-  download: Mock<
-    Promise<{ data: string | undefined; remoteMeta: SyncMetadata | undefined }>,
-    []
-  >
-
-  getRemoteMetadata: Mock<Promise<SyncMetadata | undefined>, []>
-  getAuthStatus: Mock<Promise<AuthStatus>, []>
-  destroy: Mock<void, []>
+  init: any
+  upload: any
+  download: any
+  getRemoteMetadata: any
+  getAuthStatus: any
+  destroy: any
 
   // Optional methods from SyncAdapter, can be added if needed for specific tests
   // acquireLock?: () => Promise<boolean>;
@@ -195,7 +200,7 @@ describe('SyncManager', () => {
     enabled: true,
     scope: 'all',
     credentials: { apiKey: 'test-api-key' },
-    target: { url: 'http://localhost:3000/sync', filePath: 'bookmarks.json' },
+    target: { url: 'http://localhost:3000/sync', path: 'bookmarks.json' },
   }
 
   // Helper function to get the actual adapter instance used by SyncManager
@@ -371,7 +376,7 @@ describe('SyncManager', () => {
         credentials: { apiKey: 'new-test-api-key-2' },
         target: {
           url: 'http://localhost:3002/sync',
-          filePath: 'bookmarks_new_2.json',
+          path: 'bookmarks_new_2.json',
         },
       }
       addSyncService(newServiceConfig)
@@ -4199,7 +4204,7 @@ describe('SyncManager', () => {
         credentials: { apiKey: 'initial-api-key' },
         target: {
           url: 'http://localhost:3000/sync',
-          filePath: 'bookmarks.json',
+          path: 'bookmarks.json',
         },
         scope: 'all',
         enabled: true,
@@ -4232,7 +4237,7 @@ describe('SyncManager', () => {
         credentials: { apiKey: 'test-api-key' },
         target: {
           url: 'http://localhost:3000/sync',
-          filePath: 'bookmarks.json',
+          path: 'bookmarks.json',
         },
         scope: 'all',
         enabled: true,
@@ -4261,7 +4266,7 @@ describe('SyncManager', () => {
         credentials: { apiKey: 'error-key' },
         target: {
           url: 'http://localhost:3005/sync',
-          filePath: 'erroring.json',
+          path: 'erroring.json',
         },
       }
       const workingAdapterConfig: SyncServiceConfig = {
@@ -4271,7 +4276,7 @@ describe('SyncManager', () => {
         enabled: true,
         scope: 'all',
         credentials: { apiKey: 'working-key' },
-        target: { url: 'http://localhost:3006/sync', filePath: 'working.json' },
+        target: { url: 'http://localhost:3006/sync', path: 'working.json' },
       }
 
       addSyncService(erroringAdapterConfig)
@@ -5201,7 +5206,7 @@ describe('SyncManager', () => {
       credentials: { apiKey: 'key-1' },
       target: {
         url: 'http://localhost:3001/sync',
-        filePath: 'bookmarks1.json',
+        path: 'bookmarks1.json',
       },
     }
 
@@ -5214,7 +5219,7 @@ describe('SyncManager', () => {
       credentials: { apiKey: 'key-2' },
       target: {
         url: 'http://localhost:3002/sync',
-        filePath: 'bookmarks2.json',
+        path: 'bookmarks2.json',
       },
     }
 
@@ -5227,7 +5232,7 @@ describe('SyncManager', () => {
       credentials: { apiKey: 'key-3' },
       target: {
         url: 'http://localhost:3003/sync',
-        filePath: 'bookmarks3.json',
+        path: 'bookmarks3.json',
       },
     }
 
@@ -5569,7 +5574,7 @@ describe('SyncManager', () => {
       enabled: true,
       scope: 'all',
       credentials: { apiKey: 'event-api-key' },
-      target: { url: 'http://localhost:3000/events', filePath: 'events.json' },
+      target: { url: 'http://localhost:3000/events', path: 'events.json' },
     }
 
     beforeEach(async () => {

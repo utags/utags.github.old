@@ -153,87 +153,6 @@ function initializeFilters() {
   }
 }
 
-function initializeSyncServices() {
-  // TODO: initialize sync services
-  const mockApiUrl = 'http://localhost:3001'
-  const baseConfig: SyncServiceConfig = {
-    id: 'test-custom-api',
-    type: 'customApi',
-    name: 'Test Custom API',
-    credentials: {
-      token: 'test-auth-token',
-      // apiKey: 'test-api-key', // Uncomment if your mock server uses X-API-Key
-    } as ApiCredentials,
-    target: {
-      url: mockApiUrl,
-      filePath: 'test-bookmarks-1.json',
-      authTestEndpoint: 'auth/status',
-    } as ApiTarget,
-    scope: 'all',
-    enabled: true,
-    autoSyncInterval: 1,
-    autoSyncOnChanges: true,
-    autoSyncDelayOnChanges: 0.1,
-    lastSyncTimestamp: 0,
-  }
-  const githubConfig: SyncServiceConfig = {
-    id: 'test-github-api',
-    type: 'github',
-    name: 'Test GitHub API',
-    credentials: {
-      token: 'my-token',
-    },
-    target: {
-      repo: 'user/repo',
-      path: 'bookmarks-data.json',
-      branch: 'main',
-    },
-    scope: 'all',
-    enabled: true,
-    autoSyncInterval: 1,
-    autoSyncOnChanges: true,
-    autoSyncDelayOnChanges: 0.1,
-    lastSyncTimestamp: 0,
-  }
-  const webdavConfig: SyncServiceConfig = {
-    id: 'test-webdav-config-1',
-    type: 'webdav',
-    name: 'Test WebDAV Service',
-    credentials: {
-      serverUrl: 'https://www.webdavserver.com/User485b088',
-      username: 'User485b088',
-      password: 'testpassword',
-    },
-    target: {
-      path: 'utags/bookmarks.json', // Relative path to serverUrl
-    },
-    scope: 'all',
-    enabled: true,
-    autoSyncInterval: 1,
-    autoSyncOnChanges: true,
-    autoSyncDelayOnChanges: 0.1,
-    lastSyncTimestamp: 0,
-  }
-  const extensionConfig: SyncServiceConfig = {
-    id: 'test-ext-sync',
-    type: 'browserExtension',
-    name: 'Test Extension Sync',
-    credentials: { targetExtensionId: 'mock-extension-id' },
-    target: {},
-    enabled: true,
-    scope: 'all',
-    autoSyncInterval: 1,
-    autoSyncOnChanges: true,
-    autoSyncDelayOnChanges: 0.1,
-    lastSyncTimestamp: 0,
-  }
-  settingsStore.set({
-    // syncServices: [baseConfig, githubConfig, webdavConfig, extensionConfig],
-    syncServices: [baseConfig, extensionConfig],
-    activeSyncServiceId: baseConfig.id,
-  })
-}
-
 export default async function initializeStores() {
   const $settings = get(settings)
 
@@ -248,6 +167,4 @@ export default async function initializeStores() {
 
   // run every time when loading stores
   initializeSettings()
-
-  initializeSyncServices()
 }

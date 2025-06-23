@@ -26,9 +26,9 @@
   let isEditing = $state(false)
   let validationError = $state(false)
   let filterName = $state('')
-  let description = $state('')
-  let currentFilterId = $state(null)
-  let activeMenuId: string | null = $state(null)
+  let description: string = $state('')
+  let currentFilterId: string | undefined = $state(undefined)
+  let activeMenuId: string | undefined = $state(undefined)
 
   onMount(() => {
     window.addEventListener('clickShowSaveFilterModal', showAddModal)
@@ -48,7 +48,7 @@
       const handler = (e: Event) => {
         const menu = document.querySelector(`[data-menu-id='${activeMenuId}']`)
         if (!menu?.contains(e.target as Node)) {
-          activeMenuId = null
+          activeMenuId = undefined
         }
       }
       document.addEventListener('click', handler)
@@ -60,8 +60,9 @@
     const filterString = location.hash
     const filterParts = filterString.split(HASH_DELIMITER)
     return filterParts
-      .map((part) => part.split(FILTER_DELIMITER))
-      .flatMap((part) => decodeURIComponent(part).split(OR_CONDITION_DELIMITER))
+      .flatMap((part) => part.split(FILTER_DELIMITER))
+      .map((part) => decodeURIComponent(part))
+      .flatMap((part) => part.split(OR_CONDITION_DELIMITER))
       .filter(Boolean)
       .join(', ')
   }
@@ -78,7 +79,12 @@
     if (isEditing && currentFilterId) {
       $filters = $filters.map((f) =>
         f.id === currentFilterId
-          ? { ...f, name: filterName, description, updated: now }
+          ? {
+              ...f,
+              name: filterName,
+              description,
+              updated: now,
+            }
           : f
       )
     } else {
@@ -97,7 +103,7 @@
 
     filterName = ''
     showModal = false
-    currentFilterId = null
+    currentFilterId = undefined
     isEditing = false
   }
 
@@ -113,14 +119,14 @@
     $filters = $filters.filter((f) => f.id !== id)
   }
 
-  function showAddModal() {
+  const showAddModal = () => {
     showModal = false
     setTimeout(() => {
       filterName = ''
       description = ''
       showModal = true
       isEditing = false
-      currentFilterId = null
+      currentFilterId = undefined
     })
   }
 
@@ -186,7 +192,8 @@
                 class="rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onclick={(e) => {
                   e.stopPropagation()
-                  activeMenuId = activeMenuId === filter.id ? null : filter.id
+                  activeMenuId =
+                    activeMenuId === filter.id ? undefined : filter.id
                 }}
                 aria-label={m.COLLECTIONS_MORE_ACTIONS_ARIA_LABEL()}>
                 <svg
@@ -211,7 +218,7 @@
                   <div class="py-1">
                     <button
                       onclick={() => {
-                        activeMenuId = null
+                        activeMenuId = undefined
                         showModal = false
                         filterName = filter.name
                         description = filter.description
@@ -271,6 +278,7 @@
     {m.SAVED_FILTERS_NAME_LABEL()}
   </InputField>
   <BaseInputField
+    id="filter-description"
     bind:value={description}
     placeholder={m.SAVED_FILTERS_DESCRIPTION_PLACEHOLDER()}>
     {m.FIELD_DESCRIPTION()}{m.ZZ_P_COLON()}

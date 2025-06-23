@@ -7,10 +7,12 @@
   // Props
   let {
     selectedBookmarkUrls = [],
-    isOpen = $bindable(false),
+    isOpen = false,
+    onClose = () => {},
   }: {
     selectedBookmarkUrls: string[]
     isOpen: boolean
+    onClose: () => void
   } = $props()
 
   // State
@@ -24,7 +26,7 @@
    */
   function closeModal() {
     resetState()
-    isOpen = false
+    onClose()
   }
 
   /**
@@ -93,7 +95,11 @@
   title={m.BATCH_TAG_ADD_MODAL_TITLE()}
   {isOpen}
   onOpen={() => {
-    document.getElementById('tags')?.focus()
+    try {
+      document.getElementById('tags')?.focus()
+    } catch (error) {
+      console.error('Failed to focus on tags input:', error)
+    }
   }}
   onClose={closeModal}
   onConfirm={handleAddTagsToBookmarks}

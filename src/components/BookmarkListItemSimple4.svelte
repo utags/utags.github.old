@@ -1,6 +1,7 @@
 <script>
   import Favicon from './Favicon.svelte'
-  let { href, tags, title, formatedUpdated, dateTitleText } = $props()
+  let { href, tags, title, description, note, formatedUpdated, dateTitleText } =
+    $props()
 </script>
 
 <div

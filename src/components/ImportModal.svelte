@@ -29,13 +29,30 @@
     },
   })
 
-  let { showImportModal = $bindable(false) } = $props()
+  type ImportProgress = {
+    current: number
+    total: number
+    stats: {
+      newBookmarks: number
+      newDomains: Set<string>
+      newTags: Set<string>
+    }
+  }
+  let { showImportModal = false } = $props()
 
   let currentStep = $state(1)
-  let file = $state(null)
+  let file: File | undefined = $state(undefined)
   let fileType: 'json' | 'html' = $state('json')
-  let stats = $state(null)
-  let progress = $state(null)
+  let stats:
+    | {
+        total: number
+        noCreated: number
+        new: number
+        conflicts: number
+        data: any
+      }
+    | undefined = $state(undefined)
+  let progress: ImportProgress | undefined = $state(undefined)
   let isDragging = $state(false)
 
   const mergeStrategy = $state({
@@ -54,26 +71,26 @@
 
   $effect(() => {
     if (showImportModal) {
-      addEventListener(document, 'dragover', handleDragOver)
+      addEventListener(document, 'dragover', handleDragOver as EventListener)
       addEventListener(document, 'dragleave', handleDragLeave)
-      addEventListener(document, 'drop', handleDrop, true)
+      addEventListener(document, 'drop', handleDrop as EventListener, true)
     }
     return () => {
-      removeEventListener(document, 'dragover', handleDragOver)
+      removeEventListener(document, 'dragover', handleDragOver as EventListener)
       removeEventListener(document, 'dragleave', handleDragLeave)
-      removeEventListener(document, 'drop', handleDrop, true)
+      removeEventListener(document, 'drop', handleDrop as EventListener, true)
 
       removeEventListener(
         globalThis,
         'importProgressUpdated',
-        importProgressUpdatedHandler
+        importProgressUpdatedHandler as EventListener
       )
       removeEventListener(globalThis, 'importFinished', importFinishedHandler)
     }
   })
 
   // 文件拖放处理
-  function handleDragOver(e) {
+  function handleDragOver(e: DragEvent) {
     e.preventDefault()
     isDragging = true
   }
@@ -82,12 +99,14 @@
     isDragging = false
   }
 
-  function handleDrop(e) {
+  function handleDrop(e: DragEvent) {
     e.preventDefault()
     e.stopPropagation()
     isDragging = false
-    if (e.dataTransfer.files.length) {
-      handleFileSelect({ target: { files: e.dataTransfer.files } })
+    if (e.dataTransfer?.files.length) {
+      handleFileSelect({
+        target: { files: e.dataTransfer.files },
+      } as unknown as Event)
     }
   }
 
@@ -112,21 +131,22 @@
 
   function resetImport() {
     currentStep = 1
-    file = null
-    stats = null
-    progress = null
+    file = undefined
+    stats = undefined
+    progress = undefined
   }
 
-  async function handleFileSelect(e) {
-    if (e.target.files.length === 0) {
+  async function handleFileSelect(e: Event) {
+    const target = e.target as HTMLInputElement
+    if (!target.files || target.files.length === 0) {
       alert('请选择一个文件')
       return
     }
-    if (e.target.files.length > 1) {
+    if (target.files.length > 1) {
       alert('不支持同时上传多个文件，请选择一个文件')
       return
     }
-    const selectedFile = e.target.files[0]
+    const selectedFile = target.files[0]
     if (!selectedFile) return
     console.log('selectedFile', selectedFile)
 
@@ -149,9 +169,9 @@
       stats = result
       console.log('验证通过，统计结果:', result)
       currentStep = 2
-    } catch (error) {
+    } catch (error: any) {
       // 处理验证错误
-      alert(error.message)
+      alert(error.message as string)
       resetImport()
     }
   }
@@ -168,11 +188,15 @@
     addEventListener(
       globalThis,
       'importProgressUpdated',
-      importProgressUpdatedHandler
+      importProgressUpdatedHandler as EventListener
     )
     addEventListener(globalThis, 'importFinished', importFinishedHandler)
 
-    console.log(stats.data, fileType, mergeStrategy)
+    console.log(
+      $state.snapshot(stats.data),
+      fileType,
+      $state.snapshot(mergeStrategy)
+    )
     // 使用验证阶段获取的数据而不是原始文件
     // importData(stats.data, mergeStrategy)
     // Get local bookmarks data
@@ -225,24 +249,25 @@
       globalThis.dispatchEvent(importFinishedEvent)
 
       console.log('Import successful:', { updatesForLocal, localDeletions })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during import:', error)
       // Handle error, e.g., show a message to the user
-      alert(`导入失败: ${error.message}`)
+      alert(`导入失败: ${error.message as string}`)
       // Reset to a previous step or allow retry
       currentStep = 2 // Or resetImport()
     }
   }
 
   // 监听导入状态变化
-  const importProgressUpdatedHandler = (e) => {
-    progress = e.detail
+  const importProgressUpdatedHandler = (e: CustomEvent) => {
+    progress = e.detail as ImportProgress
+    console.log('importProgressUpdated', progress)
   }
   const importFinishedHandler = () => {
     removeEventListener(
       globalThis,
       'importProgressUpdated',
-      importProgressUpdatedHandler
+      importProgressUpdatedHandler as EventListener
     )
     removeEventListener(globalThis, 'importFinished', importFinishedHandler)
     console.log('importFinished')
@@ -283,8 +308,8 @@
     <div class="import-step-1 text-center">
       <div
         class={`drop-zone ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-        onclick={(e) => {
-          const target = e.target
+        onclick={(e: MouseEvent) => {
+          const target = e.target as HTMLElement
           if (!target.closest('.import-step-1 label')) {
             document.getElementById('fileInput')?.click()
           }
@@ -318,7 +343,7 @@
         </p>
       </div>
     </div>
-  {:else if currentStep === 2}
+  {:else if currentStep === 2 && !!stats}
     <div class="import-step-2">
       <div class="stats-card dark:border-gray-700 dark:bg-gray-800">
         <h3 class="text-lg font-medium dark:text-gray-200">导入摘要</h3>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte'
   import { PanelLeftOpen, PanelLeftClose } from 'lucide-svelte'
+  import type { SharedStatus } from '../types/shared-status.js'
   import * as m from '../paraglide/messages'
   import { appConfig } from '../config/app-config.js'
   import {
@@ -24,9 +25,9 @@
     tagHierarchyItems: TagHierarchyItem[]
   } = $props()
 
-  let locationSearchString = $derived(
-    getContext('sharedStatus').locationSearchString as string
-  )
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const locationSearchString = $derived(sharedStatus.locationSearchString)
 
   // 导航组数据结构
   // 置顶 Collections (position: fixed or sticky)

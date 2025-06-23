@@ -1,7 +1,8 @@
-<script>
+<script lang="ts">
   export let show = true
   export let id = ''
-  export let value = ''
+  export let value: string | number = ''
+  export let type = 'text'
   export let placeholder = ''
   export let disabled = false
   export let error = ''
@@ -17,16 +18,29 @@
       <slot />
     </label>
 
-    <input
-      {id}
-      type="text"
-      bind:value
-      {placeholder}
-      {disabled}
-      on:blur={onBlur}
-      on:input={onInput}
-      on:keydown={onKeydown}
-      class="input-element {classNames} {error ? 'error-state' : ''}" />
+    {#if type === 'textarea'}
+      <textarea
+        {id}
+        bind:value
+        {placeholder}
+        {disabled}
+        on:blur={onBlur}
+        on:input={onInput}
+        on:keydown={onKeydown}
+        class="input-element {classNames} {error ? 'error-state' : ''}"
+        rows="3"></textarea>
+    {:else}
+      <input
+        {id}
+        {type}
+        bind:value
+        {placeholder}
+        {disabled}
+        on:blur={onBlur}
+        on:input={onInput}
+        on:keydown={onKeydown}
+        class="input-element {classNames} {error ? 'error-state' : ''}" />
+    {/if}
 
     {#if error}
       <div class="error-message">

@@ -471,6 +471,6 @@ export class CustomApiSyncAdapter
       )
     }
 
-    return buildSyncPath(this.apiTarget.filePath, this.config.scope)
+    return buildSyncPath(this.apiTarget.path, this.config.scope)
   }
 }

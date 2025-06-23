@@ -7,10 +7,12 @@
   // Props
   let {
     selectedBookmarkUrls = [],
-    isOpen = $bindable(false),
+    isOpen = false,
+    onClose,
   }: {
     selectedBookmarkUrls: string[]
     isOpen: boolean
+    onClose: () => void
   } = $props()
 
   // State
@@ -24,7 +26,7 @@
    */
   function closeModal() {
     resetState()
-    isOpen = false
+    onClose()
   }
 
   /**

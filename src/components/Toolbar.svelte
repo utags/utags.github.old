@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte'
-  import { createEventDispatcher } from 'svelte'
   import { type NestedFilterExpression } from '../types/filters'
+  import type { SharedStatus } from '../types/shared-status.js'
   import * as m from '../paraglide/messages'
   import Statistics from './Statistics.svelte'
   import DropdownMenu from './DropdownMenu.svelte'
@@ -14,21 +14,21 @@
     domainsCount: number
   }
 
-  let { stats }: { stats: Stats } = $props()
-
-  // Event dispatcher
-  const dispatch = createEventDispatcher()
+  let {
+    stats,
+    onSelectionModeChange = (mode: boolean) => {},
+  }: { stats: Stats; onSelectionModeChange?: (mode: boolean) => void } =
+    $props()
 
   let menuOpen = $state(false)
   // Selection mode state
   let selectionMode = $state(false)
 
-  // Indicate if viewing deleted bookmarks
-  let isViewingDeleted = $derived(
-    getContext('sharedStatus').isViewingDeleted as boolean
-  )
-  let isViewingSharedCollection = $derived(
-    getContext('sharedStatus').isViewingSharedCollection as boolean
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const isViewingDeleted = $derived(sharedStatus.isViewingDeleted)
+  const isViewingSharedCollection = $derived(
+    sharedStatus.isViewingSharedCollection
   )
 
   let nestedFilterExpression: NestedFilterExpression = [
@@ -170,7 +170,7 @@
    */
   function toggleSelectionMode() {
     selectionMode = !selectionMode
-    dispatch('selectionModeChange', { selectionMode })
+    onSelectionModeChange(selectionMode)
   }
 </script>
 
@@ -275,15 +275,6 @@
 </div>
 
 <style>
-  .left-tools {
-    /* width: calc(var(--aside-area-width) + var(--sidebar-width) - 28px); */
-    /* height: 100%; */
-  }
-  .right-tools {
-    /* width: calc(100% - var(--aside-area-width) - 20px); */
-    /* height: 100%; */
-  }
-
   .toolbar-button.active {
     background-color: rgba(79, 70, 229, 0.2);
     color: rgb(79, 70, 229);

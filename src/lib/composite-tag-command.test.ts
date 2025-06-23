@@ -314,7 +314,6 @@ describe('CompositeTagCommand', () => {
       const bm1 = originalBookmarksStore.find(([url]) => url === 'url1')?.[1]
       if (bm1) {
         bm1.meta.title = 'New Title After Command'
-        // @ts-expect-error for testing
         bm1.meta.lastUsed = Date.now()
       }
 
@@ -328,7 +327,6 @@ describe('CompositeTagCommand', () => {
       )?.[1]
       expect(bm1AfterUndo?.tags).toEqual(['tagA', 'tagB']) // Tags reverted
       expect(bm1AfterUndo?.meta.title).toBe('New Title After Command') // Other meta preserved
-      // @ts-expect-error for testing
       expect(bm1AfterUndo?.meta.lastUsed).toBeDefined() // Other meta preserved
     })
   })

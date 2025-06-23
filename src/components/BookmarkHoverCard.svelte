@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte'
   import { Pencil, Trash2, BookOpen } from 'lucide-svelte'
+  import type { SharedStatus } from '../types/shared-status.js'
   import * as m from '../paraglide/messages'
   import Favicon from './Favicon.svelte'
   import {
@@ -44,12 +45,11 @@
     'bottom'
   )
 
-  // Indicate if viewing deleted bookmarks
-  let isViewingDeleted = $derived(
-    getContext('sharedStatus').isViewingDeleted as boolean
-  )
-  let isViewingSharedCollection = $derived(
-    getContext('sharedStatus').isViewingSharedCollection as boolean
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const isViewingDeleted = $derived(sharedStatus.isViewingDeleted)
+  const isViewingSharedCollection = $derived(
+    sharedStatus.isViewingSharedCollection
   )
 
   /**
@@ -250,10 +250,6 @@
   .hover-card::-webkit-scrollbar-thumb {
     background-color: rgba(156, 163, 175, 0.5);
     border-radius: 3px;
-  }
-
-  .dark .hover-card::-webkit-scrollbar-thumb {
-    background-color: rgba(75, 85, 99, 0.5);
   }
 
   @keyframes fadeIn {

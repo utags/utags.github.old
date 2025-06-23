@@ -62,6 +62,18 @@ const mockConfigNoBranch: SyncServiceConfig<GithubCredentials, GithubTarget> = {
   },
 }
 
+const mockConfigEmptyBranch: SyncServiceConfig<
+  GithubCredentials,
+  GithubTarget
+> = {
+  ...mockConfig,
+  id: 'test-github-sync-empty-branch',
+  target: {
+    ...mockConfig.target,
+    branch: '', // Simulate using default branch
+  },
+}
+
 describe('GitHubSyncAdapter', () => {
   let adapter: GitHubSyncAdapter
 
@@ -394,6 +406,34 @@ describe('GitHubSyncAdapter', () => {
       await expect(getMetadataPromise).rejects.toThrow('Aborted')
     })
 
+    it('should return metadata if file exists when branch is an empty string (uses default)', async () => {
+      await adapter.init(mockConfigEmptyBranch) // Use config with empty branch
+      // @ts-expect-error - access private method for testing
+      const filePath = adapter.getFilePath()
+      const [owner, repoName] = mockConfigEmptyBranch.target.repo.split('/')
+
+      resetMockGitHubDataStore()
+      setMockGitHubFile(
+        owner,
+        repoName,
+        filePath,
+        mockConfigEmptyBranch.target.branch!,
+        'test data empty branch',
+        {
+          sha: 'test-sha-empty-branch',
+          type: 'file',
+          version: 'test-sha-empty-branch',
+        }
+      )
+
+      const metadata = await adapter.getRemoteMetadata()
+      expect(metadata).toEqual({
+        sha: 'test-sha-empty-branch',
+        timestamp: undefined,
+        version: 'test-sha-empty-branch',
+      })
+    })
+
     it('should return metadata if file exists when branch is not specified (uses default)', async () => {
       await adapter.init(mockConfigNoBranch) // Use config without specific branch
       // @ts-expect-error - access private method for testing
@@ -495,6 +535,33 @@ describe('GitHubSyncAdapter', () => {
       )
     })
 
+    it('should download data and metadata if file exists when branch is an empty string', async () => {
+      await adapter.init(mockConfigEmptyBranch)
+      // @ts-expect-error - access private method for testing
+      const filePath = adapter.getFilePath()
+      const [owner, repoName] = mockConfigEmptyBranch.target.repo.split('/')
+      const fileData = JSON.stringify({ key: 'value empty branch' })
+      const fileSha = 'download-sha-empty-branch'
+
+      resetMockGitHubDataStore()
+      setMockGitHubFile(
+        owner,
+        repoName,
+        filePath,
+        mockConfigEmptyBranch.target.branch!,
+        fileData,
+        { sha: fileSha, type: 'file', version: fileSha }
+      )
+
+      const { data, remoteMeta } = await adapter.download()
+      expect(data).toBe(fileData)
+      expect(remoteMeta).toEqual({
+        sha: fileSha,
+        timestamp: undefined,
+        version: fileSha,
+      })
+    })
+
     it('should throw error if adapter is not initialized', async () => {
       const freshAdapter = new GitHubSyncAdapter()
       await expect(freshAdapter.download()).rejects.toThrow(
@@ -552,6 +619,27 @@ describe('GitHubSyncAdapter', () => {
         repoName,
         filePath,
         mockConfig.target.branch
+      )
+      expect(remoteFile).toBeDefined()
+      expect(remoteFile!.data).toBe(uploadData)
+    })
+
+    it('should upload data for a new file when branch is an empty string', async () => {
+      await adapter.init(mockConfigEmptyBranch)
+      resetMockGitHubDataStore() // Ensure no existing file
+      const metadata = await adapter.upload(uploadData)
+      expect(metadata.sha).toBeDefined()
+      expect(metadata.version).toBeDefined()
+      // Check if data is in mock store
+      // @ts-expect-error - access private method for testing
+      const filePath = adapter.getFilePath()
+      const [owner, repoName] = mockConfigEmptyBranch.target.repo.split('/')
+
+      const remoteFile = getMockGitHubFile(
+        owner,
+        repoName,
+        filePath,
+        mockConfigEmptyBranch.target.branch
       )
       expect(remoteFile).toBeDefined()
       expect(remoteFile!.data).toBe(uploadData)

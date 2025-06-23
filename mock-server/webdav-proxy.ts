@@ -3,7 +3,7 @@ import express, {
   type Response,
   type NextFunction,
 } from 'express'
-import { createProxyMiddleware, Options } from 'http-proxy-middleware'
+import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
 import dotenv from 'dotenv'
 
 dotenv.config()
@@ -41,22 +41,24 @@ app.use('/', (req: Request, res: Response, next: NextFunction) => {
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200)
   }
+
   next()
 })
 
 const proxyOptions: Partial<Options> = {
   changeOrigin: true,
   on: {
-    proxyReq: (proxyReq, req, res) => {
+    proxyReq(proxyReq, req, res) {
       if (req.headers.authorization) {
         proxyReq.setHeader('Authorization', req.headers.authorization)
       }
+
       console.log(`[WebDAV Proxy] Forwarding request: ${req.method} ${req.url}`)
     },
-    proxyRes: (proxyRes, req, res) => {
+    proxyRes(proxyRes, req, res) {
       console.log(`[WebDAV Proxy] Received response: ${proxyRes.statusCode}`)
     },
-    error: (err, req, res) => {
+    error(err, req, res) {
       console.error('[WebDAV Proxy] Proxy error:', err)
       if (
         'writeHead' in res &&
@@ -71,7 +73,7 @@ const proxyOptions: Partial<Options> = {
 }
 
 for (const path in webdavProxyConfig) {
-  if (Object.prototype.hasOwnProperty.call(webdavProxyConfig, path)) {
+  if (Object.hasOwn(webdavProxyConfig, path)) {
     const originalTarget = webdavProxyConfig[path]
     const target = originalTarget.endsWith('/')
       ? originalTarget.slice(0, -1)

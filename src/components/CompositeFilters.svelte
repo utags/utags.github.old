@@ -23,6 +23,7 @@
     filterString?: string
     disabled?: boolean
     paused?: boolean
+    active?: boolean
     class?: string
     onfocus?: (event: FocusEvent) => void
   }
@@ -35,8 +36,9 @@
     filterString,
     disabled = false,
     paused = false,
+    active = false,
     class: className,
-    onfocus: onFocus,
+    onfocus,
   }: Props = $props()
 
   const console = new Console({
@@ -53,8 +55,8 @@
   let searchKeyword = $state('')
   let selectedTags: Set<string> = $state(new Set()) as Set<string>
   let selectedDomains: Set<string> = $state(new Set()) as Set<string>
-  let tagCounts = $state(new Map())
-  let domainCounts = $state(new Map())
+  let tagCounts = $state(new Map<string, number>())
+  let domainCounts = $state(new Map<string, number>())
   let showOnlySelectedTags = $state(false)
   let showOnlySelectedDomains = $state(false)
   let multiSelectTagsMode = $state(false)
@@ -175,9 +177,9 @@
     const _domainCounts = getDomainCounts(input)
 
     // get filters from url hash
-    const filter = parseFilterString(filterString)
+    const filter = parseFilterString(filterString || '')
     // TODO: get output at App.svelte
-    const searchParams = parseHashFiltersToSearchParams(filterString)
+    const searchParams = parseHashFiltersToSearchParams(filterString || '')
     console.log(
       `init tagCounts and domainCounts - filter:`,
       JSON.stringify(
@@ -193,7 +195,7 @@
       searchParams.toString()
     )
     if (filter) {
-      let lastOne: string
+      let lastOne: string | undefined
       for (const tag of filter.selectedTags) {
         lastOne = tag
 
@@ -203,7 +205,9 @@
       }
 
       setTimeout(() => {
-        scrollTagIntoView(lastOne)
+        if (lastOne) {
+          scrollTagIntoView(lastOne)
+        }
       }, 5)
 
       for (const domain of filter.selectedDomains) {
@@ -215,7 +219,9 @@
       }
 
       setTimeout(() => {
-        scrollDomainIntoView(lastOne)
+        if (lastOne) {
+          scrollDomainIntoView(lastOne)
+        }
       }, 5)
 
       searchKeyword = filter.searchKeyword
@@ -301,7 +307,7 @@
   role="listbox"
   aria-label="bookmark filters"
   tabindex="0"
-  onfocusin={onFocus}
+  onfocusin={onfocus}
   out:fade={{ duration: 200 }}
   inert={disabled}>
   {#if disabled}
@@ -331,7 +337,7 @@
         oninput={(e) => {
           // TODO: 延迟调用
           // TODO: pushState -> replaceState
-          searchKeyword = (e.target as HTMLInputElement).value.trim()
+          searchKeyword = (e.currentTarget as HTMLInputElement).value.trim()
           updateUrlHash()
         }}
         value={searchKeyword} />
@@ -363,7 +369,7 @@
     {#if tagCounts && tagCounts.size}
       <div
         class="filter-group filter-group-tags relative flex flex-col gap-1 overflow-y-auto pr-2"
-        data-showOnlySelectedTags={showOnlySelectedTags ? '' : null}>
+        data-showOnlySelectedTags={showOnlySelectedTags || null}>
         <h4
           class="sticky top-0 m-0 flex flex-none items-center justify-between border-b border-gray-100 bg-white py-2 text-sm font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
           <span>{m.COMPOSITE_FILTERS_TAG_FILTER_TITLE()}</span>
@@ -424,7 +430,7 @@
     {#if domainCounts && domainCounts.size}
       <div
         class="filter-group filter-group-domains relative flex flex-col gap-1 overflow-y-auto pr-2"
-        data-showOnlySelectedDomains={showOnlySelectedDomains ? '' : null}>
+        data-showOnlySelectedDomains={showOnlySelectedDomains || null}>
         <h4
           class="sticky top-0 m-0 flex items-center justify-between border-b border-gray-100 bg-white py-2 text-sm font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
           <span>{m.COMPOSITE_FILTERS_DOMAIN_FILTER_TITLE()}</span>

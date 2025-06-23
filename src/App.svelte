@@ -17,11 +17,13 @@
     convertCollectionToFilterParams,
   } from './utils/url-utils.js'
   import { sortBookmarks } from './utils/sort-bookmarks.js'
+  import type { SortOption } from './config/sort-options.js'
   import { filterBookmarksByUrlParams } from './utils/filter-bookmarks.js'
   import type {
     BookmarkKeyValuePair,
     TagHierarchyItem,
   } from './types/bookmarks.js'
+  import type { SharedStatus } from './types/shared-status.js'
   import {
     getTagCounts,
     getDomainCounts,
@@ -93,21 +95,22 @@
 
   let showAddBookmarkModal = $state(false)
   let filterComponentsCount = $state(1)
-  let filteredBookmarks1 = $state([])
-  let filteredBookmarks2 = $state([])
-  let filteredBookmarks3 = $state([])
+  let filteredBookmarks1: BookmarkKeyValuePair[] = $state([])
+  let filteredBookmarks2: BookmarkKeyValuePair[] = $state([])
+  let filteredBookmarks3: BookmarkKeyValuePair[] = $state([])
   let useLevel2 = $state(false)
   let showLevel2 = $derived(filterComponentsCount >= 2 || useLevel2)
   let useLevel3 = $state(false)
   let showLevel3 = $derived(filterComponentsCount >= 3 || useLevel3)
-  let timeoutId
-  let filteredBookmarks = $state([])
+  let timeoutId: any = null
+  let filteredBookmarks: BookmarkKeyValuePair[] = $state([])
 
   let filterStringLevel1 = $state('')
   let filterStringLevel2 = $state('')
   let filterStringLevel3 = $state('')
-  let editBookmarkData = $state(null)
-  let sharedStatus = $state({
+  let addBookmarkModalInitialData: { href: string } | undefined =
+    $state(undefined)
+  let sharedStatus: SharedStatus = $state({
     isViewingDeleted: false,
     isViewingSharedCollection: false,
     locationSearchString: '',
@@ -118,7 +121,7 @@
   function locationChangeHandler() {
     console.log(
       '>>>>>> location changed',
-      globalThis.lastHash !== location.hash,
+      (globalThis as any).lastHash !== location.hash,
       location.href
     )
 
@@ -173,10 +176,11 @@
 
     console.log('location.href', location.href)
 
-    if (globalThis.lastHash !== location.hash) {
+    if ((globalThis as any).lastHash !== location.hash) {
       console.log(
-        'last hash:',
-        `[${decodeURIComponent(globalThis.lastHash)}]`,
+        'locationchange event fired',
+        '\n      last hash:',
+        `[${decodeURIComponent((globalThis as any).lastHash)}]`,
         '\n       new hash:',
         `[${decodeURIComponent(location.hash)}]`
       )
@@ -189,7 +193,7 @@
         return
       }
 
-      globalThis.lastHash = location.hash
+      ;(globalThis as any).lastHash = location.hash
 
       filterStringLevel1 = _filterStringLevel1
       filterStringLevel2 = cleanFilterString(filterStringArr[2])
@@ -203,8 +207,8 @@
   }
 
   function updateFilterComponentsCount() {
-    const asideAreaWidth = _$('.aside-area').offsetWidth
-    const compositeFiltersWidth = _$('.composite-filters').offsetWidth
+    const asideAreaWidth = _$('.aside-area')?.offsetWidth ?? 1
+    const compositeFiltersWidth = _$('.composite-filters')?.offsetWidth ?? 1
 
     filterComponentsCount = Math.round(asideAreaWidth / compositeFiltersWidth)
   }
@@ -219,28 +223,44 @@
 
   onMount(() => {
     console.log('onMount')
-    // 使浏览器支持 locationchange 自定义事件
-    if (!globalThis.locationchange) {
-      globalThis.locationchange = true
+    // 检查浏览器支持 locationchange 自定义事件
+    if (!(globalThis as any).locationchange) {
+      ;(globalThis as any).locationchange = true
       extendHistoryApi()
     }
 
     addEventListener(globalThis, 'locationchange', locationChangeHandler)
     addEventListener(globalThis, 'resize', windowResizeHandler)
-    addEventListener(globalThis, 'sortByChanged', updateFilteredBookmarks)
+    addEventListener(
+      globalThis,
+      'sortByChanged',
+      updateFilteredBookmarks as EventListener
+    )
     addEventListener(
       globalThis,
       'filterOutputChange',
-      filterOutputChangeHandler
+      filterOutputChangeHandler as EventListener
     )
-    addEventListener(globalThis, 'ondblclickHeader', ondblclickHeaderHandler)
+    addEventListener(
+      globalThis,
+      'ondblclickHeader',
+      ondblclickHeaderHandler as EventListener
+    )
     addEventListener(
       globalThis,
       'bookmarksInitialized',
       bookmarksInitializedHandler
     )
-    addEventListener(globalThis, 'bookmarksExport', bookmarksExportHandler)
-    addEventListener(globalThis, 'editBookmark', editBookmarkHandler)
+    addEventListener(
+      globalThis,
+      'bookmarksExport',
+      bookmarksExportHandler as EventListener
+    )
+    addEventListener(
+      globalThis,
+      'editBookmark',
+      editBookmarkHandler as EventListener
+    )
 
     bookmarkService.onUpdate(bookmarksUpdateHandler)
 
@@ -256,24 +276,36 @@
       // 移除事件监听器
       removeEventListener(globalThis, 'locationchange', locationChangeHandler)
       removeEventListener(globalThis, 'resize', windowResizeHandler)
-      removeEventListener(globalThis, 'sortByChanged', updateFilteredBookmarks)
+      removeEventListener(
+        globalThis,
+        'sortByChanged',
+        updateFilteredBookmarks as EventListener
+      )
       removeEventListener(
         globalThis,
         'filterOutputChange',
-        filterOutputChangeHandler
+        filterOutputChangeHandler as EventListener
       )
       removeEventListener(
         globalThis,
         'ondblclickHeader',
-        ondblclickHeaderHandler
+        ondblclickHeaderHandler as EventListener
       )
       removeEventListener(
         globalThis,
         'bookmarksInitialized',
         bookmarksInitializedHandler
       )
-      removeEventListener(globalThis, 'bookmarksExport', bookmarksExportHandler)
-      removeEventListener(globalThis, 'editBookmark', editBookmarkHandler)
+      removeEventListener(
+        globalThis,
+        'bookmarksExport',
+        bookmarksExportHandler as EventListener
+      )
+      removeEventListener(
+        globalThis,
+        'editBookmark',
+        editBookmarkHandler as EventListener
+      )
 
       bookmarkService.offUpdate(bookmarksUpdateHandler)
 
@@ -284,11 +316,11 @@
       }
 
       // 其他清理逻辑
-      globalThis.lastHash = null
+      ;(globalThis as any).lastHash = null
     }
   })
 
-  function bookmarksUpdateHandler(event) {
+  function bookmarksUpdateHandler(event: CustomEvent) {
     console.log('书签数据已更新:', event.detail)
     // 更新UI或执行其他操作
   }
@@ -296,7 +328,7 @@
   function updateFilteredBookmarks() {
     console.log('!!! updateFilteredBookmarks')
 
-    let temp = [
+    let temp: BookmarkKeyValuePair[] = [
       ...(useLevel3
         ? filteredBookmarks3
         : useLevel2
@@ -307,7 +339,7 @@
     const sortBy = $settings.sortBy
     if (sortBy) {
       console.log(`sort by:`, sortBy)
-      temp = sortBookmarks(temp, sortBy, getLocale())
+      temp = sortBookmarks(temp, sortBy as SortOption, getLocale())
     }
 
     filteredBookmarks = temp
@@ -336,7 +368,7 @@
     }, 10)
   }
 
-  const filterOutputChangeHandler = (e) => {
+  const filterOutputChangeHandler = (e: CustomEvent) => {
     console.log('filterOutputChange', e.detail)
     if (timeoutId) {
       // console.log('filterOutputChange clearTimeout')
@@ -375,8 +407,9 @@
 
   const stats = $derived({
     bookmarksCount: filteredBookmarks.length,
-    tagsCount: new Set(filteredBookmarks.flatMap(([_, entry]) => entry.tags))
-      .size,
+    tagsCount: new Set(
+      filteredBookmarks.flatMap(([_, entry]) => entry.tags || [])
+    ).size,
     domainsCount: new Set(filteredBookmarks.map(([url, _]) => getHostName(url)))
       .size,
   })
@@ -392,7 +425,9 @@
     },
   })
 
-  const bookmarksExportHandler = (event) => {
+  const bookmarksExportHandler = (
+    event: CustomEvent<{ type: 'all' | 'selected' | 'current' }>
+  ) => {
     const { type } = event.detail
     if (type === 'current') {
       exportData(Object.fromEntries(filteredBookmarks))
@@ -407,7 +442,7 @@
     document.documentElement.dataset.theme = $settings.skin || 'skin1'
   })
 
-  const ondblclickHeaderHandler = (e) => {
+  const ondblclickHeaderHandler = (e: Event) => {
     // 自定义双击处理逻辑
     console.log('Header 被双击了，执行自定义操作')
     // add bookmark
@@ -416,21 +451,24 @@
     // start dino game
     // none
     setTimeout(() => {
-      editBookmarkData = null
+      addBookmarkModalInitialData = undefined
       showAddBookmarkModal = true
     }, 100)
   }
 
-  const editBookmarkHandler = (e) => {
+  const editBookmarkHandler = (e: CustomEvent<{ href: string }>) => {
     console.log('editBookmarkHandler', e.detail)
-    editBookmarkData = e.detail
+    const { href } = e.detail
+    addBookmarkModalInitialData = {
+      href,
+    }
     showAddBookmarkModal = true
   }
 
   let activeFilterLevel = $state(0) // 当前激活的筛选器级别
   const maxVisibleFilters = $derived(useLevel3 ? 3 : useLevel2 ? 2 : 1) // 最大可见筛选器数量
 
-  function focusFilterLevel(level) {
+  function focusFilterLevel(level: number) {
     activeFilterLevel = level
     // // 确保相关筛选器已启用
     // if (level >= 2) useLevel2 = true
@@ -467,9 +505,9 @@
   /**
    * Handle selection mode change from toolbar
    */
-  function handleSelectionModeChange(event: CustomEvent) {
-    console.log('Selection mode changed:', event.detail.selectionMode)
-    selectionMode = event.detail.selectionMode
+  function handleSelectionModeChange(mode: boolean) {
+    selectionMode = mode
+    // Clear selection when exiting selection mode
     if (!selectionMode) {
       selectedBookmarkUrls = []
     }
@@ -478,27 +516,25 @@
   /**
    * Handle selection change from bookmark list
    */
-  function handleSelectionChange(event: CustomEvent) {
-    selectedBookmarkUrls = event.detail.selectedBookmarkUrls
+  function handleSelectionChange(urls: string[]) {
+    selectedBookmarkUrls = urls
   }
 
   /**
    * Handle batch tag edit request
    */
-  function handleBatchTagEdit(event: CustomEvent) {
+  function handleBatchTagEdit(urls: string[]) {
     // 这里将在后续实现批量标签编辑模态框
-    console.log(
-      'Batch tag edit requested for:',
-      event.detail.selectedBookmarkUrls
-    )
+    console.log('Batch tag edit requested for:', urls)
     // TODO: 显示批量标签编辑模态框
+    selectedBookmarkUrls = urls
   }
   /**
    * Handle batch tag add event from BookmarkList
    * @param event - Custom event containing selected bookmark URLs
    */
-  function handleBatchAddTag(event: CustomEvent) {
-    selectedBookmarkUrls = event.detail.selectedBookmarkUrls
+  function handleBatchAddTag(urls: string[]) {
+    selectedBookmarkUrls = urls
     showBatchTagAddModal = true
   }
 
@@ -506,8 +542,8 @@
    * Handle batch tag remove event from BookmarkList
    * @param event - Custom event containing selected bookmark URLs
    */
-  function handleBatchRemoveTag(event: CustomEvent) {
-    selectedBookmarkUrls = event.detail.selectedBookmarkUrls
+  function handleBatchRemoveTag(urls: string[]) {
+    selectedBookmarkUrls = urls
     showBatchTagRemoveModal = true
   }
 
@@ -515,8 +551,8 @@
    * Handle batch bookmark delete event from BookmarkList
    * @param event - Custom event containing selected bookmark URLs
    */
-  function handleBatchDeleteBookmarks(event: CustomEvent) {
-    selectedBookmarkUrls = event.detail.selectedBookmarkUrls
+  function handleBatchDeleteBookmarks(urls: string[]) {
+    selectedBookmarkUrls = urls
     showBatchDeleteConfirmModal = true
   }
 
@@ -524,8 +560,8 @@
    * Handle batch bookmark restore event from BookmarkList
    * @param event - Custom event containing selected bookmark URLs
    */
-  async function handleBatchRestoreBookmarks(event: CustomEvent) {
-    selectedBookmarkUrls = event.detail.selectedBookmarkUrls
+  async function handleBatchRestoreBookmarks(urls: string[]) {
+    selectedBookmarkUrls = urls
     showBatchRestoreConfirmModal = true
   }
 
@@ -638,26 +674,27 @@
     </div>
     <div class="vertical-seperator-line"></div>
     <div class="content-area flex flex-col">
-      <Toolbar {stats} on:selectionModeChange={handleSelectionModeChange} />
+      <Toolbar {stats} onSelectionModeChange={handleSelectionModeChange} />
       <BookmarkList
         {filteredBookmarks}
         viewMode={$settings.viewMode}
         {selectionMode}
-        on:selectionChange={handleSelectionChange}
-        on:batchAddTag={handleBatchAddTag}
-        on:batchRemoveTag={handleBatchRemoveTag}
-        on:batchTagEdit={handleBatchTagEdit}
-        on:batchDeleteBookmarks={handleBatchDeleteBookmarks}
-        on:batchRestoreBookmarks={handleBatchRestoreBookmarks} />
+        onSelectionChange={handleSelectionChange}
+        onBatchAddTag={handleBatchAddTag}
+        onBatchRemoveTag={handleBatchRemoveTag}
+        onBatchDeleteBookmarks={handleBatchDeleteBookmarks}
+        onBatchRestoreBookmarks={handleBatchRestoreBookmarks} />
       <AddBookmark
         bind:show={showAddBookmarkModal}
-        initialData={editBookmarkData} />
+        initialData={addBookmarkModalInitialData} />
       <BatchTagAddModal
         {selectedBookmarkUrls}
-        bind:isOpen={showBatchTagAddModal} />
+        isOpen={showBatchTagAddModal}
+        onClose={() => (showBatchTagAddModal = false)} />
       <BatchTagRemoveModal
         {selectedBookmarkUrls}
-        bind:isOpen={showBatchTagRemoveModal} />
+        isOpen={showBatchTagRemoveModal}
+        onClose={() => (showBatchTagRemoveModal = false)} />
       <ConfirmModal
         title={m.CONFIRM_MODAL_TITLE_BATCH_DELETE_BOOKMARKS()}
         message={m.CONFIRM_MODAL_MESSAGE_BATCH_DELETE_BOOKMARKS({

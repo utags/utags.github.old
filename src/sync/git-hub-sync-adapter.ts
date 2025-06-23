@@ -265,7 +265,7 @@ export class GitHubSyncAdapter
     } = {
       message: `Sync bookmarks: ${new Date().toISOString()}`,
       content: contentEncoded,
-      branch: this.target.branch, // Use specified branch or repository's default if undefined
+      branch: this.target.branch || undefined, // Use specified branch or repository's default if undefined
     }
 
     if (expectedRemoteMeta && expectedRemoteMeta.sha) {

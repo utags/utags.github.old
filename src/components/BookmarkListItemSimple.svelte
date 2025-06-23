@@ -2,6 +2,7 @@
   import { getContext } from 'svelte'
   import * as m from '../paraglide/messages'
   import { type BookmarkListItemProps } from '../types/bookmarks'
+  import type { SharedStatus } from '../types/shared-status.js'
   import Favicon from './Favicon.svelte'
   import {
     handleBookmarkEdit,
@@ -20,12 +21,11 @@
     dateTitleText,
   }: BookmarkListItemProps = $props()
 
-  // Indicate if viewing deleted bookmarks
-  let isViewingDeleted = $derived(
-    getContext('sharedStatus').isViewingDeleted as boolean
-  )
-  let isViewingSharedCollection = $derived(
-    getContext('sharedStatus').isViewingSharedCollection as boolean
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const isViewingDeleted = $derived(sharedStatus.isViewingDeleted)
+  const isViewingSharedCollection = $derived(
+    sharedStatus.isViewingSharedCollection
   )
 </script>
 

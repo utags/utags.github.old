@@ -9,6 +9,7 @@
     Globe,
     Folder,
   } from 'lucide-svelte'
+  import type { SharedStatus } from '../types/shared-status.js'
   import ExpandableContainer from './ui/ExpandableContainer.svelte'
   import Modal from './Modal.svelte'
   import InputField from './ui/InputField.svelte'
@@ -29,14 +30,13 @@
   let validationError = $state(false)
   let collectionName = $state('')
   let pathname = $state('')
-  let currentCollectionId = $state(undefined)
-  let activeMenuId: string | null = $state(null)
-  // Indicate if viewing deleted bookmarks
-  let isViewingDeleted = $derived(
-    getContext('sharedStatus').isViewingDeleted as boolean
-  )
-  let isViewingSharedCollection = $derived(
-    getContext('sharedStatus').isViewingSharedCollection as boolean
+  let currentCollectionId: string | undefined = $state(undefined)
+  let activeMenuId: string | undefined = $state(undefined)
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const isViewingDeleted = $derived(sharedStatus.isViewingDeleted)
+  const isViewingSharedCollection = $derived(
+    sharedStatus.isViewingSharedCollection
   )
 
   onMount(() => {
@@ -51,7 +51,7 @@
       const handler = (e: Event) => {
         const menu = document.querySelector(`[data-menu-id='${activeMenuId}']`)
         if (!menu?.contains(e.target as Node)) {
-          activeMenuId = null
+          activeMenuId = undefined
         }
       }
       document.addEventListener('click', handler)
@@ -156,7 +156,7 @@
                 onclick={(e) => {
                   e.stopPropagation()
                   activeMenuId =
-                    activeMenuId === collection.id ? null : collection.id
+                    activeMenuId === collection.id ? undefined : collection.id
                 }}
                 aria-label={m.COLLECTIONS_MORE_ACTIONS_ARIA_LABEL()}>
                 <svg
@@ -181,7 +181,7 @@
                   <div class="py-1">
                     <button
                       onclick={() => {
-                        activeMenuId = null
+                        activeMenuId = undefined
                         showModal = false
                         collectionName = collection.name
                         pathname = collection.pathname
@@ -239,6 +239,7 @@
     {m.COLLECTIONS_NAME_LABEL()}
   </InputField>
   <BaseInputField
+    id="collection-pathname"
     bind:value={pathname}
     placeholder={m.COLLECTIONS_PATH_PLACEHOLDER()}>
     {m.COLLECTIONS_PATH_LABEL()}

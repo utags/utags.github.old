@@ -1,5 +1,4 @@
 import type { BookmarkMetadata } from '../../types/bookmarks.js'
-import { settings } from '../../stores/stores.js'
 
 /**
  * Creates a read-later filter condition

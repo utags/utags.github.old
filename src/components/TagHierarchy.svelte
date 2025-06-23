@@ -19,7 +19,16 @@
 
 {#if folders.length > 0}
   <div class="group">
-    <div class="group-title" onclick={() => (expanded = !expanded)}>
+    <div
+      class="group-title"
+      onclick={() => (expanded = !expanded)}
+      onkeydown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          expanded = !expanded
+        }
+      }}
+      role="button"
+      tabindex="0">
       <span class="flex-1 text-left font-semibold"
         >{m.HIERARCHICAL_TAGS_TITLE()}</span>
       <div class="group-title-button {expanded ? '' : 'opacity-100'}">

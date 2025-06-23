@@ -20,8 +20,6 @@
     formatedCreated,
     formatedUpdated,
     dateTitleText,
-    onEdit,
-    onDelete,
   } = $props()
 </script>
 

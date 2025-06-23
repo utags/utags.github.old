@@ -70,7 +70,7 @@ export type ApiCredentials = {
 }
 export type ApiTarget = {
   url: string // Base URL of the custom API
-  filePath?: string // Optional: Path to the data file/endpoint on the API (e.g., 'bookmarks.json')
+  path?: string // Optional: Path to the data file/endpoint on the API (e.g., 'bookmarks.json')
   authTestEndpoint?: string // Optional: Path to the endpoint for testing authentication status (e.g., 'auth/status')
 }
 /**

@@ -1,19 +1,30 @@
 <script lang="ts">
-  import { getContext, untrack, createEventDispatcher } from 'svelte'
+  import { getContext, untrack } from 'svelte'
   import VirtualList from 'svelte-virtual-list'
   import * as m from '../paraglide/messages'
-  import { appConfig } from '../config/app-config'
+  import appConfig from '../config/app-config.js'
   import type { BookmarkKeyValuePair } from '../types/bookmarks'
+  import type { SharedStatus } from '../types/shared-status.js'
   import BookmarkListItem from './BookmarkListItem.svelte'
 
   let {
     filteredBookmarks = [],
     viewMode = 'list',
     selectionMode = false,
+    onSelectionChange = (urls: string[]) => {},
+    onBatchAddTag = (urls: string[]) => {},
+    onBatchRemoveTag = (urls: string[]) => {},
+    onBatchDeleteBookmarks = (urls: string[]) => {},
+    onBatchRestoreBookmarks = (urls: string[]) => {},
   }: {
     filteredBookmarks: BookmarkKeyValuePair[]
     viewMode: string
     selectionMode: boolean
+    onSelectionChange?: (urls: string[]) => void
+    onBatchAddTag?: (urls: string[]) => void
+    onBatchRemoveTag?: (urls: string[]) => void
+    onBatchDeleteBookmarks?: (urls: string[]) => void
+    onBatchRestoreBookmarks?: (urls: string[]) => void
   } = $props()
 
   // State
@@ -21,12 +32,11 @@
   let lastSelectedIndex = $state<number | null>(null)
   let fullList = $state(false)
   let scrollTop = $state(0)
-  // Indicate if viewing deleted bookmarks
-  let isViewingDeleted = $derived(
-    getContext('sharedStatus').isViewingDeleted as boolean
-  )
-  let isViewingSharedCollection = $derived(
-    getContext('sharedStatus').isViewingSharedCollection as boolean
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const isViewingDeleted = $derived(sharedStatus.isViewingDeleted)
+  const isViewingSharedCollection = $derived(
+    sharedStatus.isViewingSharedCollection
   )
 
   $effect(() => {
@@ -50,9 +60,6 @@
     selectedBookmarkUrls.length === filteredBookmarks.length &&
       filteredBookmarks.length > 0
   )
-
-  // Event dispatcher
-  const dispatch = createEventDispatcher()
 
   function getScrollTop() {
     const element = document.querySelector('.bookmark-list')
@@ -148,8 +155,7 @@
 
     lastSelectedIndex = index
 
-    // Dispatch selection change event
-    dispatch('selectionChange', { selectedBookmarkUrls })
+    onSelectionChange(selectedBookmarkUrls)
   }
 
   /**
@@ -162,8 +168,7 @@
       selectedBookmarkUrls = [...filteredBookmarks.map((b) => b[0])]
     }
 
-    // Dispatch selection change event
-    dispatch('selectionChange', { selectedBookmarkUrls })
+    onSelectionChange(selectedBookmarkUrls)
   }
 
   /**
@@ -172,8 +177,8 @@
   function startBatchTagEdit() {
     if (selectedBookmarkUrls.length === 0) return
 
-    dispatch('batchTagEdit', { selectedBookmarkUrls })
     alert(m.FEATURE_COMING_SOON_ALERT())
+    // onBatchEditTag(selectedBookmarkUrls)
   }
 
   /**
@@ -183,7 +188,7 @@
   function startBatchAddTag() {
     if (selectedBookmarkUrls.length === 0) return
 
-    dispatch('batchAddTag', { selectedBookmarkUrls })
+    onBatchAddTag(selectedBookmarkUrls)
   }
 
   /**
@@ -193,7 +198,7 @@
   function startBatchRemoveTag() {
     if (selectedBookmarkUrls.length === 0) return
 
-    dispatch('batchRemoveTag', { selectedBookmarkUrls })
+    onBatchRemoveTag(selectedBookmarkUrls)
   }
 
   /**
@@ -203,7 +208,7 @@
   function startBatchDeleteBookmarks() {
     if (selectedBookmarkUrls.length === 0) return
 
-    dispatch('batchDeleteBookmarks', { selectedBookmarkUrls })
+    onBatchDeleteBookmarks(selectedBookmarkUrls)
   }
 
   /**
@@ -212,7 +217,7 @@
    */
   function startBatchRestoreBookmarks() {
     if (selectedBookmarkUrls.length === 0) return
-    dispatch('batchRestoreBookmarks', { selectedBookmarkUrls })
+    onBatchRestoreBookmarks(selectedBookmarkUrls)
   }
 
   /**
@@ -221,8 +226,8 @@
    */
   function startBatchPermanentDeleteBookmarks() {
     if (selectedBookmarkUrls.length === 0) return
-    dispatch('batchPermanentDeleteBookmarks', { selectedBookmarkUrls })
     alert(m.FEATURE_COMING_SOON_ALERT())
+    // onBatchPermanentDeleteBookmarks(selectedBookmarkUrls)
   }
 
   /**
@@ -232,9 +237,9 @@
   function startBatchCopyToMyBookmarks() {
     if (selectedBookmarkUrls.length === 0) return
 
-    dispatch('batchCopyToMyBookmarks', { selectedBookmarkUrls })
     // For now, display a "feature coming soon" alert, similar to other new batch actions.
     alert(m.FEATURE_COMING_SOON_ALERT())
+    // onBatchCopyToMyBookmarks(selectedBookmarkUrls)
   }
 
   // Reset selection when filtered bookmarks change

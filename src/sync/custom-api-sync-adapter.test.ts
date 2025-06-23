@@ -33,7 +33,7 @@ const runTestSuites = (shouldUseMockApi: boolean) => {
       } as ApiCredentials,
       target: {
         url: mockApiUrl,
-        filePath: 'test-bookmarks.json',
+        path: 'test-bookmarks.json',
         authTestEndpoint: 'auth/status',
       } as ApiTarget,
       scope: 'all',
@@ -116,7 +116,7 @@ const runTestSuites = (shouldUseMockApi: boolean) => {
           ...baseConfig,
           target: {
             ...baseConfig.target,
-            filePath: 'non-existent-file.json',
+            path: 'non-existent-file.json',
           } as ApiTarget,
         }
         const adapterForNonExistentFile = new CustomApiSyncAdapter()
@@ -151,7 +151,7 @@ const runTestSuites = (shouldUseMockApi: boolean) => {
           ...baseConfig,
           target: {
             ...baseConfig.target,
-            filePath: 'non-existent-download.json',
+            path: 'non-existent-download.json',
           } as ApiTarget,
         }
         const adapterForNonExistentFile = new CustomApiSyncAdapter()
@@ -244,7 +244,7 @@ const runTestSuites = (shouldUseMockApi: boolean) => {
             ...baseConfig,
             target: {
               ...baseConfig.target,
-              filePath: 'api-down-test', // Special path for mock handler
+              path: 'api-down-test', // Special path for mock handler
             } as ApiTarget,
           }
           await adapter.init(configForApiDown)
@@ -264,7 +264,7 @@ const runTestSuites = (shouldUseMockApi: boolean) => {
             ...baseConfig,
             target: {
               ...baseConfig.target,
-              filePath: 'network-error-test', // Special path for mock handler
+              path: 'network-error-test', // Special path for mock handler
             } as ApiTarget,
           }
           await adapter.init(configForNetworkError)
@@ -292,7 +292,7 @@ const runTestSuites = (shouldUseMockApi: boolean) => {
       // or add a DELETE endpoint to the mock server.
       // Example: (if mock server had a DELETE endpoint)
       // try {
-      //   await fetch(`${mockApiUrl}/${baseConfig.target.filePath}`, {
+      //   await fetch(`${mockApiUrl}/${baseConfig.target.path}`, {
       //     method: 'DELETE',
       //     headers: { Authorization: `Bearer ${baseConfig.credentials.token}` },
       //   });

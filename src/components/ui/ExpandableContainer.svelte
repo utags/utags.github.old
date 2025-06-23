@@ -1,9 +1,7 @@
 <script lang="ts">
   import { slide } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
-  export let expanded = true
-  export let keepElement = false
-  export let axis = 'y'
+  let { expanded = true, keepElement = false, axis = 'y' } = $props()
 </script>
 
 {#if keepElement}

@@ -79,8 +79,6 @@ export function addSyncService(config: SyncServiceConfig): void {
   }))
 }
 
-globalThis.addSyncService = addSyncService
-
 /**
  * Updates an existing sync service configuration.
  * @param updatedConfig - The updated sync service configuration.
@@ -139,3 +137,6 @@ export function getSyncServiceById(
 ): SyncServiceConfig | undefined {
   return settings.syncServices.find((service) => service.id === serviceId)
 }
+
+// TODO:
+// 如果 repo, path, branch 等变更，需要重置 lastSyncTime。或者不允许修改这些值。

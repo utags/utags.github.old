@@ -6,6 +6,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import pkg from './package.json' assert { type: 'json' }
 
 export default defineConfig({
+  build: {
+    target: 'esnext',
+  },
   plugins: [
     paraglideVitePlugin({
       project: './project.inlang',
@@ -13,6 +16,7 @@ export default defineConfig({
       strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
       localStorageKey: 'utags-locale',
     }),
+
     tailwindcss(),
     svelte(),
     VitePWA({

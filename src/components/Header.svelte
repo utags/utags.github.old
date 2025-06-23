@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte'
   import { hasClass } from 'browser-extension-utils'
+  import type { SharedStatus } from '../types/shared-status.js'
   import * as m from '../paraglide/messages'
   import { settings } from '../stores/stores'
   import { appConfig } from '../config/app-config'
@@ -35,12 +36,11 @@
   let sortByOpen = $state(false)
   let addMenuOpen = $state(false)
   let themeOpen = $state(false)
-  // Indicate if viewing deleted bookmarks
-  let isViewingDeleted = $derived(
-    getContext('sharedStatus').isViewingDeleted as boolean
-  )
-  let isViewingSharedCollection = $derived(
-    getContext('sharedStatus').isViewingSharedCollection as boolean
+  // Shared status from context
+  const sharedStatus = $state(getContext('sharedStatus') as SharedStatus)
+  const isViewingDeleted = $derived(sharedStatus.isViewingDeleted)
+  const isViewingSharedCollection = $derived(
+    sharedStatus.isViewingSharedCollection
   )
 </script>
 

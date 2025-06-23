@@ -13,7 +13,7 @@ type BookmarkItem = [string, BookmarkTagsAndMetadata]
 export function sortBookmarks(
   bookmarks: BookmarkItem[],
   sortOption: SortOption,
-  language: 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'fr' = 'zh-CN'
+  language = 'zh-CN'
 ): BookmarkItem[] {
   return [...bookmarks].sort((a, b) => {
     const [urlA, entryA] = a

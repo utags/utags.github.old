@@ -1,5 +1,5 @@
-<script>
-  import { onMount } from 'svelte'
+<script lang="ts">
+  import { onMount, type Snippet } from 'svelte'
   import { initFocusTrap } from 'focus-trap-lite'
   import { $ as _$ } from 'browser-extension-utils'
   import * as m from '../paraglide/messages'
@@ -15,10 +15,23 @@
     showCancel = true,
     confirmText = m.SAVE_BUTTON_TEXT(),
     showConfirm = true,
-    onConfirm = () => {},
+    onConfirm = (evt: MouseEvent) => {},
     disableConfirm = false,
+  }: {
+    children?: Snippet
+    title?: string
+    isOpen?: boolean
+    onOpen?: () => void
+    onClose?: () => void
+    onInputEnter?: () => void
+    cancelText?: string
+    showCancel?: boolean
+    confirmText?: string
+    showConfirm?: boolean
+    onConfirm?: (evt: MouseEvent) => void
+    disableConfirm?: boolean
   } = $props()
-  let modalElement = $state()
+  let modalElement: HTMLElement | undefined = $state()
 
   onMount(() => {
     return () => {
@@ -29,16 +42,18 @@
     }
   })
 
-  function handleKeydown(event) {
+  function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       isOpen = false
     } else if (event.key === 'Enter') {
+      const target = event.target as HTMLElement | undefined
       if (
-        event.target.tagName === 'BUTTON' ||
-        event.target.tagName === 'A' ||
-        event.target.tagName === 'TEXTAREA'
+        target &&
+        (target.tagName === 'BUTTON' ||
+          target.tagName === 'A' ||
+          target.tagName === 'TEXTAREA')
       ) {
-        // event.target.click()
+        // target.click()
       } else {
         if (typeof onInputEnter === 'function') {
           onInputEnter()
@@ -50,9 +65,9 @@
   $effect(() => {
     if (isOpen) {
       // Move modal to end of main element to prevent z-index conflicts
-      _$('main').append(modalElement)
+      _$('main')?.append(modalElement as Node)
       document.addEventListener('keydown', handleKeydown)
-      initFocusTrap(modalElement)
+      // initFocusTrap(modalElement)
       if (typeof onOpen === 'function') {
         onOpen()
       }
