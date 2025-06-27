@@ -37,7 +37,7 @@ export class WebDAVSyncAdapter
 
     this.config = config
     // Initialize WebDAV client
-    this.client = createClient(this.config.credentials.serverUrl, {
+    this.client = createClient(this.config.target.url, {
       username: this.config.credentials.username,
       password: this.config.credentials.password,
     })
@@ -264,7 +264,7 @@ export class WebDAVSyncAdapter
   async getAuthStatus(): Promise<AuthStatus> {
     if (!this.client) {
       // If client didn't even initialize (e.g. bad URL in config), it's a config issue
-      if (!this.config?.credentials?.serverUrl) return 'requires_config'
+      if (!this.config?.target?.url) return 'requires_config'
       // If client init failed for other reasons, treat as error for now
       return 'error'
     }

@@ -23,12 +23,12 @@ const createDefaultConfig = (): SyncServiceConfig<
   type: 'webdav',
   name: 'Test WebDAV Service',
   credentials: {
-    serverUrl: 'http://localhost:1234/dav',
     username: 'testuser',
     password: 'testpassword',
   },
   target: {
-    path: 'utags/bookmarks.json', // Relative path to serverUrl
+    url: 'http://localhost:1234/dav',
+    path: 'utags/bookmarks.json', // Relative path to url
   },
   scope: 'all',
   enabled: true,
@@ -70,7 +70,7 @@ const createPropfindHandler = (
     once = false,
   } = options
   const fullPath =
-    currentServiceConfig.credentials.serverUrl +
+    currentServiceConfig.target.url +
     (requestPath.startsWith('/') ? requestPath : `/${requestPath}`)
   console.log('create createPropfindHandler', fullPath, options)
   return http.all(
@@ -154,8 +154,9 @@ const createMkcolHandler = (
     once?: boolean
   } = {}
 ) => {
-  const { serverUrl, username, password } = config.credentials
-  const fullPath = `${serverUrl}${path}`
+  const url = config.target.url
+  const { username, password } = config.credentials
+  const fullPath = `${url}${path}`
   console.log('create createMkcolHandler', fullPath, options)
   return http.all(
     fullPath, // Use http.all and then check method
@@ -331,7 +332,7 @@ describe('WebDAVSyncAdapter', () => {
       expect(authStatus).toBe('requires_config')
 
       // @ts-expect-error Deliberately not initializing or setting incomplete config
-      freshAdapter.config = { credentials: {} } // Simulate partial config without serverUrl
+      freshAdapter.config = { credentials: {}, target: {} } // Simulate partial config without url
       authStatus = await freshAdapter.getAuthStatus()
       expect(authStatus).toBe('requires_config')
     })
@@ -440,7 +441,7 @@ describe('WebDAVSyncAdapter', () => {
           checkAuth: true,
         }),
         http.get(
-          `${serviceConfig.credentials.serverUrl}${filePath}`,
+          `${serviceConfig.target.url}${filePath}`,
           async ({ request }) => {
             const authHeader = request.headers.get('Authorization')
             // eslint-disable-next-line no-restricted-globals
@@ -485,7 +486,7 @@ describe('WebDAVSyncAdapter', () => {
           checkAuth: true,
         }),
         http.get(
-          `${serviceConfig.credentials.serverUrl}${filePath}`,
+          `${serviceConfig.target.url}${filePath}`,
           async ({ request }) => {
             const authHeader = request.headers.get('Authorization')
             // eslint-disable-next-line no-restricted-globals
@@ -530,7 +531,7 @@ describe('WebDAVSyncAdapter', () => {
           checkAuth: true,
         }),
         http.get(
-          `${serviceConfig.credentials.serverUrl}${filePath}`,
+          `${serviceConfig.target.url}${filePath}`,
           async ({ request }) => {
             const authHeader = request.headers.get('Authorization')
             // eslint-disable-next-line no-restricted-globals
@@ -611,7 +612,7 @@ describe('WebDAVSyncAdapter', () => {
           checkAuth: true,
         }),
         http.get(
-          `${serviceConfig.credentials.serverUrl}${filePath}`,
+          `${serviceConfig.target.url}${filePath}`,
           async ({ request }) => {
             // Basic auth check for GET too
             const authHeader = request.headers.get('Authorization')
@@ -661,7 +662,7 @@ describe('WebDAVSyncAdapter', () => {
 
     const mockSuccessfulPut = (expectedIfMatch?: string) =>
       http.put(
-        `${serviceConfig.credentials.serverUrl}${filePath}`,
+        `${serviceConfig.target.url}${filePath}`,
         async ({ request }) => {
           const authHeader = request.headers.get('Authorization')
           // eslint-disable-next-line no-restricted-globals
@@ -897,7 +898,7 @@ describe('WebDAVSyncAdapter', () => {
           once: true,
         }),
         http.put(
-          `${serviceConfig.credentials.serverUrl}${filePath}`,
+          `${serviceConfig.target.url}${filePath}`,
           async () => new HttpResponse(null, { status: 500 })
         )
       )
@@ -927,7 +928,7 @@ describe('WebDAVSyncAdapter', () => {
           once: true,
         }),
         http.put(
-          `${serviceConfig.credentials.serverUrl}${filePath}`,
+          `${serviceConfig.target.url}${filePath}`,
           async ({ request }) => {
             const ifMatchHeader = request.headers.get('If-Match')
             if (
@@ -940,7 +941,14 @@ describe('WebDAVSyncAdapter', () => {
 
             return new HttpResponse(null, { status: 204 })
           }
-        )
+        ),
+        // 3. PROPFIND after PUT (this is called by adapter.upload to get the new metadata)
+        // Should not be called
+        createPropfindHandler(serviceConfig, filePath, {
+          etag: newEtag,
+          lastModified: newLastMod,
+          checkAuth: true,
+        })
       )
 
       await expect(adapter.upload(mockUploadData, remoteMeta)).rejects.toThrow(

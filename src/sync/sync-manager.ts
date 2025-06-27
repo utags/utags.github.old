@@ -8,11 +8,11 @@ import { CURRENT_DATABASE_VERSION, DEFAULT_DATE } from '../config/constants.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import {
-  settingsStore,
+  syncConfigStore,
   getSyncServiceById,
   updateSyncService,
-  type AppSettings,
-} from '../stores/settings-store.js'
+  type SyncSettings,
+} from '../stores/sync-config-store.js'
 import { EventEmitter } from '../lib/event-emitter.js'
 import {
   mergeBookmarks,
@@ -35,7 +35,7 @@ import type {
 
 export class SyncManager extends EventEmitter<SyncEvents> {
   private readonly adapters = new Map<string, SyncAdapter>()
-  private currentSettings!: AppSettings
+  private currentSettings!: SyncSettings
   private currentSyncStatus: SyncStatus = { type: 'idle' } // Updated initial state
   private readonly unsubscriber: Unsubscriber
   private readonly defaultMergeStrategy: MergeStrategy = {
@@ -46,7 +46,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
 
   constructor() {
     super()
-    this.unsubscriber = settingsStore.subscribe((newSettings) => {
+    this.unsubscriber = syncConfigStore.subscribe((newSettings) => {
       console.log(
         '[SyncManager] Settings updated:',
         prettyPrintJson(newSettings)
@@ -692,7 +692,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       console.log(
         `[SyncManager] Uploading merged data for ${serviceConfig.name}...`
       )
-      // console.log('Uploading', prettyPrintJson(mergedBookmarks))
+
       try {
         // Sort bookmarks before uploading to maintain a consistent order
         const sortedBookmarks = Object.fromEntries(
@@ -710,6 +710,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
           },
         }
 
+        // console.log('Uploading', prettyPrintJson(bookmarksStore))
         const newRemoteMeta = await adapter.upload(
           prettyPrintJson(bookmarksStore),
           remoteSyncMeta // Pass metadata for conditional upload
@@ -805,3 +806,13 @@ export class SyncManager extends EventEmitter<SyncEvents> {
 
 // It's common to export a singleton instance of the manager
 export const syncManager = new SyncManager()
+
+// TODO:
+// - 数据库版本不一致时处理逻辑：
+//   - 本地版本较新，自动升级远程下载的数据，合并，上传
+//   - 远程版本较新，同步停止，提示用户需要更新 WebApp 客户端
+// - download 没有数据时处理逻辑
+//   - 如果没有文件，lastSyncTime 应该是 0
+//   - 如果有文件，是一个空文件，说明远程已经清空数据，而且 lastSyncTime 不是 0 时，需要提示用户，是否合并数据。
+//     因为同步后 lastSyncTime 之前的本地数据会被清空。
+// - 同步时如果删除 50% 以上的数据时，停止同步，需要用户确认

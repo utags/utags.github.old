@@ -3,7 +3,7 @@ import {
   type BookmarksData,
 } from '../types/bookmarks.js'
 import type { MergeStrategy } from '../lib/bookmark-merge-utils.js'
-import type { AppSettings } from '../stores/settings-store.js' // Needs to be imported
+import type { SyncSettings } from '../stores/sync-config-store.js' // Needs to be imported
 
 /**
  * Configuration for a specific synchronization service instance.
@@ -26,6 +26,7 @@ export type SyncServiceConfig<
   credentials: C // Service-specific credentials
   target: T // Service-specific target
   mergeStrategy?: MergeStrategy // Merge strategy
+  autoSyncEnabled?: boolean // Whether automatic sync is enabled
   autoSyncInterval?: number // Interval in minutes for automatic sync, e.g., 15
   autoSyncOnChanges?: boolean // Whether to automatically sync when local data changes
   autoSyncDelayOnChanges?: number // Delay in minutes after data changes to trigger sync, e.g., 1. Requires autoSyncOnChanges to be true.
@@ -56,12 +57,12 @@ export type GithubTarget = {
 // Placeholder for WebDAV and Custom API credentials and targets
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export type WebDAVCredentials = {
-  serverUrl: string
   username?: string
   password?: string
 }
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export type WebDAVTarget = {
+  url: string
   path: string
 }
 export type ApiCredentials = {
@@ -245,7 +246,7 @@ export type SyncEvents = {
   error: string | { message: string; serviceId?: string; error?: Error }
   info: string | { message: string; serviceId?: string }
   adapterChanged: SyncAdapter | undefined
-  settingsChanged: AppSettings
+  settingsChanged: SyncSettings
   bookmarksRemoved: { serviceId: string; urls: string[] }
   // Potentially other events like 'conflictDetected', 'mergeNeeded'
   syncConflict: {

@@ -33,14 +33,14 @@ import {
 } from '../lib/bookmark-merge-utils.js'
 import * as bookmarkMergeUtils from '../lib/bookmark-merge-utils.js'
 import {
-  settingsStore,
+  syncConfigStore,
   addSyncService,
   updateSyncService,
   setActiveSyncService,
   removeSyncService,
   getSyncServiceById,
-  type AppSettings,
-} from '../stores/settings-store.js'
+  type SyncSettings,
+} from '../stores/sync-config-store.js'
 import type {
   SyncAdapter,
   SyncEvents,
@@ -215,7 +215,7 @@ describe('SyncManager', () => {
     // This relies on the internal caching mechanism of SyncManager
     // @ts-expect-error - Accessing private member for testing
     if (!sm.adapters.has(serviceId)) {
-      const config = getSyncServiceById(get(settingsStore), serviceId)
+      const config = getSyncServiceById(get(syncConfigStore), serviceId)
       if (config) {
         // @ts-expect-error - Accessing private member for testing
         await sm.getAdapter(config) // This will create and cache it
@@ -232,13 +232,13 @@ describe('SyncManager', () => {
     // It's important to get a fresh instance or reset the store for each test
     // Assuming SettingsStore is a singleton or its state can be reset
     // For simplicity, we'll re-initialize, but in a real app, you might need a reset method
-    settingsStore.set({
+    syncConfigStore.set({
       syncServices: [mockSyncServiceConfig],
       activeSyncServiceId: undefined, // Start with no active adapter
       // ... other default settings
     })
 
-    // SyncManager reads from the global settingsStore upon instantiation
+    // SyncManager reads from the global syncConfigStore upon instantiation
     syncManager = new SyncManager()
 
     // customAdapter will be instantiated by SyncManager if settings point to it
@@ -433,7 +433,7 @@ describe('SyncManager', () => {
       }
 
       // Update the settings store with this specific config for the active service
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: undefined, // No active service ID needed for direct sync calls
       })
@@ -1013,14 +1013,14 @@ describe('SyncManager', () => {
         tags: 'union', // Tags are combined
         defaultDate: DEFAULT_DATE,
       }
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
       // Re-initialize syncManager if settings change requires it, or ensure it picks up the change.
-      // Our current setup re-creates syncManager in beforeEach, but if a test changes settingsStore,
+      // Our current setup re-creates syncManager in beforeEach, but if a test changes syncConfigStore,
       // it might need a new SyncManager instance or a way for SyncManager to react to mid-test settings changes.
-      // For this test, we assume the beforeEach setup is sufficient or SyncManager reacts to settingsStore updates.
+      // For this test, we assume the beforeEach setup is sufficient or SyncManager reacts to syncConfigStore updates.
       syncManager.destroy()
       syncManager = new SyncManager() // Ensure it picks up the new merge strategy
       // @ts-expect-error - access privte method to get the adapter
@@ -1177,7 +1177,7 @@ describe('SyncManager', () => {
         tags: 'union', // Combine tags from both sources
         defaultDate: DEFAULT_DATE,
       }
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -1326,7 +1326,7 @@ describe('SyncManager', () => {
         tags: 'local', // Prefer local tags
         defaultDate: DEFAULT_DATE,
       }
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -1515,7 +1515,7 @@ describe('SyncManager', () => {
       }
       // Set lastSyncTimestamp in service config
       serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -1694,7 +1694,7 @@ describe('SyncManager', () => {
           defaultDate: DEFAULT_DATE,
         },
       }
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -1867,7 +1867,7 @@ describe('SyncManager', () => {
       }
       serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -2060,7 +2060,7 @@ describe('SyncManager', () => {
         defaultDate: DEFAULT_DATE,
       }
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -2268,7 +2268,7 @@ describe('SyncManager', () => {
         defaultDate: DEFAULT_DATE,
       }
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -2505,7 +2505,7 @@ describe('SyncManager', () => {
         defaultDate: DEFAULT_DATE,
       }
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -3006,7 +3006,7 @@ describe('SyncManager', () => {
         defaultDate: DEFAULT_DATE,
       }
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
       })
@@ -3418,7 +3418,7 @@ describe('SyncManager', () => {
           mergeStrategy: newMergeStrategy,
         }
 
-        settingsStore.set({
+        syncConfigStore.set({
           syncServices: [serviceConfigWithLargeData],
           activeSyncServiceId: serviceConfigWithLargeData.id,
         })
@@ -4103,8 +4103,8 @@ describe('SyncManager', () => {
       )
     })
 
-    it('should unsubscribe from settingsStore on destroy', () => {
-      const subscribeSpy = vi.spyOn(settingsStore, 'subscribe')
+    it('should unsubscribe from syncConfigStore on destroy', () => {
+      const subscribeSpy = vi.spyOn(syncConfigStore, 'subscribe')
       let unsubscribeSpy
 
       // Re-initialize SyncManager to use the mocked subscribe
@@ -4125,8 +4125,8 @@ describe('SyncManager', () => {
       expect(subscribeSpy).toHaveBeenCalled()
       expect(unsubscribeSpy).toBeDefined()
 
-      // Make a change to settingsStore to ensure the handler is working
-      settingsStore.update((s) => ({
+      // Make a change to syncConfigStore to ensure the handler is working
+      syncConfigStore.update((s) => ({
         ...s,
         activeSyncServiceId: 'new-id-before-destroy',
       }))
@@ -4143,8 +4143,8 @@ describe('SyncManager', () => {
       // Check if the mockUnsubscriber was called
       expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
 
-      // Make another change to settingsStore
-      settingsStore.update((s) => ({
+      // Make another change to syncConfigStore
+      syncConfigStore.update((s) => ({
         ...s,
         activeSyncServiceId: 'new-id-after-destroy',
       }))
@@ -4193,7 +4193,7 @@ describe('SyncManager', () => {
       // errorSpy.mockClear(); // Clear if you want to check for specific subsequent errors
     })
 
-    it('should not re-initialize adapters from settingsStore updates after being destroyed', async () => {
+    it('should not re-initialize adapters from syncConfigStore updates after being destroyed', async () => {
       const manager = new SyncManager()
 
       // Simulate a settings update to initialize an adapter
@@ -4214,7 +4214,7 @@ describe('SyncManager', () => {
       const getAdapterSpy = vi.spyOn(manager as any, 'getAdapter')
       // Trigger the internal initializeActiveAdapter by calling the captured callback again
       // This simulates a settings change that would normally trigger it
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [initialSyncServiceConfig],
         activeSyncServiceId: initialSyncServiceConfig.id,
       })
@@ -4242,9 +4242,9 @@ describe('SyncManager', () => {
         scope: 'all',
         enabled: true,
       }
-      // Manually call the callback to simulate a settingsStore update if it were still subscribed
+      // Manually call the callback to simulate a syncConfigStore update if it were still subscribed
       // (which it shouldn't be)
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [newSyncServiceConfig],
         activeSyncServiceId: newSyncServiceConfig.id,
       })
@@ -4282,7 +4282,7 @@ describe('SyncManager', () => {
       addSyncService(erroringAdapterConfig)
       addSyncService(workingAdapterConfig)
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           mockSyncServiceConfig,
           erroringAdapterConfig,
@@ -4396,8 +4396,8 @@ describe('SyncManager', () => {
       .spyOn(syncManager as any, 'getAdapter')
       .mockReturnValue(mockAdapter)
 
-    settingsStore.set({
-      ...get(settingsStore),
+    syncConfigStore.set({
+      ...get(syncConfigStore),
       activeSyncServiceId: 'error-test-adapter',
       syncServices: [mockAdapter.getConfig()],
     })
@@ -4562,8 +4562,8 @@ describe('SyncManager', () => {
 
     vi.spyOn(syncManager as any, 'getAdapter').mockReturnValue(mockAdapter)
 
-    settingsStore.set({
-      ...get(settingsStore),
+    syncConfigStore.set({
+      ...get(syncConfigStore),
       activeSyncServiceId: 'concurrent-test-adapter',
       syncServices: [mockAdapter.getConfig()],
     })
@@ -4623,8 +4623,8 @@ describe('SyncManager', () => {
 
     vi.spyOn(syncManager as any, 'getAdapter').mockReturnValue(mockAdapter)
 
-    settingsStore.set({
-      ...get(settingsStore),
+    syncConfigStore.set({
+      ...get(syncConfigStore),
       activeSyncServiceId: 'empty-data-adapter',
       syncServices: [mockAdapter.getConfig()],
     })
@@ -4673,7 +4673,7 @@ describe('SyncManager', () => {
       vi.spyOn(syncManager as any, 'getAdapter').mockReturnValue(mockAdapter)
 
       // Initialize settings and SyncManager for these tests
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfig],
         activeSyncServiceId: serviceConfig.id,
       })
@@ -4833,7 +4833,7 @@ describe('SyncManager', () => {
       })
       vi.spyOn(mockAdapter, 'getAuthStatus').mockResolvedValue('authenticated')
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithoutStrategy],
         activeSyncServiceId: serviceConfigWithoutStrategy.id,
       })
@@ -4949,7 +4949,7 @@ describe('SyncManager', () => {
       })
       vi.spyOn(mockAdapter, 'getAuthStatus').mockResolvedValue('authenticated')
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithPartialStrategy],
         activeSyncServiceId: serviceConfigWithPartialStrategy.id,
       })
@@ -5085,7 +5085,7 @@ describe('SyncManager', () => {
       })
       vi.spyOn(mockAdapter, 'getAuthStatus').mockResolvedValue('authenticated')
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfigWithPartialStrategy],
         activeSyncServiceId: serviceConfigWithPartialStrategy.id,
       })
@@ -5241,7 +5241,7 @@ describe('SyncManager', () => {
     beforeEach(async () => {
       localStorageMock.clear()
       await bookmarkStorage.overwriteBookmarks({})
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           serviceConfig1,
           serviceConfig2Disabled,
@@ -5471,7 +5471,7 @@ describe('SyncManager', () => {
   describe('CheckAuthStatus Method', () => {
     beforeEach(() => {
       // Reset settings and SyncManager for each test in this suite
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [mockSyncServiceConfig],
         activeSyncServiceId: undefined,
       })
@@ -5580,7 +5580,7 @@ describe('SyncManager', () => {
     beforeEach(async () => {
       localStorageMock.clear()
       await bookmarkStorage.overwriteBookmarks({})
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [serviceConfig],
         activeSyncServiceId: serviceConfig.id,
         // ... other default settings
@@ -5819,7 +5819,11 @@ describe('SyncManager', () => {
         id: 'disabled-event-service',
         enabled: false,
       }
-      addSyncService(disabledConfig)
+      // addSyncService(disabledConfig)
+      syncConfigStore.set({
+        syncServices: [disabledConfig],
+        activeSyncServiceId: disabledConfig.id,
+      })
 
       const statusChangeHandler = vi.fn()
       const infoHandler = vi.fn()
@@ -5827,7 +5831,7 @@ describe('SyncManager', () => {
       syncManager.on('statusChange', statusChangeHandler)
       syncManager.on('info', infoHandler)
 
-      setActiveSyncService(disabledConfig.id)
+      // setActiveSyncService(disabledConfig.id)
 
       await syncManager.sync()
 
@@ -5846,7 +5850,11 @@ describe('SyncManager', () => {
         id: 'invalid-event-service',
         type: 'unknownType' as any,
       }
-      addSyncService(invalidConfig)
+      // addSyncService(invalidConfig)
+      syncConfigStore.set({
+        syncServices: [invalidConfig],
+        activeSyncServiceId: invalidConfig.id,
+      })
 
       const statusChangeHandler = vi.fn()
       const errorHandler = vi.fn()
@@ -5856,7 +5864,7 @@ describe('SyncManager', () => {
       syncManager.on('statusChange', statusChangeHandler)
       syncManager.on('error', errorHandler)
 
-      setActiveSyncService(invalidConfig.id)
+      // setActiveSyncService(invalidConfig.id)
 
       await syncManager.sync()
 
@@ -5892,19 +5900,19 @@ describe('SyncManager', () => {
 //    - 场景 (进阶) : 如果一个服务的配置（非 id ，例如 credentials 或 target.url ）在 SyncManager 运行期间被外部修改（通过 SettingsStore ），当再次需要此适配器时（例如通过 synchronize(configId) ）， SyncManager 是继续使用带有旧配置的缓存实例，还是会基于更新后的配置创建新实例或更新现有实例。目前的实现似乎倾向于不重新初始化，但测试可以明确这一点。
 // 二、与 SettingsStore 交互的更多场景
 
-// 1. settingsStore 订阅回调对非活动配置变更的响应 :
+// 1. syncConfigStore 订阅回调对非活动配置变更的响应 :
 
-//    - 场景 : 当 settingsStore 更新，但改变的是一个非当前活动服务的配置，或者仅仅是 AppSettings 中的其他无关属性时， SyncManager 的 initializeActiveAdapter 方法是否会被不必要地触发，或者是否会对当前活动的适配器产生副作用。
+//    - 场景 : 当 syncConfigStore 更新，但改变的是一个非当前活动服务的配置，或者仅仅是 SyncSettings 中的其他无关属性时， SyncManager 的 initializeActiveAdapter 方法是否会被不必要地触发，或者是否会对当前活动的适配器产生副作用。
 // 2. 活动服务配置的动态更新 :
 
-//    - 场景 : 当 settingsStore 更新，且当前活动的 SyncServiceConfig 的某些属性（例如， mergeStrategy 或 target URL）发生变化时， SyncManager 是否能够感知到这些变化并应用于后续的同步操作，或者 activeAdapter 内部是否能处理这种配置的动态更新。
+//    - 场景 : 当 syncConfigStore 更新，且当前活动的 SyncServiceConfig 的某些属性（例如， mergeStrategy 或 target URL）发生变化时， SyncManager 是否能够感知到这些变化并应用于后续的同步操作，或者 activeAdapter 内部是否能处理这种配置的动态更新。
 // 三、 destroy() 方法的边界条件测试
 
 // 1. 在同步操作过程中调用 destroy() :
 
 //    - 场景 : 当 SyncManager 正处于同步的某个阶段（例如，正在 downloading 数据或 uploading 数据）时，如果此时调用了 destroy() 方法，需要验证：
 //      - 正在进行的网络请求是否能被尝试中止（如果适配器支持）。
-//      - SyncManager 是否能干净地取消订阅 settingsStore 。
+//      - SyncManager 是否能干净地取消订阅 syncConfigStore 。
 //      - 所有适配器（活动的和缓存的）的 destroy 方法是否被调用。
 //      - 是否会抛出未处理的异常或导致应用状态不稳定。
 //      - currentSyncStatus 的最终状态是什么。

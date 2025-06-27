@@ -13,7 +13,7 @@ import {
 import { get, writable } from 'svelte/store' // Import writable
 import { mockLocalStorage } from '../utils/test/mock-local-storage.js'
 import { emptyFunction } from '../utils/test/empty-function.js'
-import { settingsStore } from '../stores/settings-store.js'
+import { syncConfigStore } from '../stores/sync-config-store.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import {
   initAutoSyncScheduler,
@@ -41,9 +41,9 @@ Object.defineProperty(document, 'visibilityState', {
 })
 
 // Mock dependencies
-vi.mock('../stores/settings-store.js', () => ({
-  // Mock settingsStore as a writable store
-  settingsStore: writable({
+vi.mock('../stores/sync-config-store.js', () => ({
+  // Mock syncConfigStore as a writable store
+  syncConfigStore: writable({
     syncServices: [],
     activeSyncServiceId: undefined,
     // Add other default settings properties if necessary
@@ -79,22 +79,42 @@ vi.spyOn(console, 'error').mockImplementation(emptyFunction)
 const MOCK_LOCK_OWNER_TAB_ID = 'mock_tab_id_owns_lock'
 
 describe('AutoSyncScheduler', () => {
+  let beforeUnloadHandler: EventListener
+  let visibilityChangeHandler: EventListener
+
   beforeEach(() => {
     vi.useFakeTimers()
     localStorageMock.clear()
     vi.clearAllMocks()
 
+    // Store event handler references
+    ;(globalThis.addEventListener as Mock).mockImplementation(
+      (event: string, callback: EventListener) => {
+        if (event === 'beforeunload') {
+          beforeUnloadHandler = callback
+        }
+      }
+    )
+    ;(document.addEventListener as Mock).mockImplementation(
+      (event: string, callback: EventListener) => {
+        if (event === 'visibilitychange') {
+          visibilityChangeHandler = callback
+        }
+      }
+    )
+
     vi.spyOn(globalThis, 'setInterval')
     vi.spyOn(globalThis, 'clearInterval')
 
     // Default mock implementations for settings and bookmark storage
-    // Now use settingsStore.set to provide the default value
-    settingsStore.set({
+    // Now use syncConfigStore.set to provide the default value
+    syncConfigStore.set({
       syncServices: [
         {
           id: 'service1',
           type: 'customApi', // Corrected type based on auto-sync-scheduler.ts logic
           enabled: true,
+          autoSyncEnabled: true,
           autoSyncInterval: 15, // minutes
           autoSyncOnChanges: true,
           autoSyncDelayOnChanges: 5,
@@ -271,8 +291,8 @@ describe('AutoSyncScheduler', () => {
     }
 
     it('should not schedule sync if no sync services are configured', async () => {
-      // Use settingsStore.set to change the value for this specific test
-      settingsStore.set({
+      // Use syncConfigStore.set to change the value for this specific test
+      syncConfigStore.set({
         syncServices: [],
         activeSyncServiceId: undefined,
       })
@@ -281,12 +301,13 @@ describe('AutoSyncScheduler', () => {
     })
 
     it('should not schedule sync if a service is not enabled', async () => {
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: false, // Disabled
+            autoSyncEnabled: true,
             autoSyncInterval: 15,
           } as SyncServiceConfig,
         ],
@@ -296,13 +317,32 @@ describe('AutoSyncScheduler', () => {
       expect(addToSyncQueue).not.toHaveBeenCalled()
     })
 
-    it('should schedule sync if autoSyncInterval condition is met', async () => {
-      settingsStore.set({
+    it('should not schedule sync if autoSyncEnabled is false', async () => {
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: true,
+            autoSyncEnabled: false,
+            autoSyncInterval: 15,
+            lastSyncTimestamp: Date.now() - 20 * 60 * 1000, // Synced 20 mins ago
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'service1',
+      })
+      await triggerCheckAndScheduleViaInterval()
+      expect(addToSyncQueue).not.toHaveBeenCalled()
+    })
+
+    it('should schedule sync if autoSyncInterval condition is met and autoSyncEnabled is true', async () => {
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'service1',
+            type: 'customApi',
+            enabled: true,
+            autoSyncEnabled: true,
             autoSyncInterval: 15, // 15 minutes
             lastSyncTimestamp: Date.now() - 20 * 60 * 1000, // Synced 20 mins ago
             autoSyncOnChanges: false, // Turn off other condition
@@ -320,16 +360,17 @@ describe('AutoSyncScheduler', () => {
       )
     })
 
-    it('should schedule sync if autoSyncOnChanges condition is met', async () => {
+    it('should schedule sync if autoSyncOnChanges condition is met and autoSyncEnabled is true', async () => {
       const twentyMinutesAgo = Date.now() - 20 * 60 * 1000
       const tenMinutesAgo = Date.now() - 10 * 60 * 1000
 
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: true,
+            autoSyncEnabled: true,
             autoSyncInterval: 60, // Long interval, won't trigger
             autoSyncOnChanges: true,
             autoSyncDelayOnChanges: 5, // 5 minutes delay
@@ -352,13 +393,44 @@ describe('AutoSyncScheduler', () => {
       )
     })
 
-    it('should not schedule sync if autoSyncInterval not met', async () => {
-      settingsStore.set({
+    it('should not schedule sync if autoSyncEnabled is false even when autoSyncOnChanges condition is met', async () => {
+      const twentyMinutesAgo = Date.now() - 20 * 60 * 1000
+      const tenMinutesAgo = Date.now() - 10 * 60 * 1000
+
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: true,
+            autoSyncEnabled: false,
+            autoSyncInterval: 60,
+            autoSyncOnChanges: true,
+            autoSyncDelayOnChanges: 5,
+            lastSyncTimestamp: twentyMinutesAgo,
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'service1',
+      })
+      // Bookmarks updated 10 mins ago. Delay is 5 mins.
+      // Current time - 5 mins > 10 mins ago (last update)
+      // Current time - 5 mins > 20 mins ago (last sync)
+      ;(bookmarkStorage.getBookmarksStore as Mock).mockResolvedValue({
+        meta: { updated: tenMinutesAgo },
+      })
+
+      await triggerCheckAndScheduleViaInterval()
+      expect(addToSyncQueue).not.toHaveBeenCalled()
+    })
+
+    it('should not schedule sync if autoSyncInterval not met', async () => {
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'service1',
+            type: 'customApi',
+            enabled: true,
+            autoSyncEnabled: true,
             autoSyncInterval: 30, // 30 minutes
             lastSyncTimestamp: Date.now() - 10 * 60 * 1000, // Synced 10 mins ago
             autoSyncOnChanges: false,
@@ -371,12 +443,13 @@ describe('AutoSyncScheduler', () => {
     })
 
     it('should not schedule sync if autoSyncOnChanges delay not met after last update', async () => {
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: true,
+            autoSyncEnabled: true,
             autoSyncOnChanges: true,
             autoSyncDelayOnChanges: 15, // 15 minutes delay
             lastSyncTimestamp: Date.now() - 60 * 60 * 1000, // Synced 1 hour ago (eligible by this)
@@ -393,7 +466,7 @@ describe('AutoSyncScheduler', () => {
     })
 
     it('should not schedule sync if autoSyncOnChanges delay not met after last sync', async () => {
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
@@ -434,12 +507,13 @@ describe('AutoSyncScheduler', () => {
     it('should perform an initial checkAndScheduleSync on init if lock is acquired', async () => {
       simulateLockAcquisitionByCurrentInstance() // Prepare for lock acquisition
       // Mock settings for a schedulable task
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: true,
+            autoSyncEnabled: true,
             autoSyncInterval: 15,
             lastSyncTimestamp: Date.now() - 20 * 60 * 1000,
           } as SyncServiceConfig,
@@ -516,12 +590,13 @@ describe('AutoSyncScheduler', () => {
       localStorageMock.removeItem('utags_auto_sync_lock_heartbeat')
 
       // Configure for a schedulable task
-      settingsStore.set({
+      syncConfigStore.set({
         syncServices: [
           {
             id: 'service1',
             type: 'customApi',
             enabled: true,
+            autoSyncEnabled: true,
             autoSyncInterval: 15,
             lastSyncTimestamp: Date.now() - 20 * 60 * 1000,
           } as SyncServiceConfig,
@@ -585,6 +660,63 @@ describe('AutoSyncScheduler', () => {
         expect.any(String)
       )
       expect(addToSyncQueue).not.toHaveBeenCalled()
+    })
+
+    it('should not bind event listeners multiple times when initAutoSyncScheduler is called repeatedly', () => {
+      // First initialization
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Clear the mock call counts
+      vi.clearAllMocks()
+
+      // Second initialization
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Verify that event listeners were not bound again
+      expect(globalThis.addEventListener).not.toHaveBeenCalled()
+      expect(document.addEventListener).not.toHaveBeenCalled()
+    })
+
+    it('should rebind event listeners after stopAutoSyncScheduler is called', () => {
+      // First initialization
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Stop the scheduler
+      stopAutoSyncScheduler()
+
+      // Clear the mock call counts
+      vi.clearAllMocks()
+
+      // Reinitialize the scheduler
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Verify that event listeners were bound again
+      expect(globalThis.addEventListener).toHaveBeenCalledWith(
+        'beforeunload',
+        expect.any(Function)
+      )
+      expect(document.addEventListener).toHaveBeenCalledWith(
+        'visibilitychange',
+        expect.any(Function)
+      )
+    })
+
+    it('should properly remove event listeners when stopAutoSyncScheduler is called', () => {
+      // Initialize the scheduler
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Stop the scheduler
+      stopAutoSyncScheduler()
+
+      // Verify that event listeners were removed with the same handler functions
+      expect(globalThis.removeEventListener).toHaveBeenCalledWith(
+        'beforeunload',
+        beforeUnloadHandler
+      )
+      expect(document.removeEventListener).toHaveBeenCalledWith(
+        'visibilitychange',
+        visibilityChangeHandler
+      )
     })
 
     it('should do nothing on visibilitychange to hidden', async () => {

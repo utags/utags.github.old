@@ -4,7 +4,7 @@
   import {
     addSyncService,
     updateSyncService,
-  } from '../../stores/settings-store.js'
+  } from '../../stores/sync-config-store.js'
 
   import InputField from '../ui/InputField.svelte'
   import Switch from '../Switch.svelte'
@@ -29,6 +29,7 @@
     name: '',
     type: 'github',
     enabled: true,
+    autoSyncEnabled: true,
     autoSyncOnChanges: true,
     autoSyncInterval: 60,
     autoSyncDelayOnChanges: 5,
@@ -61,8 +62,9 @@
       config.name = service.name
       config.type = service.type
       config.enabled = service.enabled
-      config.autoSyncOnChanges = service.autoSyncOnChanges
+      config.autoSyncEnabled = service.autoSyncEnabled
       config.autoSyncInterval = service.autoSyncInterval
+      config.autoSyncOnChanges = service.autoSyncOnChanges
       config.autoSyncDelayOnChanges = service.autoSyncDelayOnChanges
       if (service.credentials) {
         config.credentials = { ...config.credentials, ...service.credentials }
@@ -89,6 +91,7 @@
       name: config.name,
       type: config.type,
       enabled: config.enabled,
+      autoSyncEnabled: config.autoSyncEnabled,
       autoSyncOnChanges: config.autoSyncOnChanges,
       autoSyncInterval: config.autoSyncInterval,
       autoSyncDelayOnChanges: config.autoSyncDelayOnChanges,
@@ -116,11 +119,11 @@
           ...baseConfig,
           type: 'webdav',
           credentials: {
-            serverUrl: config.target.url,
             username: config.credentials.username,
             password: config.credentials.password,
           },
           target: {
+            url: config.target.url,
             path: config.target.path,
           },
         }
@@ -140,12 +143,27 @@
           },
         }
         break
+      case 'browserExtension':
+        serviceToSave = {
+          ...baseConfig,
+          type: 'browserExtension',
+          credentials: {},
+          target: {},
+        }
+        break
       default:
         // Should not happen
         return
     }
 
     if (service) {
+      // Preserve sync metadata when updating service
+      serviceToSave = {
+        ...serviceToSave,
+        lastSyncTimestamp: service.lastSyncTimestamp,
+        lastSyncLocalDataHash: service.lastSyncLocalDataHash,
+        lastSyncMeta: service.lastSyncMeta,
+      }
       updateSyncService(serviceToSave)
     } else {
       addSyncService(serviceToSave)
@@ -164,6 +182,13 @@
   onConfirm={handleSubmit}
   {onInputEnter}>
   <div class="space-y-4 p-1">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
+      <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
+        >Service Status</span>
+      <Switch bind:checked={config.enabled} />
+    </div>
+
     <InputField bind:value={config.name} placeholder="My Sync Service">
       Service Name:
     </InputField>
@@ -179,11 +204,12 @@
       <select
         id="service-type"
         bind:value={config.type}
-        class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+        disabled={!!service}
+        class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
         <option value="github">GitHub</option>
         <option value="webdav">WebDAV</option>
-        <!-- <option value="customApi">Custom API</option>
-        <option value="browserExtension">Browser Extension</option> -->
+        <option value="customApi">Custom API</option>
+        <option value="browserExtension">Browser Extension</option>
       </select>
       {#if config.type === 'webdav'}
         <InputField
@@ -265,8 +291,8 @@
       </h3>
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
-          >Enabled</span>
-        <Switch bind:checked={config.enabled} />
+          >Auto Sync Enabled</span>
+        <Switch bind:checked={config.autoSyncEnabled} />
       </div>
 
       <InputField type="number" bind:value={config.autoSyncInterval}>

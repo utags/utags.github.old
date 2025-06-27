@@ -2,6 +2,7 @@ export const STORAGE_KEY_BOOKMARKS = 'utags-bookmarks'
 export const STORAGE_KEY_BOOKMARKS_MERGED = 'utags-bookmarks-merged'
 export const STORAGE_KEY_BOOKMARKS_DELETED = 'utags-bookmarks-deleted'
 export const STORAGE_KEY_SETTINGS = 'utags-settings'
+export const STORAGE_KEY_SYNC_SETTINGS = 'utags-sync-settings'
 export const STORAGE_KEY_FILTERS = 'utags-filters'
 export const STORAGE_KEY_COLLECTIONS = 'utags-collections'
 export const CURRENT_DATABASE_VERSION = 3

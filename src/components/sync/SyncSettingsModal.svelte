@@ -1,10 +1,10 @@
 <script lang="ts">
   import Modal from '../Modal.svelte'
   import {
-    settingsStore,
+    syncConfigStore,
     removeSyncService,
     setActiveSyncService,
-  } from '../../stores/settings-store.js'
+  } from '../../stores/sync-config-store.js'
   import SyncServiceForm from './SyncServiceForm.svelte'
   import { SyncManager } from '../../sync/sync-manager.js'
   import type { SyncServiceConfig } from '../../sync/types.js'
@@ -64,13 +64,13 @@
       </button>
     </div>
     <ul class="space-y-3">
-      {#each $settingsStore.syncServices as service (service.id)}
+      {#each $syncConfigStore.syncServices as service (service.id)}
         <li
           class="group flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500">
           <div class="flex items-center gap-4">
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-              {#if $settingsStore.activeSyncServiceId === service.id && false}
+              {#if $syncConfigStore.activeSyncServiceId === service.id && false}
                 <CheckCircle class="text-green-500" size={22} />
               {:else}
                 <RefreshCw size={20} />
@@ -113,7 +113,7 @@
               title="Sync Now">
               <RefreshCw size={16} />
             </button>
-            {#if $settingsStore.activeSyncServiceId !== service.id && false}
+            {#if $syncConfigStore.activeSyncServiceId !== service.id && false}
               <button
                 class="ml-2 rounded-full bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-300 dark:hover:bg-green-700"
                 onclick={() => handleSetAsActive(service.id)}

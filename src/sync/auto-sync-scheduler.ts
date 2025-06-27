@@ -1,5 +1,8 @@
 import { get } from 'svelte/store'
-import { settingsStore, type AppSettings } from '../stores/settings-store.js'
+import {
+  syncConfigStore,
+  type SyncSettings,
+} from '../stores/sync-config-store.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { addToSyncQueue, isQueueProcessing } from './sync-queue.js'
 import type { SyncManager } from './sync-manager.js'
@@ -18,6 +21,52 @@ const SYNC_COMPLETION_BUFFER_MS = 3000
 let intervalId: number | undefined
 const currentTabId = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 15)}`
 let lockHeartbeatIntervalId: number | undefined
+
+// Flag to track if event listeners are already bound
+let isEventListenersBound = false
+
+// Handler for beforeunload event
+const handleBeforeUnload = () => {
+  console.log(
+    `[AutoSyncScheduler] Tab ${currentTabId} is closing. Releasing resources.`
+  )
+  stopAutoSyncScheduler() // Call stopAutoSyncScheduler to handle cleanup
+}
+
+// Handler for visibilitychange event
+let handleVisibilityChange: () => void = () => {
+  console.error('[AutoSyncScheduler] Visibility change handler not initialized')
+}
+
+// Initialize the visibility change handler with the sync manager instance
+const initVisibilityChangeHandler = (syncManager: SyncManager) => {
+  handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      console.log(`[AutoSyncScheduler] Tab ${currentTabId} became visible.`)
+      // If tab becomes visible and doesn't have the lock, try to acquire it.
+      // This helps if this tab was in the background and lost the lock, or another tab crashed.
+      if (!checkHasLock()) {
+        console.log(
+          '[AutoSyncScheduler] Attempting to acquire lock on visibility.'
+        )
+        if (acquireLock()) {
+          // If lock acquired, perform a sync check.
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          checkAndScheduleSync(syncManager)
+        }
+      }
+    } else if (document.visibilityState === 'hidden') {
+      console.log(`[AutoSyncScheduler] Tab ${currentTabId} became hidden.`)
+      // Optional: Consider releasing the lock if the tab is hidden, not processing the queue,
+      // and holds the lock. This could allow a visible tab to take over sooner.
+      // This behavior might be too aggressive and lead to lock flapping, so it's commented out.
+      // if (checkHasLock() && !isQueueProcessing()) {
+      //   console.log('[AutoSyncScheduler] Releasing lock as tab is hidden and queue is idle.');
+      //   releaseLock();
+      // }
+    }
+  }
+}
 
 /**
  * Checks if the current tab holds the synchronization lock by inspecting localStorage.
@@ -130,7 +179,9 @@ async function checkAndScheduleSync(
   // Ensure this tab holds the lock before proceeding.
   // Attempt to acquire if not held, but don't proceed if acquisition fails.
   if (!checkHasLock() && !acquireLock()) {
-    // console.log(`[AutoSyncScheduler] Tab ${currentTabId} does not have lock, skipping sync check.`);
+    console.log(
+      `[AutoSyncScheduler] Tab ${currentTabId} does not have lock, skipping sync check.`
+    )
     return
   }
 
@@ -138,8 +189,8 @@ async function checkAndScheduleSync(
     `[AutoSyncScheduler] Tab ${currentTabId} checking for pending sync tasks...`
   )
   try {
-    const currentSettings: AppSettings = settingsStore
-      ? get(settingsStore)
+    const currentSettings: SyncSettings = syncConfigStore
+      ? get(syncConfigStore)
       : { syncServices: [], activeSyncServiceId: undefined } // Fallback if store is not available
 
     if (
@@ -155,8 +206,8 @@ async function checkAndScheduleSync(
     const currentTime = Date.now()
 
     for (const config of currentSettings.syncServices) {
-      if (!config.id || !config.enabled) {
-        // console.log(`[AutoSyncScheduler] Service ${config.id || 'Unknown'} is disabled or invalid, skipping.`);
+      if (!config.id || !config.enabled || !config.autoSyncEnabled) {
+        // console.log(`[AutoSyncScheduler] Service ${config.id || 'Unknown'} is disabled, auto sync disabled, or invalid, skipping.`);
         continue
       }
 
@@ -246,6 +297,11 @@ async function checkAndScheduleSync(
  * @param {SyncManager} syncManagerInstance - An instance of SyncManager.
  */
 export function initAutoSyncScheduler(syncManagerInstance: SyncManager): void {
+  // If event listeners are already bound, we don't need to initialize again
+  if (isEventListenersBound) {
+    return
+  }
+
   // eslint-disable-next-line unicorn/prefer-global-this
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
     console.warn(
@@ -275,41 +331,15 @@ export function initAutoSyncScheduler(syncManagerInstance: SyncManager): void {
     checkAndScheduleSync(syncManagerInstance)
   }, CHECK_INTERVAL) as any as number
 
-  // Add event listener for when the tab is about to be unloaded.
-  window.addEventListener('beforeunload', () => {
-    console.log(
-      `[AutoSyncScheduler] Tab ${currentTabId} is closing. Releasing resources.`
-    )
-    stopAutoSyncScheduler() // Call stopAutoSyncScheduler to handle cleanup
-  })
-
-  // Listen to visibility changes to potentially re-check/acquire lock when tab becomes visible.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      console.log(`[AutoSyncScheduler] Tab ${currentTabId} became visible.`)
-      // If tab becomes visible and doesn't have the lock, try to acquire it.
-      // This helps if this tab was in the background and lost the lock, or another tab crashed.
-      if (!checkHasLock()) {
-        console.log(
-          '[AutoSyncScheduler] Attempting to acquire lock on visibility.'
-        )
-        if (acquireLock()) {
-          // If lock acquired, perform a sync check.
-          // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          checkAndScheduleSync(syncManagerInstance)
-        }
-      }
-    } else if (document.visibilityState === 'hidden') {
-      console.log(`[AutoSyncScheduler] Tab ${currentTabId} became hidden.`)
-      // Optional: Consider releasing the lock if the tab is hidden, not processing the queue,
-      // and holds the lock. This could allow a visible tab to take over sooner.
-      // This behavior might be too aggressive and lead to lock flapping, so it's commented out.
-      // if (checkHasLock() && !isQueueProcessing()) {
-      //   console.log('[AutoSyncScheduler] Releasing lock as tab is hidden and queue is idle.');
-      //   releaseLock();
-      // }
-    }
-  })
+  // Only bind event listeners if they haven't been bound yet
+  if (!isEventListenersBound) {
+    // Add event listener for when the tab is about to be unloaded.
+    // Initialize visibility change handler with sync manager instance
+    initVisibilityChangeHandler(syncManagerInstance)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    isEventListenersBound = true
+  }
 }
 
 /**
@@ -333,6 +363,11 @@ export function stopAutoSyncScheduler(): void {
     clearInterval(lockHeartbeatIntervalId)
     lockHeartbeatIntervalId = undefined
   }
+
+  // Remove event listeners
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  isEventListenersBound = false
 
   console.log('[AutoSyncScheduler] Stopped.')
 }
