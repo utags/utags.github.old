@@ -1,28 +1,32 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mockEventListener } from '../utils/test/mock-event-listener.js'
-import { BrowserExtensionSyncAdapter } from './browser-extension-sync-adapter.js'
+import {
+  BrowserExtensionSyncAdapter,
+  BrowserExtensionSyncError,
+  type BrowserExtensionMessage,
+  type BrowserExtensionResponse,
+} from './browser-extension-sync-adapter.js'
 import type {
   SyncServiceConfig,
   BrowserExtensionCredentials,
   BrowserExtensionTarget,
   SyncMetadata,
   AuthStatus,
+  MessageType,
 } from './types.js'
 
-type BrowserExtensionMessage<T> = {
-  type: string
-  payload?: T
-  source: 'utags-webapp'
-  requestId: string
-}
+// Constants for message types and sources
 
-type BrowserExtensionResponse<R> = {
-  type: string
-  payload?: R
-  error?: string
-  source: 'utags-extension'
-  requestId: string
-}
+const SOURCE_WEBAPP = 'utags-webapp'
+const SOURCE_EXTENSION = 'utags-extension'
+const PING_MESSAGE_TYPE = 'PING'
+const PONG_MESSAGE_TYPE = 'PONG'
+const DISCOVER_MESSAGE_TYPE = 'DISCOVER_UTAGS_TARGETS'
+const DISCOVERY_RESPONSE_TYPE = 'DISCOVERY_RESPONSE'
+const GET_REMOTE_METADATA_MESSAGE_TYPE = 'GET_REMOTE_METADATA'
+const DOWNLOAD_MESSAGE_TYPE = 'DOWNLOAD_DATA'
+const UPLOAD_MESSAGE_TYPE = 'UPLOAD_DATA'
+const GET_AUTH_STATUS_MESSAGE_TYPE = 'GET_AUTH_STATUS'
 
 // Helper to create a mock config
 const createMockConfig = (
@@ -32,8 +36,8 @@ const createMockConfig = (
   id,
   type: 'browserExtension',
   name: 'Test Extension Sync',
-  credentials: { targetExtensionId },
-  target: {},
+  credentials: {},
+  target: { extensionId: targetExtensionId },
   enabled: true,
   scope: 'all',
 })
@@ -46,20 +50,22 @@ let messageHandler: ((event: MessageEvent) => void) | undefined
 
 // Helper to simulate a response from the extension
 const simulateExtensionResponse = (
-  requestId: string,
-  payload?: any,
-  error?: string
+  id: string,
+  responsePayload?: any, // Renamed to avoid confusion with the 'payload' property
+  error?: string,
+  extensionId = 'mock-extension-id' // Default to the one we are testing against
 ) => {
   if (messageHandler) {
-    const event = new MessageEvent('message', {
-      data: {
-        source: 'utags-extension',
-        requestId,
+    const data: BrowserExtensionResponse<any> = {
+      source: 'utags-extension',
+      id,
+      extensionId,
+      type: responsePayload?.type, // Extract type from the payload
+      payload: responsePayload,
+      error,
+    }
 
-        payload,
-        error,
-      },
-    }) as MessageEvent
+    const event = new MessageEvent('message', { data }) as MessageEvent
     messageHandler(event)
   }
 }
@@ -72,7 +78,13 @@ const getSentMessage = (callIndex = 0) => {
 }
 
 const getTimeoutErrorMessage = (messageType: string, timeoutMs: number) => {
-  return `[BrowserExtensionSyncAdapter] Timeout waiting for response from extension mock-extension-id for request mock-uuid (type: ${messageType}, timeout: ${timeoutMs}ms)`
+  // return new TypeError( `[BrowserExtensionSyncAdapter] Timeout waiting for response from extension mock-extension-id for request mock-uuid (type: ${messageType}, timeout: ${timeoutMs}ms)`)
+  return BrowserExtensionSyncError.timeout(
+    'mock-extension-id',
+    messageType,
+    'mock-uuid',
+    timeoutMs
+  )
 }
 
 describe('BrowserExtensionSyncAdapter', () => {
@@ -83,6 +95,7 @@ describe('BrowserExtensionSyncAdapter', () => {
   >
 
   beforeEach(() => {
+    vi.clearAllMocks()
     // Reset mocks for each test
     mockPostMessage = vi.fn()
     messageHandler = undefined // Reset messageHandler
@@ -137,15 +150,35 @@ describe('BrowserExtensionSyncAdapter', () => {
       })
       const sentMessage = getSentMessage()
       expect(sentMessage.type).toBe('PING')
+      expect(sentMessage.targetExtensionId).toBe('mock-extension-id')
 
-      simulateExtensionResponse(sentMessage.requestId, { status: 'PONG' })
+      simulateExtensionResponse(sentMessage.id, { status: 'PONG' })
       await expect(initPromise).resolves.toBeUndefined()
-      expect(adapter.getConfig().credentials?.targetExtensionId).toBe(
-        'mock-extension-id'
-      )
+      expect(adapter.getConfig().target.extensionId).toBe('mock-extension-id')
       expect(mockAddEventListener).toHaveBeenCalledWith(
         'message',
         expect.any(Function)
+      )
+    })
+
+    it('should ignore responses from other extensions', async () => {
+      const initPromise = adapter.init(mockConfig)
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const sentMessage = getSentMessage()
+      // Simulate a response from a DIFFERENT extension
+      simulateExtensionResponse(
+        sentMessage.id,
+        { status: 'PONG' },
+        undefined,
+        'another-extension-id'
+      )
+
+      // The promise should not resolve, it should time out because the correct extension never responded.
+      vi.runAllTimers()
+      await expect(initPromise).rejects.toThrow(
+        getTimeoutErrorMessage('PING', 5000)
       )
     })
 
@@ -155,9 +188,9 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       const sentMessage = getSentMessage()
-      simulateExtensionResponse(sentMessage.requestId, { status: 'NOPE' }) // Invalid PONG
+      simulateExtensionResponse(sentMessage.id, { status: 'NOPE' }) // Invalid PONG
       await expect(initPromise).rejects.toThrow(
-        '[BrowserExtensionSyncAdapter] Failed to establish initial connection with target extension mock-extension-id: Invalid PONG response or no response.'
+        'Communication error: Invalid PONG response'
       )
       expect(mockRemoveEventListener).toHaveBeenCalled()
     })
@@ -178,7 +211,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       vi.stubGlobal('window', undefined)
       adapter = new BrowserExtensionSyncAdapter() // Re-instantiate with no window
       await expect(adapter.init(mockConfig)).rejects.toThrow(
-        'Cannot initialize adapter: Browser environment (window) not available.'
+        'Browser environment not available'
       )
     })
   })
@@ -189,7 +222,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, { status: 'PONG' })
+      simulateExtensionResponse(getSentMessage().id, { status: 'PONG' })
       await initPromise
       expect(adapter.getConfig()).toEqual(mockConfig)
     })
@@ -211,7 +244,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, { status: 'PONG' })
+      simulateExtensionResponse(getSentMessage().id, { status: 'PONG' })
       await initPromise
       mockPostMessage.mockClear() // Clear PING call
     })
@@ -222,7 +255,7 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       const sentMessage = getSentMessage()
-      expect(sentMessage.type).toBe('UPLOAD_DATA')
+      expect(sentMessage.type).toBe(UPLOAD_MESSAGE_TYPE)
       expect(sentMessage.payload).toEqual({
         data: mockData,
         metadata: mockRemoteMeta,
@@ -232,7 +265,7 @@ describe('BrowserExtensionSyncAdapter', () => {
         timestamp: 456,
         version: 'v2',
       }
-      simulateExtensionResponse(sentMessage.requestId, {
+      simulateExtensionResponse(sentMessage.id, {
         metadata: expectedResponseMeta,
       })
       await expect(uploadPromise).resolves.toEqual(expectedResponseMeta)
@@ -243,11 +276,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(
-        getSentMessage().requestId,
-        undefined,
-        'Upload failed'
-      )
+      simulateExtensionResponse(getSentMessage().id, undefined, 'Upload failed')
       await expect(uploadPromise).rejects.toThrow('Upload failed')
     })
 
@@ -259,7 +288,7 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       const sentMessage = getSentMessage()
-      expect(sentMessage.type).toBe('UPLOAD_DATA')
+      expect(sentMessage.type).toBe(UPLOAD_MESSAGE_TYPE)
       expect(sentMessage.payload).toEqual({
         data: mockData,
         metadata: localMeta,
@@ -270,14 +299,10 @@ describe('BrowserExtensionSyncAdapter', () => {
       // and throw if they don't match.
       const conflictErrorMessage =
         'Conflict: Expected remote metadata does not match current remote metadata.'
-      simulateExtensionResponse(
-        sentMessage.requestId,
-        undefined,
-        conflictErrorMessage
-      )
+      simulateExtensionResponse(sentMessage.id, undefined, conflictErrorMessage)
 
       await expect(uploadPromise).rejects.toThrow(
-        `[BrowserExtensionSyncAdapter] Error from extension mock-extension-id for request ${sentMessage.requestId}: ${conflictErrorMessage}`
+        `Communication error: Error from extension mock-extension-id: ${conflictErrorMessage}`
       )
     })
 
@@ -288,14 +313,14 @@ describe('BrowserExtensionSyncAdapter', () => {
       })
       vi.runAllTimers()
       await expect(uploadPromise).rejects.toThrow(
-        getTimeoutErrorMessage('UPLOAD_DATA', 30_000)
+        getTimeoutErrorMessage(UPLOAD_MESSAGE_TYPE, 30_000)
       )
     })
 
     it('should throw if called before initialization', async () => {
       const uninitializedAdapter = new BrowserExtensionSyncAdapter()
       await expect(uninitializedAdapter.upload(mockData)).rejects.toThrow(
-        'Adapter not initialized.'
+        'Adapter not initialized'
       )
     })
   })
@@ -309,7 +334,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, { status: 'PONG' })
+      simulateExtensionResponse(getSentMessage().id, { status: 'PONG' })
       await initPromise
       mockPostMessage.mockClear()
     })
@@ -320,10 +345,10 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       const sentMessage = getSentMessage()
-      expect(sentMessage.type).toBe('DOWNLOAD_DATA')
+      expect(sentMessage.type).toBe(DOWNLOAD_MESSAGE_TYPE)
       expect(sentMessage.payload).toBeUndefined()
 
-      simulateExtensionResponse(sentMessage.requestId, {
+      simulateExtensionResponse(sentMessage.id, {
         data: mockDownloadedData,
         remoteMeta: mockRemoteMeta,
       })
@@ -339,7 +364,7 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       simulateExtensionResponse(
-        getSentMessage().requestId,
+        getSentMessage().id,
         undefined,
         'Download failed'
       )
@@ -353,14 +378,14 @@ describe('BrowserExtensionSyncAdapter', () => {
       })
       vi.runAllTimers()
       await expect(downloadPromise).rejects.toThrow(
-        getTimeoutErrorMessage('DOWNLOAD_DATA', 30_000)
+        getTimeoutErrorMessage(DOWNLOAD_MESSAGE_TYPE, 30_000)
       )
     })
 
     it('should throw if called before initialization', async () => {
       const uninitializedAdapter = new BrowserExtensionSyncAdapter()
       await expect(uninitializedAdapter.download()).rejects.toThrow(
-        'Adapter not initialized.'
+        'Adapter not initialized'
       )
     })
   })
@@ -373,7 +398,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, { status: 'PONG' })
+      simulateExtensionResponse(getSentMessage().id, { status: 'PONG' })
       await initPromise
       mockPostMessage.mockClear()
     })
@@ -384,9 +409,9 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       const sentMessage = getSentMessage()
-      expect(sentMessage.type).toBe('GET_REMOTE_METADATA')
+      expect(sentMessage.type).toBe(GET_REMOTE_METADATA_MESSAGE_TYPE)
 
-      simulateExtensionResponse(sentMessage.requestId, {
+      simulateExtensionResponse(sentMessage.id, {
         metadata: mockRemoteMeta,
       })
       await expect(metadataPromise).resolves.toEqual(mockRemoteMeta)
@@ -397,7 +422,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, {
+      simulateExtensionResponse(getSentMessage().id, {
         metadata: undefined,
       })
       await expect(metadataPromise).resolves.toBeUndefined()
@@ -409,7 +434,7 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       simulateExtensionResponse(
-        getSentMessage().requestId,
+        getSentMessage().id,
         undefined,
         'Metadata fetch failed'
       )
@@ -423,15 +448,103 @@ describe('BrowserExtensionSyncAdapter', () => {
       })
       vi.runAllTimers()
       await expect(metadataPromise).rejects.toThrow(
-        getTimeoutErrorMessage('GET_REMOTE_METADATA', 30_000)
+        getTimeoutErrorMessage(GET_REMOTE_METADATA_MESSAGE_TYPE, 30_000)
       )
     })
 
     it('should throw if called before initialization', async () => {
       const uninitializedAdapter = new BrowserExtensionSyncAdapter()
       await expect(uninitializedAdapter.getRemoteMetadata()).rejects.toThrow(
-        'Adapter not initialized.'
+        'Adapter not initialized'
       )
+    })
+  })
+
+  describe('targetExtensionId handling', () => {
+    const mockRemoteMeta: SyncMetadata = { timestamp: 101, version: 'v4' }
+    it('should include targetExtensionId in all outgoing messages', async () => {
+      const initPromise = adapter.init(mockConfig)
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const pingMessage = getSentMessage()
+      expect(pingMessage.targetExtensionId).toBe('mock-extension-id')
+      simulateExtensionResponse(pingMessage.id, { status: 'PONG' })
+      await initPromise
+      mockPostMessage.mockClear()
+
+      // Test GET_AUTH_STATUS message
+      const authStatusPromise = adapter.getAuthStatus()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const authMessage = getSentMessage()
+      expect(authMessage.targetExtensionId).toBe('mock-extension-id')
+      simulateExtensionResponse(authMessage.id, 'authenticated')
+      await authStatusPromise
+
+      // Test GET_REMOTE_METADATA message
+      const metadataPromise = adapter.getRemoteMetadata()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const metadataMessage = getSentMessage()
+      expect(metadataMessage.targetExtensionId).toBe('mock-extension-id')
+      simulateExtensionResponse(metadataMessage.id, {
+        metadata: mockRemoteMeta,
+      })
+      await metadataPromise
+    })
+
+    it('should ignore responses with mismatched extensionId', async () => {
+      const initPromise = adapter.init(mockConfig)
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const pingMessage = getSentMessage()
+
+      // Simulate responses from wrong extensions
+      simulateExtensionResponse(
+        pingMessage.id,
+        { status: 'PONG' },
+        undefined,
+        'wrong-extension-id'
+      )
+      simulateExtensionResponse(
+        pingMessage.id,
+        { status: 'PONG' },
+        undefined,
+        'another-wrong-id'
+      )
+
+      // Only respond with correct extensionId
+      simulateExtensionResponse(pingMessage.id, { status: 'PONG' })
+      await initPromise
+
+      // Verify the adapter waited for the correct extension response
+      expect(adapter.getConfig().target.extensionId).toBe('mock-extension-id')
+    })
+
+    it('should handle targetExtensionId change during initialization', async () => {
+      const newExtensionId = 'new-extension-id'
+      const newConfig = createMockConfig('test-ext-sync', newExtensionId)
+
+      const initPromise = adapter.init(newConfig)
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const pingMessage = getSentMessage()
+      expect(pingMessage.targetExtensionId).toBe(newExtensionId)
+
+      simulateExtensionResponse(
+        pingMessage.id,
+        { status: 'PONG' },
+        undefined,
+        newExtensionId
+      )
+      await initPromise
+
+      expect(adapter.getConfig().target.extensionId).toBe(newExtensionId)
     })
   })
 
@@ -441,7 +554,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, { status: 'PONG' })
+      simulateExtensionResponse(getSentMessage().id, { status: 'PONG' })
       await initPromise
       mockPostMessage.mockClear()
     })
@@ -452,11 +565,11 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       const sentMessage = getSentMessage()
-      expect(sentMessage.type).toBe('GET_AUTH_STATUS')
+      expect(sentMessage.type).toBe(GET_AUTH_STATUS_MESSAGE_TYPE)
 
       const expectedStatus: AuthStatus = 'authenticated'
       // The extension should send the AuthStatus string directly as payload
-      simulateExtensionResponse(sentMessage.requestId, expectedStatus)
+      simulateExtensionResponse(sentMessage.id, { status: expectedStatus })
       await expect(authStatusPromise).resolves.toBe(expectedStatus)
     })
 
@@ -466,7 +579,7 @@ describe('BrowserExtensionSyncAdapter', () => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
       simulateExtensionResponse(
-        getSentMessage().requestId,
+        getSentMessage().id,
         undefined,
         'Auth check failed'
       )
@@ -478,10 +591,7 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(
-        getSentMessage().requestId,
-        'invalid-status' as any
-      )
+      simulateExtensionResponse(getSentMessage().id, 'invalid-status' as any)
       await expect(authStatusPromise).resolves.toBe('error')
     })
 
@@ -509,13 +619,12 @@ describe('BrowserExtensionSyncAdapter', () => {
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
-      simulateExtensionResponse(getSentMessage().requestId, { status: 'PONG' })
+      simulateExtensionResponse(getSentMessage().id, { status: 'PONG' })
       await initPromise
       mockPostMessage.mockClear()
 
       // Make a request but don't respond to it
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      adapter.getRemoteMetadata() // Don't await, let it be outstanding
+      const metadatePromise = adapter.getRemoteMetadata()
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalled()
       })
@@ -530,6 +639,279 @@ describe('BrowserExtensionSyncAdapter', () => {
       expect((adapter as any).outstandingRequests.size).toBe(0)
       // Check if timers were cleared (hard to check directly without more complex timer mock)
       // But outstandingRequests.clear() implies associated timers are handled.
+
+      await expect(metadatePromise).rejects.toThrow(
+        'Adapter has been destroyed'
+      )
+    })
+  })
+
+  describe('discoverTargets', () => {
+    it('should send a DISCOVER_UTAGS_TARGETS broadcast message', async () => {
+      const discoverPromise = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const sentMessage = getSentMessage()
+      expect(sentMessage.type).toBe('DISCOVER_UTAGS_TARGETS')
+      expect(sentMessage.targetExtensionId).toBe('*')
+      vi.runAllTimers() // Trigger timeout
+      await discoverPromise
+      adapter.destroy()
+    })
+
+    it('should emit `targetFound` event when a discovery response is received', async () => {
+      const targetFoundListener = vi.fn()
+      adapter.on('targetFound', targetFoundListener)
+
+      const discoverPromise = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const sentMessage = getSentMessage()
+
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'discovered-ext-1',
+        extensionName: 'Discoverd Extension 1',
+      })
+
+      // Wait for the discovery timeout (3000ms)
+      await vi.advanceTimersByTimeAsync(3000)
+      await discoverPromise
+      adapter.destroy()
+      // expect(targetFoundListener).toHaveBeenCalledWith({
+      //   extensionId: 'discovered-ext-1',
+      // })
+      expect(targetFoundListener).toHaveBeenCalledTimes(1)
+      const eventObject = targetFoundListener.mock.calls[0][0]
+      expect(eventObject.detail).toEqual({
+        extensionId: 'discovered-ext-1',
+        extensionName: 'Discoverd Extension 1',
+      })
+
+      adapter.off('targetFound', targetFoundListener)
+    })
+
+    it('should emit `targetFound` for multiple unique extensions', async () => {
+      const targetFoundListener = vi.fn()
+      adapter.on('targetFound', targetFoundListener)
+
+      const discoverPromise = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const sentMessage = getSentMessage()
+
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'discovered-ext-1',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'discovered-ext-2',
+      })
+      // Wait for the discovery timeout (3000ms)
+      await vi.advanceTimersByTimeAsync(3000)
+      await discoverPromise
+
+      expect(targetFoundListener).toHaveBeenCalledTimes(2)
+      // const eventObject = targetFoundListener.mock.calls[0][0]
+      // expect(eventObject.detail).toEqual([
+      //   {
+      //     extensionId: 'discovered-ext-1',
+      //     extensionName: undefined,
+      //   },
+      //   {
+      //     extensionId: 'discovered-ext-2',
+      //     extensionName: undefined,
+      //   },
+      // ])
+
+      const eventObject1 = targetFoundListener.mock.calls[0][0]
+      const eventObject2 = targetFoundListener.mock.calls[1][0]
+
+      expect(eventObject1.detail).toEqual({
+        extensionId: 'discovered-ext-1',
+        extensionName: undefined,
+      })
+      expect(eventObject2.detail).toEqual({
+        extensionId: 'discovered-ext-2',
+        extensionName: undefined,
+      })
+      // expect(targetFoundListener).toHaveBeenCalledWith({
+      //   extensionId: 'discovered-ext-1',
+      // })
+      // expect(targetFoundListener).toHaveBeenCalledWith({
+      //   extensionId: 'discovered-ext-2',
+      // })
+
+      adapter.off('targetFound', targetFoundListener)
+    })
+
+    it('should not start a new discovery if one is already in progress', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      adapter.discoverTargets() // Don't await, let it be outstanding // First call
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalledTimes(1)
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      adapter.discoverTargets() // Don't await, let it be outstanding // Second immediate call
+      // Should not trigger another postMessage
+      expect(mockPostMessage).toHaveBeenCalledTimes(1)
+    })
+
+    it('should allow a new discovery after the previous one completes (times out)', async () => {
+      const discoverPromise1 = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalledTimes(1)
+      })
+
+      // Wait for the discovery timeout (3000ms) and the promise to resolve
+      await vi.advanceTimersByTimeAsync(3000)
+      await discoverPromise1
+
+      // Now that the discovery has timed out, we should be able to start a new discovery
+      const discoverPromise2 = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalledTimes(2)
+      })
+
+      // Wait for the second discovery to complete
+      await vi.advanceTimersByTimeAsync(3000)
+      await discoverPromise2
+    })
+
+    it('should not emit `targetFound` for duplicate extensions', async () => {
+      const targetFoundListener = vi.fn()
+      adapter.on('targetFound', targetFoundListener)
+
+      const discoverPromise = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled()
+      })
+      const sentMessage = getSentMessage()
+      expect(sentMessage.type).toBe('DISCOVER_UTAGS_TARGETS')
+
+      // Simulate two responses from the same extension
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'extension-duplicate',
+      })
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'extension-duplicate',
+      })
+
+      vi.runAllTimers() // Trigger timeout
+      await discoverPromise
+
+      expect(targetFoundListener).toHaveBeenCalledTimes(1)
+      const eventObject = targetFoundListener.mock.calls[0][0]
+      // expect(targetFoundListener).toHaveBeenCalledWith(expect.objectContaining({
+      //   extensionId: 'extension-duplicate',
+      // }))
+      expect(eventObject.detail).toEqual({
+        extensionId: 'extension-duplicate',
+        extensionName: undefined,
+      })
+    })
+
+    it('should not emit `targetFound` after adapter is destroyed', async () => {
+      const targetFoundListener = vi.fn()
+      adapter.on('targetFound', targetFoundListener)
+
+      const discoverPromise = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'DISCOVER_UTAGS_TARGETS' }),
+          '*'
+        )
+      })
+      const sentMessage = getSentMessage()
+
+      // Destroy adapter before any discovery responses
+      adapter.destroy()
+
+      // Simulate discovery response after destroy
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'ext1',
+        name: 'Extension 1',
+        icon: 'icon1',
+      })
+
+      // discoverPromise should be rejected because the adapter is destroyed
+      await expect(discoverPromise).rejects.toThrow(
+        'Adapter has been destroyed'
+      )
+
+      // Verify no events were emitted after destroy
+      expect(targetFoundListener).not.toHaveBeenCalled()
+    })
+
+    it('should ignore discovery responses after timeout', async () => {
+      const targetFoundListener = vi.fn()
+      adapter.on('targetFound', targetFoundListener)
+
+      // Start discovery
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      adapter.discoverTargets() // Don't await, let it be outstanding
+      const sentMessage = getSentMessage()
+
+      // Advance time to trigger timeout
+      await vi.advanceTimersByTimeAsync(3001)
+
+      // Simulate a late discovery response
+      simulateExtensionResponse(sentMessage.id, {
+        type: 'DISCOVERY_RESPONSE',
+        extensionId: 'late-ext',
+        name: 'Late Extension',
+        icon: 'icon-late',
+      })
+
+      // // Verify that the event was not emitted
+      expect(targetFoundListener).not.toHaveBeenCalled()
+      // expect(targetFoundListener).toHaveBeenCalledTimes(1)
+      // const eventObject = targetFoundListener.mock.calls[0][0]
+      // expect(eventObject.detail).toEqual([])
+    })
+
+    it('should reset discoveryInProgress flag when destroyed during discovery', async () => {
+      // Start discovery
+      const discoverPromise = adapter.discoverTargets()
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalledTimes(1)
+      })
+
+      // Destroy adapter during discovery
+      adapter.destroy()
+
+      // The promise should be rejected because the adapter is destroyed.
+      await expect(discoverPromise).rejects.toThrow(
+        'Adapter has been destroyed'
+      )
+
+      // After destruction, the adapter is no longer usable.
+      // To test if a new discovery can be started, we need a new adapter instance.
+      const adapter2 = new BrowserExtensionSyncAdapter()
+
+      // Start a new discovery with the new adapter
+      const discoverPromise2 = adapter2.discoverTargets()
+
+      await vi.waitFor(() => {
+        // The mock should have been called again for the new discovery
+        expect(mockPostMessage).toHaveBeenCalledTimes(2)
+      })
+
+      // The promise should eventually resolve (on timeout).
+      // We must handle it to avoid unhandled promise rejections.
+      await vi.advanceTimersByTimeAsync(3000)
+      await expect(discoverPromise2).resolves.toBeUndefined()
+      adapter2.destroy()
     })
   })
 })

@@ -8,6 +8,8 @@ import type {
   WebDAVTarget,
   ApiCredentials,
   ApiTarget,
+  BrowserExtensionCredentials,
+  BrowserExtensionTarget,
 } from '../sync/types.js'
 
 // Define a type for all possible credential types
@@ -50,32 +52,31 @@ function loadSyncSettings(): SyncSettings {
       try {
         const parsed = JSON.parse(savedSettings) as SyncSettings
         // Ensure syncServices is always an array and contains valid services
-        if (Array.isArray(parsed.syncServices)) {
-          // Filter out invalid or corrupted services
-          const validServices = parsed.syncServices.filter(
-            (service): service is SyncServiceConfig => {
-              return (
-                service &&
-                typeof service === 'object' &&
-                'id' in service &&
-                'type' in service &&
-                isValidType(service.type) &&
-                'target' in service &&
-                'credentials' in service
-              )
-            }
-          )
-          parsed.syncServices = validServices
+        if (!Array.isArray(parsed.syncServices)) {
+          return structuredClone(defaultSyncSettings)
+        }
 
-          // Reset activeSyncServiceId if the active service was filtered out
-          if (
-            parsed.activeSyncServiceId &&
-            !validServices.some((s) => s.id === parsed.activeSyncServiceId)
-          ) {
-            parsed.activeSyncServiceId = undefined
+        // Filter out invalid or corrupted services
+        const validServices = parsed.syncServices.filter(
+          (service): service is SyncServiceConfig => {
+            return (
+              service &&
+              typeof service === 'object' &&
+              'id' in service &&
+              'type' in service &&
+              isValidType(service.type) &&
+              'target' in service &&
+              'credentials' in service
+            )
           }
-        } else {
-          parsed.syncServices = []
+        )
+        parsed.syncServices = validServices
+
+        // Reset activeSyncServiceId if the active service was filtered out
+        if (
+          parsed.activeSyncServiceId &&
+          !validServices.some((s) => s.id === parsed.activeSyncServiceId)
+        ) {
           parsed.activeSyncServiceId = undefined
         }
 
@@ -103,6 +104,133 @@ if (typeof localStorage !== 'undefined') {
       console.error('Error saving sync settings to localStorage:', error)
     }
   })
+}
+
+// --- Browser Extension Discovery ---
+
+/**
+ * A writable store that indicates whether the browser extension discovery is in progress.
+ */
+export const isDiscovering = writable(false)
+
+/**
+ * A writable store that holds the discovered browser extension targets that have not yet been added.
+ * Each item includes the target and its credentials.
+ */
+export const discoveredTargets = writable<SyncServiceConfig[]>([])
+
+/**
+ * Discovers available browser extension sync targets and prompts the user to add them.
+ */
+export async function discoverBrowserExtensionTargets(): Promise<void> {
+  console.log('Discovering browser extension targets...')
+  isDiscovering.set(true)
+  discoveredTargets.set([]) // Clear previous discoveries
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  const { BrowserExtensionSyncAdapter } = await import(
+    '../sync/browser-extension-sync-adapter.js'
+  )
+  const adapter = new BrowserExtensionSyncAdapter()
+
+  adapter.on('targetFound', (event: Event) => {
+    const target = (
+      event as CustomEvent<{ extensionId: string; extensionName?: string }>
+    ).detail
+
+    if (!target || !target.extensionId) {
+      return
+    }
+
+    const $syncConfigs = get(syncConfigStore).syncServices
+    const alreadyExists = $syncConfigs.some(
+      (service) =>
+        service.type === 'browserExtension' &&
+        (service.target as BrowserExtensionTarget)?.extensionId ===
+          target.extensionId
+    )
+    if (alreadyExists) {
+      return
+    }
+
+    const newTarget: SyncServiceConfig<
+      BrowserExtensionCredentials,
+      BrowserExtensionTarget
+    > = {
+      id: `new-${target.extensionId}`,
+      name:
+        target.extensionName || `Extension ${target.extensionId.slice(0, 8)}`,
+      type: 'browserExtension',
+      credentials: {},
+      target: {
+        extensionId: target.extensionId,
+        extensionName: target.extensionName,
+      },
+      scope: 'all',
+      enabled: false,
+    }
+
+    discoveredTargets.update((existing) => {
+      const all = [...existing, newTarget]
+      // remove duplicates
+      return all.filter(
+        (item, index, self) =>
+          index ===
+          self.findIndex(
+            (t) =>
+              (t.target as BrowserExtensionTarget).extensionId ===
+              (item.target as BrowserExtensionTarget).extensionId
+          )
+      )
+    })
+  })
+
+  try {
+    // Initialize discovery without a specific config
+    await adapter.discoverTargets()
+  } catch (error) {
+    console.error('Error during browser extension discovery:', error)
+  } finally {
+    // The adapter now self-destroys after discovery
+    isDiscovering.set(false)
+  }
+}
+
+export function promoteDiscoveredTarget(serviceId: string) {
+  const target: SyncServiceConfig | undefined = get(discoveredTargets).find(
+    (t) => t.id === serviceId
+  )
+  if (!target || target.type !== 'browserExtension') {
+    return
+  }
+
+  const newService: SyncServiceConfig<
+    BrowserExtensionCredentials,
+    BrowserExtensionTarget
+  > = {
+    id: crypto.randomUUID(),
+    type: target.type,
+    name: target.name,
+    credentials: target.credentials as BrowserExtensionCredentials,
+    target: target.target as BrowserExtensionTarget,
+    scope: 'all',
+    mergeStrategy: {
+      meta: 'merge',
+      tags: 'union',
+      defaultDate: Date.now(),
+    },
+    enabled: true, // Enable by default
+    autoSyncEnabled: true, // Enable by default
+    autoSyncInterval: 1, // 1 minute
+    autoSyncOnChanges: true,
+    autoSyncDelayOnChanges: 0.2, // 12 seconds
+    lastSyncTimestamp: 0,
+  }
+
+  addSyncService(newService)
+
+  discoveredTargets.update((targets) =>
+    targets.filter((t) => t.id !== serviceId)
+  )
 }
 
 // --- Sync Service Configuration Management ---

@@ -89,7 +89,7 @@ export type CustomApiUploadResponse = {
  * Credentials for Browser Extension synchronization.
  */
 export type BrowserExtensionCredentials = {
-  targetExtensionId?: string // Optional: ID of the target browser extension
+  // Currently no specific credentials properties, can be extended later
 }
 
 /**
@@ -98,6 +98,8 @@ export type BrowserExtensionCredentials = {
 export type BrowserExtensionTarget = {
   // Currently no specific target properties, can be extended later
   // For example, could specify a named data store within the target extension
+  extensionId: string // ID of the target browser extension
+  extensionName?: string // Optional: User-friendly name of the target extension
 }
 
 /**
@@ -127,6 +129,54 @@ export type AuthStatus =
   | 'error' // An error occurred during authentication
   | 'requires_config' // Authentication requires configuration
   | 'unknown' // Adapter is unknown or not initialized
+
+/**
+ * Defines the possible types for messages exchanged with the browser extension.
+ */
+export type MessageType =
+  | 'PING'
+  | 'PONG'
+  | 'DISCOVER_UTAGS_TARGETS'
+  | 'DISCOVERY_RESPONSE'
+  | 'GET_AUTH_STATUS'
+  | 'GET_REMOTE_METADATA'
+  | 'DOWNLOAD_DATA'
+  | 'UPLOAD_DATA'
+
+/**
+ * Generic message structure for communication with the browser extension.
+ */
+export type Message<T = any> = {
+  type: MessageType
+  source?: 'utags-webapp' | 'utags-extension' // Identifies the message origin
+  id: string // Unique message identifier for tracking requests and responses
+  payload?: T
+  error?: string
+}
+
+/**
+ * Specific message types for browser extension communication.
+ */
+export type AuthStatusRequestMessage = Message<void>
+export type AuthStatusResponseMessage = Message<{ status: AuthStatus }>
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export type DiscoverUTagsTargetsMessage = Message<void>
+export type DiscoveryResponseMessage = Message<{
+  target: BrowserExtensionTarget
+  credentials: BrowserExtensionCredentials
+}>
+export type DataUploadRequestMessage = Message<{
+  data: string
+  remoteMeta?: SyncMetadata
+}>
+export type DataUploadResponseMessage = Message<SyncMetadata>
+export type DataDownloadRequestMessage = Message<void>
+export type DataDownloadResponseMessage = Message<{
+  data: string | undefined
+  remoteMeta: SyncMetadata | undefined
+}>
+export type MetadataRequestMessage = Message<void>
+export type MetadataResponseMessage = Message<SyncMetadata | undefined>
 
 /**
  * Interface for a synchronization adapter.

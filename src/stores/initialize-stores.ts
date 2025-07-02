@@ -3,11 +3,6 @@ import { initialBookmarks } from '../data/initial-bookmarks.js'
 import { initialBookmarks as initialBookmarksCN } from '../data/initial-bookmarks-zh-CN.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { isChineseLocale } from '../utils/i18n-utils.js'
-import type {
-  SyncServiceConfig,
-  BrowserExtensionCredentials,
-} from '../sync/types.js'
-import { hasSyncService, addSyncService } from './sync-config-store.js'
 import { filters } from './saved-filters.js'
 import { getCollections } from './collections.js'
 import { settings } from './stores.js'
@@ -152,29 +147,6 @@ function initializeFilters() {
   }
 }
 
-function initializeSyncServices() {
-  const browserExtensionSyncConfig: SyncServiceConfig = {
-    id: 'default-browser-extension',
-    type: 'browserExtension',
-    name: 'UTags Extension',
-    credentials: {
-      targetExtensionId: 'utags-extension',
-    } as BrowserExtensionCredentials,
-    target: undefined,
-    scope: 'all',
-    enabled: true,
-    autoSyncEnabled: true,
-    autoSyncInterval: 1,
-    autoSyncOnChanges: true,
-    autoSyncDelayOnChanges: 0.1,
-    lastSyncTimestamp: 0,
-  }
-
-  if (!hasSyncService(browserExtensionSyncConfig.id)) {
-    addSyncService(browserExtensionSyncConfig)
-  }
-}
-
 export default async function initializeStores() {
   const $settings = get(settings)
 
@@ -189,6 +161,4 @@ export default async function initializeStores() {
 
   // run every time when loading stores
   initializeSettings()
-
-  initializeSyncServices()
 }

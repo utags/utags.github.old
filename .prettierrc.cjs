@@ -14,6 +14,6 @@ module.exports = {
   overrides: [
     { files: '*.svelte', options: { parser: 'svelte' } },
     { files: '*.html', options: { printWidth: 200 } },
-    { files: 'messages/*.json', options: { parser: 'json-stringify' } },
+    { files: '*.json', options: { parser: 'json-stringify' } },
   ],
 }

@@ -55,6 +55,8 @@ import { CustomApiSyncAdapter } from './custom-api-sync-adapter.js'
 import { BrowserExtensionSyncAdapter } from './browser-extension-sync-adapter.js'
 import { SyncManager } from './sync-manager.js'
 
+const GET_AUTH_STATUS_MESSAGE_TYPE = 'GET_AUTH_STATUS'
+
 // Define MockSyncAdapter
 class MockSyncAdapter implements SyncAdapter {
   private config!: SyncServiceConfig
@@ -3943,15 +3945,17 @@ describe('SyncManager', () => {
     let messageHandler: ((event: MessageEvent) => void) | undefined
 
     const simulateExtensionResponse = (
-      requestId: string,
+      id: string,
       payload?: any,
-      error?: string
+      error?: string,
+      extensionId = 'mock-extension-id' // Default to the one we are testing against
     ) => {
       if (messageHandler) {
         const event = new MessageEvent('message', {
           data: {
             source: 'utags-extension',
-            requestId,
+            id,
+            extensionId,
             payload,
             error,
           },
@@ -4021,8 +4025,8 @@ describe('SyncManager', () => {
         id: 'service2',
         type: 'browserExtension',
         name: 'Test Browser Extension Sync',
-        credentials: { targetExtensionId: 'mock-target-id' },
-        target: {},
+        credentials: {},
+        target: { extensionId: 'mock-target-id' },
         enabled: true,
         scope: 'all',
       } // Use a different type to ensure different adapter instances
@@ -4037,7 +4041,11 @@ describe('SyncManager', () => {
       // 1. Wait for the PING message to be sent by BrowserExtensionSyncAdapter's init
       await vi.waitFor(() => {
         expect(mockPostMessage).toHaveBeenCalledWith(
-          expect.objectContaining({ type: 'PING', source: 'utags-webapp' }),
+          expect.objectContaining({
+            type: 'PING',
+            source: 'utags-webapp',
+            targetExtensionId: 'mock-target-id',
+          }),
           '*'
         )
       })
@@ -4047,27 +4055,39 @@ describe('SyncManager', () => {
       expect(pingMessageCall).toBeDefined()
       const pingMessage = pingMessageCall![0]
       // 2. Simulate the PONG response from the extension
-      simulateExtensionResponse(pingMessage.requestId, { status: 'PONG' })
+      simulateExtensionResponse(
+        pingMessage.id,
+        { status: 'PONG' },
+        undefined,
+        'mock-target-id'
+      )
 
       // 3. Wait for the GET_AUTH_STATUS message to be sent after successful PING/PONG
       await vi.waitFor(() => {
-        expect(mockPostMessage).toHaveBeenCalledWith(
+        const lastCall = mockPostMessage.mock.calls.at(-1) as [
+          message: any,
+          targetOrigin: string,
+        ]
+        expect(lastCall[0]).toEqual(
           expect.objectContaining({
-            type: 'GET_AUTH_STATUS',
+            type: GET_AUTH_STATUS_MESSAGE_TYPE,
             source: 'utags-webapp',
-          }),
-          '*'
+            targetExtensionId: 'mock-target-id',
+          })
         )
+        expect(lastCall[1]).toBe('*')
       })
       const getAuthStatusMessageCall = mockPostMessage.mock.calls.find(
-        (call) => call[0].type === 'GET_AUTH_STATUS'
+        (call) => call[0].type === GET_AUTH_STATUS_MESSAGE_TYPE
       )
       expect(getAuthStatusMessageCall).toBeDefined()
       const getAuthStatusMessage = getAuthStatusMessageCall![0]
       // 4. Simulate the auth status response from the extension
       simulateExtensionResponse(
-        getAuthStatusMessage.requestId,
-        'authenticated' as AuthStatus
+        getAuthStatusMessage.id,
+        'authenticated' as AuthStatus,
+        undefined,
+        'mock-target-id'
       ) // Or any other valid AuthStatus
 
       await authStatusPromiseConfig2 // Now the init and checkAuthStatus for browser adapter should complete

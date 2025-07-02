@@ -4,6 +4,10 @@
     syncConfigStore,
     removeSyncService,
     setActiveSyncService,
+    discoverBrowserExtensionTargets,
+    isDiscovering,
+    discoveredTargets,
+    promoteDiscoveredTarget,
   } from '../../stores/sync-config-store.js'
   import SyncServiceForm from './SyncServiceForm.svelte'
   import { SyncManager } from '../../sync/sync-manager.js'
@@ -53,12 +57,19 @@
   }
 </script>
 
-<Modal bind:isOpen={showSyncSettings} title="Sync Settings">
+<Modal bind:isOpen={showSyncSettings} showConfirm={false} title="Sync Settings">
   <div class="flex flex-col gap-6 p-2">
-    <div class="flex justify-end">
+    <div class="flex justify-end gap-3">
+      <button
+        class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:focus:ring-offset-gray-900"
+        onclick={() => discoverBrowserExtensionTargets()}
+        disabled={$isDiscovering}>
+        <RefreshCw size={18} class={$isDiscovering ? 'animate-spin' : ''} />
+        <span>Discover Targets</span>
+      </button>
       <button
         class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-offset-gray-900"
-        onclick={handleAdd}>
+        onclick={() => handleAdd()}>
         <Plus size={18} />
         <span>Add Service</span>
       </button>
@@ -66,7 +77,7 @@
     <ul class="space-y-3">
       {#each $syncConfigStore.syncServices as service (service.id)}
         <li
-          class="group flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500">
+          class="group flex items-center justify-between rounded-xl border border-blue-400 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500">
           <div class="flex items-center gap-4">
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
@@ -94,7 +105,7 @@
             </div>
           </div>
           <div
-            class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            class="flex items-center gap-1 transition-opacity group-hover:opacity-100 md:opacity-0">
             <button
               class="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
               onclick={() => handleEdit(service)}
@@ -119,6 +130,35 @@
                 onclick={() => handleSetAsActive(service.id)}
                 >Set Active</button>
             {/if}
+          </div>
+        </li>
+      {/each}
+      {#each $discoveredTargets as service (service.id)}
+        <li
+          class="group flex items-center justify-between rounded-xl border border-dashed bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500">
+          <div class="flex items-center gap-4">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+              <RefreshCw size={20} />
+            </div>
+            <div>
+              <p class="font-semibold text-gray-900 dark:text-gray-50">
+                {service.name}
+              </p>
+              <div
+                class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>{service.type}</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex items-center gap-1 transition-opacity group-hover:opacity-100 md:opacity-0">
+            <button
+              class="rounded-full p-2 text-blue-500 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/50"
+              onclick={() => promoteDiscoveredTarget(service.id)}
+              title="Add">
+              <Plus size={16} />
+            </button>
           </div>
         </li>
       {/each}

@@ -100,7 +100,6 @@ Visit our [official website (https://utags.link)](https://utags.link/) to explor
   - Advanced note editing/viewing interface
 
 - **Data Interoperability**
-
   - Gist/GitHub import/export support
   - WebDAV import/export support
   - Multi-device sync solution
