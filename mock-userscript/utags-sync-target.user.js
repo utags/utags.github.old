@@ -163,7 +163,7 @@
 
         case GET_AUTH_STATUS_MESSAGE_TYPE: {
           // Adapter expects an AuthStatus string
-          responsePayload = { status: "authenticated" } // as AuthStatus
+          responsePayload = { status: 'authenticated' } // as AuthStatus
           GM_log(
             `${SCRIPT_NAME} Auth status requested. Responding:`,
             responsePayload

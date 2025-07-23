@@ -1,3 +1,4 @@
+import { normalizeCreated, normalizeUpdated } from 'utags-utils'
 import {
   type BookmarkTagsAndMetadata,
   type BookmarksData,
@@ -88,8 +89,12 @@ function normalizeBookmark(
   const meta = data.meta
   const { created, updated } = meta
 
-  if (!isValidDate(created)) {
-    meta.created = defaultDate || DEFAULT_DATE
+  if (!isValidDate(created) || updated < created) {
+    meta.created = normalizeCreated(
+      created,
+      updated,
+      defaultDate || DEFAULT_DATE
+    )
   }
 
   if (!isValidDate(updated) || updated < meta.created) {
@@ -249,6 +254,7 @@ export async function mergeBookmarks(
         const remote = remoteData[url]
 
         // Normalize timestamps before comparison
+        // TODO: add modified after normalized items to merged items
         normalizeBookmark(local, defaultDate)
         normalizeBookmark(remote, defaultDate)
 

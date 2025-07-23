@@ -13,6 +13,7 @@ import {
 } from '../types/bookmarks.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
+import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
 import { getHostName } from '../utils/url-utils.js'
 import { convertDate, isValidDate } from '../utils/date.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
@@ -109,7 +110,9 @@ export function exportData(bookmarksData?: BookmarksData) {
   let bookmarksStore = get(bookmarks)
   if (bookmarksData) {
     bookmarksStore = {
-      data: bookmarksData,
+      data: Object.fromEntries(
+        normalizeBookmarkData(Object.entries(bookmarksData))
+      ),
       meta: {
         ...bookmarksStore.meta,
         exported: now.getTime(),
@@ -118,7 +121,9 @@ export function exportData(bookmarksData?: BookmarksData) {
   } else {
     bookmarksStore = {
       data: Object.fromEntries(
-        sortBookmarks(Object.entries(bookmarksStore.data), 'createdDesc')
+        normalizeBookmarkData(
+          sortBookmarks(Object.entries(bookmarksStore.data), 'createdDesc')
+        )
       ),
       meta: {
         ...bookmarksStore.meta,

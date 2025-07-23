@@ -26,6 +26,7 @@ import {
 import { mockEventListener } from '../utils/test/mock-event-listener.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
+import { sortMetaProperties } from '../utils/sort-meta-properties.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import {
   mergeBookmarks,
@@ -176,7 +177,18 @@ function convertToUploadData(
 ): string {
   // Sort bookmarks before uploading to maintain a consistent order
   const sortedBookmarks = Object.fromEntries(
-    sortBookmarks(Object.entries(remoteData), 'createdDesc')
+    sortBookmarks(Object.entries(remoteData), 'createdDesc').map(
+      ([url, tagsAndMetadta]) => {
+        return [
+          url,
+          {
+            tags: tagsAndMetadta.tags,
+            deletedMeta: tagsAndMetadta.deletedMeta,
+            meta: sortMetaProperties(tagsAndMetadta.meta),
+          },
+        ]
+      }
+    )
   )
 
   const bookmarksStore: BookmarksStore = {
@@ -1714,7 +1726,7 @@ describe('SyncManager', () => {
         'http://example.com/modified-local': {
           tags: ['local-only'],
           meta: {
-            created: now - 50_000,
+            created: now - 50_000, // updated earlier than created
             updated: now - 60_000, // Not modified after lastSyncTime, staled
             title: 'Local Modified',
           },
@@ -1807,13 +1819,16 @@ describe('SyncManager', () => {
           remoteData['http://example.com/new-remote'], // New remote item added
       }
 
+      expectedMergedData['http://example.com/modified-local'].meta.created =
+        remoteData['http://example.com/modified-local'].meta.updated // updated earlier than created
+
       const expectedRemoteData = structuredClone(expectedMergedData)
 
       // Add updated2 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/unmodified',
-        'http://example.com/modified-local',
+        // 'http://example.com/modified-local',
       ]
       setUpdated2ForBookmarks(
         expectedMergedData,
@@ -5115,7 +5130,8 @@ describe('SyncManager', () => {
         'http://example.com/item1': {
           tags: ['local', 'common'],
           meta: {
-            created: 0, // will be normalized to 'defaultDate'
+            // created: 0, // will be normalized to 'defaultDate'
+            created: 0, // will be normalized to 'updated'
             updated: now - 1000,
             title: 'Local Item 1',
             localField: 'local',
@@ -5202,7 +5218,8 @@ describe('SyncManager', () => {
         ...localData['http://example.com/item1']?.meta,
         ...remoteData['http://example.com/item1']?.meta,
         created: Math.min(
-          localData['http://example.com/item1']?.meta.created || DEFAULT_DATE,
+          // localData['http://example.com/item1']?.meta.created || DEFAULT_DATE,
+          localData['http://example.com/item1']?.meta.updated || DEFAULT_DATE,
           remoteData['http://example.com/item1']?.meta.created || DEFAULT_DATE
         ),
         updated2: currentSyncTime,
@@ -5720,6 +5737,143 @@ describe('SyncManager', () => {
 
       expect(errorHandler).not.toHaveBeenCalled()
       expect(infoHandler).not.toHaveBeenCalled() // Assuming no specific info messages for a standard successful sync
+    })
+
+    it('should fail validation when lastSyncTimestamp > 0 but required data is missing', async () => {
+      // Set up a service config with lastSyncTimestamp > 0 to trigger validation
+      const configWithLastSync: SyncServiceConfig = {
+        ...serviceConfig,
+        lastSyncTimestamp: Date.now() - 1000, // Set to a past timestamp
+      }
+
+      syncConfigStore.set({
+        syncServices: [configWithLastSync],
+        activeSyncServiceId: configWithLastSync.id,
+      })
+
+      const mockAdapter = new MockSyncAdapter(configWithLastSync)
+
+      vi.spyOn(syncManager as any, 'getAdapter').mockReturnValue(mockAdapter)
+
+      const statusChangeHandler = vi.fn()
+      const syncStartHandler = vi.fn()
+      const syncEndHandler = vi.fn()
+      const errorHandler = vi.fn()
+
+      syncManager.on('statusChange', statusChangeHandler)
+      syncManager.on('syncStart', syncStartHandler)
+      syncManager.on('syncEnd', syncEndHandler)
+      syncManager.on('error', errorHandler)
+
+      // Mock adapter to return missing data (null/undefined values)
+      vi.mocked(mockAdapter.getRemoteMetadata).mockResolvedValue(null) // Missing initialRemoteSyncMeta
+      vi.mocked(mockAdapter.download).mockResolvedValue({
+        data: convertToDownloadData({}),
+        remoteMeta: undefined,
+      })
+      vi.mocked(mockAdapter.upload).mockResolvedValue({
+        version: 'v1',
+        timestamp: Date.now(),
+      })
+
+      await syncManager.sync()
+
+      expect(syncStartHandler).toHaveBeenCalledWith({
+        serviceId: configWithLastSync.id,
+      })
+      expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'checking' })
+      expect(statusChangeHandler).toHaveBeenCalledWith({ type: 'downloading' })
+      expect(statusChangeHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'error',
+          error: expect.stringContaining('Data validation failed'),
+          lastAttemptTime: expect.any(Number),
+        })
+      )
+
+      expect(errorHandler).toHaveBeenCalledWith({
+        message: expect.stringContaining('Data validation failed'),
+        serviceId: configWithLastSync.id,
+        error: expect.any(Error),
+      })
+      expect(errorHandler).toHaveBeenCalledTimes(1)
+
+      expect(syncEndHandler).toHaveBeenCalledWith({
+        serviceId: configWithLastSync.id,
+        status: 'error',
+        error: expect.stringContaining('Data validation failed'),
+      })
+      expect(syncEndHandler).toHaveBeenCalledTimes(1)
+    })
+
+    it('should fail validation when lastSyncTimestamp > 0 but remoteStoreMeta is missing', async () => {
+      // Set up a service config with lastSyncTimestamp > 0
+      const configWithLastSync: SyncServiceConfig = {
+        ...serviceConfig,
+        lastSyncTimestamp: Date.now() - 1000,
+      }
+
+      syncConfigStore.set({
+        syncServices: [configWithLastSync],
+        activeSyncServiceId: configWithLastSync.id,
+      })
+
+      const mockAdapter = new MockSyncAdapter(configWithLastSync)
+
+      vi.spyOn(syncManager as any, 'getAdapter').mockReturnValue(mockAdapter)
+
+      const statusChangeHandler = vi.fn()
+      const errorHandler = vi.fn()
+      const syncStartHandler = vi.fn()
+      const syncEndHandler = vi.fn()
+
+      syncManager.on('statusChange', statusChangeHandler)
+      syncManager.on('error', errorHandler)
+      syncManager.on('syncStart', syncStartHandler)
+      syncManager.on('syncEnd', syncEndHandler)
+
+      // Mock adapter to return valid initial data but missing remoteStoreMeta
+      const mockInitialMeta = { version: '1.0', timestamp: Date.now() }
+      const mockDownloadMeta = { version: '1.0', timestamp: Date.now() }
+      // Create data string without meta field to trigger missing remoteStoreMeta validation
+      const mockDataString = JSON.stringify({ data: {} }) // Missing meta field
+
+      // Reset and re-setup mocks to override beforeEach defaults
+      mockAdapter.getRemoteMetadata.mockResolvedValue(mockInitialMeta)
+      mockAdapter.download.mockResolvedValue({
+        data: mockDataString,
+        remoteMeta: mockDownloadMeta,
+      })
+      mockAdapter.upload.mockResolvedValue({
+        version: 'v1',
+        timestamp: Date.now(),
+      })
+
+      console.log('Test setup - mockDataString:', mockDataString)
+      console.log('Test setup - parsed data:', JSON.parse(mockDataString))
+
+      // Debug: Check if our mock adapter is being used
+      const adapterFromManager = (syncManager as any).adapters.get(
+        configWithLastSync.id
+      )
+      console.log('Adapter from manager:', adapterFromManager)
+      console.log('Is it our mock adapter?', adapterFromManager === mockAdapter)
+      console.log('Adapter download method:', adapterFromManager?.download)
+
+      await syncManager.sync()
+
+      expect(statusChangeHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'error',
+          error: expect.stringContaining('Missing remoteStoreMeta'),
+        })
+      )
+
+      expect(errorHandler).toHaveBeenCalledWith({
+        message: expect.stringContaining('Missing remoteStoreMeta'),
+        serviceId: configWithLastSync.id,
+        error: expect.any(Error),
+      })
     })
 
     it('should emit correct events when download fails', async () => {

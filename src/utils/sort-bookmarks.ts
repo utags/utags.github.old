@@ -21,23 +21,27 @@ export function sortBookmarks(
 
     switch (sortOption) {
       case 'updatedDesc': {
-        return entryB.meta.updated - entryA.meta.updated
+        const updatedDiff = entryB.meta.updated - entryA.meta.updated
+        return updatedDiff === 0 ? urlA.localeCompare(urlB) : updatedDiff
       }
 
       case 'updatedAsc': {
-        return entryA.meta.updated - entryB.meta.updated
+        const updatedDiff = entryA.meta.updated - entryB.meta.updated
+        return updatedDiff === 0 ? urlA.localeCompare(urlB) : updatedDiff
       }
 
       case 'createdDesc': {
-        return entryB.meta.created - entryA.meta.created
+        const createdDiff = entryB.meta.created - entryA.meta.created
+        return createdDiff === 0 ? urlA.localeCompare(urlB) : createdDiff
       }
 
       case 'createdAsc': {
-        return entryA.meta.created - entryB.meta.created
+        const createdDiff = entryA.meta.created - entryB.meta.created
+        return createdDiff === 0 ? urlA.localeCompare(urlB) : createdDiff
       }
 
       case 'titleAsc': {
-        return (entryA.meta.title || urlA).localeCompare(
+        const titleComparison = (entryA.meta.title || urlA).localeCompare(
           entryB.meta.title || urlB,
           language,
           {
@@ -46,10 +50,13 @@ export function sortBookmarks(
             numeric: false,
           }
         )
+        return titleComparison === 0
+          ? urlA.localeCompare(urlB)
+          : titleComparison
       }
 
       case 'titleDesc': {
-        return (entryB.meta.title || urlB).localeCompare(
+        const titleComparison = (entryB.meta.title || urlB).localeCompare(
           entryA.meta.title || urlA,
           language,
           {
@@ -58,6 +65,9 @@ export function sortBookmarks(
             numeric: false,
           }
         )
+        return titleComparison === 0
+          ? urlA.localeCompare(urlB)
+          : titleComparison
       }
 
       // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check

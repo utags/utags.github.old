@@ -147,8 +147,8 @@
         serviceToSave = {
           ...baseConfig,
           type: 'browserExtension',
-          credentials: {},
-          target: {},
+          credentials: service ? service.credentials : {},
+          target: service ? service.target : {},
         }
         break
       default:

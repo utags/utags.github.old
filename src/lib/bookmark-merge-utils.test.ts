@@ -1155,6 +1155,214 @@ describe('mergeBookmarks', () => {
         strategy: baseStrategy,
         syncOption: baseSyncOption,
         expectedUpdatesForLocal: {},
+        expectedLocalDeletions: [],
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
+      })
+    })
+
+    it('should normalize created timestamp when created is invalid but updated is valid', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/l': {
+          meta: {
+            // @ts-expect-error Testing invalid date for created
+            created: 'invalid-created-date',
+            updated: oneHourAgo, // Valid updated timestamp
+            title: 'Local L',
+          },
+          tags: ['local'],
+        },
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/l': {
+          meta: {
+            created: oneHourAgo, // Should use updated timestamp because created is invalid
+            updated: oneHourAgo,
+            title: 'Local L',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedLocalDeletions: [],
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
+      })
+    })
+
+    it('should normalize created timestamp when created is later than updated', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/m': {
+          meta: {
+            created: oneHourAgo, // Created is later than updated
+            updated: threeHoursAgo, // Updated is earlier
+            title: 'Local M',
+          },
+          tags: ['local'],
+        },
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/m': {
+          meta: {
+            created: threeHoursAgo, // Should use the earlier timestamp (updated)
+            updated: threeHoursAgo,
+            title: 'Local M',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo - 20_000 }, // lastSyncTime is older than updated
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
+      })
+    })
+
+    it('should use defaultDate when both created and updated are invalid', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/n': {
+          meta: {
+            created: Number.NaN,
+            // @ts-expect-error Testing invalid dates
+            updated: 'invalid-updated',
+            title: 'Local N',
+          },
+          tags: ['local'],
+        },
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/n': {
+          meta: {
+            created: defaultDateTimestamp, // Should use defaultDate
+            updated: defaultDateTimestamp, // Should use defaultDate
+            title: 'Local N',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
+      })
+    })
+
+    it('should normalize created to use the earliest valid timestamp between created and updated', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/o': {
+          meta: {
+            created: oneHourAgo, // Later timestamp
+            updated: twoHoursAgo, // Earlier timestamp
+            title: 'Local O',
+          },
+          tags: ['local'],
+        },
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/o': {
+          meta: {
+            created: twoHoursAgo, // Should use the earlier timestamp
+            updated: twoHoursAgo,
+            title: 'Local O',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: { ...baseSyncOption, lastSyncTime: twoHoursAgo - 1 }, // lastSyncTime is older than updated
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
+      })
+    })
+
+    it('should handle edge case where created is valid but updated is earlier than created', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/p': {
+          meta: {
+            created: oneHourAgo,
+            updated: threeHoursAgo, // Updated is earlier than created (unusual case)
+            title: 'Local P',
+          },
+          tags: ['local'],
+        },
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/p': {
+          meta: {
+            created: threeHoursAgo, // Should normalize to the earlier timestamp
+            updated: threeHoursAgo, // Updated should be at least as late as created
+            title: 'Local P',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: { ...baseSyncOption, lastSyncTime: threeHoursAgo - 1 }, // lastSyncTime is older than updated
+        expectedUpdatesForLocal: {},
+        expectedUpdatesForRemote,
+        ignoreCompareAfterMerge: true,
+      })
+    })
+
+    it('should handle case where only created is valid and updated is invalid', async () => {
+      const localData: BookmarksData = {
+        'http://example.com/q': {
+          meta: {
+            created: oneHourAgo, // Valid created timestamp
+            updated: -1, // Invalid updated timestamp
+            title: 'Local Q',
+          },
+          tags: ['local'],
+        },
+      }
+      const remoteData: BookmarksData = {}
+      const expectedUpdatesForRemote: BookmarksData = {
+        'http://example.com/q': {
+          meta: {
+            created: oneHourAgo, // Should keep valid created
+            updated: oneHourAgo, // Should fall back to created
+            title: 'Local Q',
+            updated2: now,
+          },
+          tags: ['local'],
+        },
+      }
+      await runMergeTest({
+        localData,
+        remoteData,
+        strategy: baseStrategy,
+        syncOption: baseSyncOption,
+        expectedUpdatesForLocal: {},
         expectedUpdatesForRemote,
         ignoreCompareAfterMerge: true,
       })

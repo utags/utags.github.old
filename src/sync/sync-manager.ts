@@ -7,6 +7,7 @@ import {
 import { CURRENT_DATABASE_VERSION, DEFAULT_DATE } from '../config/constants.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
+import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
 import {
   syncConfigStore,
   getSyncServiceById,
@@ -470,6 +471,42 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       const { data: remoteDataString, remoteMeta: downloadRemoteSyncMeta } =
         await adapter.download()
 
+      // Validate data integrity if this is not the first sync
+      if (
+        serviceConfig.lastSyncTimestamp &&
+        serviceConfig.lastSyncTimestamp > 0
+      ) {
+        const missingData: string[] = []
+
+        if (!initialRemoteSyncMeta) {
+          missingData.push('initialRemoteSyncMeta')
+        }
+
+        if (!downloadRemoteSyncMeta) {
+          missingData.push('downloadRemoteSyncMeta')
+        }
+
+        if (!remoteDataString || remoteDataString.trim() === '') {
+          missingData.push('remoteDataString')
+        }
+
+        if (missingData.length > 0) {
+          const errorMessage = `Data validation failed for ${serviceConfig.name}: Missing required data - ${missingData.join(', ')}. This may indicate communication issues or other anomalies.`
+          console.error(errorMessage)
+          this.emit('error', {
+            message: errorMessage,
+            serviceId: serviceConfig.id,
+            error: new Error(errorMessage),
+          })
+          this.updateStatus({
+            type: 'error',
+            error: errorMessage,
+            lastAttemptTime: Date.now(),
+          })
+          return { success: false }
+        }
+      }
+
       let remoteBookmarks: BookmarksData | undefined
       let remoteStoreMeta: BookmarksStore['meta'] | undefined
 
@@ -478,7 +515,27 @@ export class SyncManager extends EventEmitter<SyncEvents> {
           const remoteStore = JSON.parse(remoteDataString) as BookmarksStore
           remoteBookmarks = remoteStore.data
           remoteStoreMeta = remoteStore.meta
-          // TODO: validate remoteStoreMeta and remoteBookmarks
+
+          // Additional validation for non-first sync: remoteStoreMeta should not be empty
+          if (
+            serviceConfig.lastSyncTimestamp &&
+            serviceConfig.lastSyncTimestamp > 0 &&
+            !remoteStoreMeta
+          ) {
+            const errorMessage = `Data validation failed for ${serviceConfig.name}: Missing remoteStoreMeta. This may indicate communication issues or other anomalies.`
+            console.error(errorMessage)
+            this.emit('error', {
+              message: errorMessage,
+              serviceId: serviceConfig.id,
+              error: new Error(errorMessage),
+            })
+            this.updateStatus({
+              type: 'error',
+              error: errorMessage,
+              lastAttemptTime: Date.now(),
+            })
+            return { success: false }
+          }
         } catch (error: any) {
           console.error(
             `Failed to parse remote data for ${serviceConfig.name}:`,
@@ -696,7 +753,9 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       try {
         // Sort bookmarks before uploading to maintain a consistent order
         const sortedBookmarks = Object.fromEntries(
-          sortBookmarks(Object.entries(mergedBookmarks), 'createdDesc')
+          normalizeBookmarkData(
+            sortBookmarks(Object.entries(mergedBookmarks), 'createdDesc')
+          )
         )
 
         const bookmarksStore: BookmarksStore = {

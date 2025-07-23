@@ -79,3 +79,10 @@ button {
 body:not(#a) .merge-mode-input-element {
   @apply base-merge-mode-input-element;
 }
+
+:not(#utags_bookmarks_should_has_higher_specificity):not(
+    #utags_bookmarks_should_has_higher_specificity
+  ):not(#utags_bookmarks_should_has_higher_specificity)
+  .utags_ul {
+  display: none !important;
+}
