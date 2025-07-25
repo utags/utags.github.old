@@ -38,7 +38,7 @@
       newTags: Set<string>
     }
   }
-  let { showImportModal = false } = $props()
+  let { showImportModal = $bindable(false) } = $props()
 
   let currentStep = $state(1)
   let file: File | undefined = $state(undefined)
@@ -223,12 +223,20 @@
     }
 
     try {
-      // Call mergeBookmarks
+      // Call mergeBookmarks with progress callback
       const { updatesForLocal, localDeletions } = await mergeBookmarks(
         localData,
         remoteData,
         currentMergeStrategy,
-        syncOption
+        syncOption,
+        (progress) => {
+          // Update progress for merge operation
+          console.log(
+            `Import progress: ${progress.processedItems}/${progress.totalItems} items processed`
+          )
+          // You can dispatch a custom event here to update UI if needed
+          globalThis.dispatchEvent(new CustomEvent('importProgressUpdated', { detail: {current: progress.processedItems, total: progress.totalItems} }))
+        }
       )
 
       if (localDeletions.length > 0) {
@@ -329,7 +337,8 @@
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
         <p class="mt-2">拖放文件到这里或</p>
-        <label class="btn-primary mt-4 inline-block cursor-pointer">
+        <label
+          class="mt-4 inline-block cursor-pointer rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none dark:bg-blue-600 dark:hover:bg-blue-700">
           选择文件
           <input
             id="fileInput"
@@ -435,7 +444,9 @@
         </table>
       </div>
 
-      <button class="btn-primary mt-8 w-full" onclick={startImport}>
+      <button
+        class="mt-8 w-full rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
+        onclick={startImport}>
         开始导入
       </button>
     </div>
@@ -457,6 +468,7 @@
           </div>
         </div>
 
+        {#if progress?.stats}
         <div class="stats-grid mt-6">
           <div>
             <span class="stat-value"
@@ -478,6 +490,7 @@
             <span class="stat-label">新增域名</span>
           </div>
         </div>
+        {/if}
       {:else}
         <div class="rounded-lg bg-gray-100 p-4 text-center text-gray-600">
           正在准备导入数据...

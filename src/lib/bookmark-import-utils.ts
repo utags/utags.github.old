@@ -32,7 +32,13 @@ export function validateBookmarks(bookmarksStore: BookmarksStore) {
     }
 
     if (!data.meta || typeof data.meta !== 'object') {
-      throw new Error('缺少meta字段或格式不正确')
+      // throw new Error('缺少meta字段或格式不正确')
+      console.warn('缺少meta字段或格式不正确')
+      data.meta = {
+        databaseVersion: 3,
+        created: Date.now(),
+        exported: Date.now(),
+      }
     }
 
     // 验证meta字段

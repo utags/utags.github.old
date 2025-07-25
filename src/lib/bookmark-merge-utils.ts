@@ -169,6 +169,7 @@ function isValid(
  * @param strategy - The merge strategy defining how to handle conflicts for metadata (e.g., title) and tags.
  * @param syncOption - Options for the synchronization process, including `lastSyncTime` (timestamp of the last successful sync)
  *                     and `currentSyncTime` (timestamp for the current sync operation).
+ * @param onProgress - Optional callback function to report merge progress.
  * @returns A Promise that resolves to an object containing the results of the merge operation:
  *   - `updatesForLocal`: BookmarksData to be created or updated in the local store.
  *   - `updatesForRemote`: BookmarksData to be created or updated in the remote store.
@@ -181,7 +182,13 @@ export async function mergeBookmarks(
   localDataInput: BookmarksData | undefined,
   remoteDataInput: BookmarksData | undefined,
   strategy: MergeStrategy,
-  syncOption: SyncOption
+  syncOption: SyncOption,
+  onProgress?: (progress: {
+    processedItems: number
+    totalItems: number
+    processedBatches: number
+    totalBatches: number
+  }) => void
 ): Promise<{
   updatesForLocal: BookmarksData
   updatesForRemote: BookmarksData
@@ -387,10 +394,14 @@ export async function mergeBookmarks(
     },
     {
       batchSize,
-      onProgress({ processedItems, totalItems }) {
-        console.log(
-          `Processed URLs ${Math.max(processedItems - batchSize, 0) + 1} to ${processedItems} of ${totalItems}`
-        )
+      onProgress(progress) {
+        if (onProgress) {
+          onProgress(progress)
+        } else {
+          console.log(
+            `Processed URLs ${Math.max(progress.processedItems - batchSize, 0) + 1} to ${progress.processedItems} of ${progress.totalItems}`
+          )
+        }
       },
     }
   )

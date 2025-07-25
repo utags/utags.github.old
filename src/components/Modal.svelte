@@ -67,7 +67,7 @@
       // Move modal to end of main element to prevent z-index conflicts
       _$('main')?.append(modalElement as Node)
       document.addEventListener('keydown', handleKeydown)
-      // initFocusTrap(modalElement)
+      initFocusTrap(modalElement)
       if (typeof onOpen === 'function') {
         onOpen()
       }

@@ -2,26 +2,26 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { JSDOM } from 'jsdom'
 import { htmlToBookmarks, validateBookmarks } from './bookmark-import-utils.js'
 
-// 设置JSDOM环境
+// Setup JSDOM environment
 beforeAll(() => {
   const dom = new JSDOM()
   globalThis.DOMParser = dom.window.DOMParser
 })
 
 afterAll(() => {
-  // 清理全局变量
-  // @ts-expect-error 重置全局变量
+  // Clean up global variables
+  // @ts-expect-error Reset global variables
   globalThis.DOMParser = undefined
 })
 
 describe('htmlToBookmarks', () => {
-  it('应该处理空HTML', () => {
+  it('should handle empty HTML', () => {
     const result = htmlToBookmarks('')
     expect(result.data).toEqual({})
     expect(result.meta.databaseVersion).toBe(3)
   })
 
-  it('应该处理基本书签结构', () => {
+  it('should handle basic bookmark structure', () => {
     const html = `
       <dl>
         <dt><a href="https://example.com" add_date="1620000000">Example</a></dt>
@@ -35,7 +35,7 @@ describe('htmlToBookmarks', () => {
     ])
   })
 
-  it('应该处理带标签的书签', () => {
+  it('should handle bookmarks with tags', () => {
     const html = `
       <dl>
         <dt><a href="https://example.com" add_date="1620000000" tags="tag1,tag2">Example</a></dt>
@@ -49,7 +49,7 @@ describe('htmlToBookmarks', () => {
     ])
   })
 
-  it('应该处理文件夹结构', () => {
+  it('should handle folder structure', () => {
     const html = `
       <dl>
         <dt><h3>Folder</h3>
@@ -63,7 +63,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com'].tags).toEqual(['/Folder'])
   })
 
-  it('应该处理嵌套文件夹结构', () => {
+  it('should handle nested folder structure', () => {
     const html = `
       <dl>
         <dt><h3>Parent</h3>
@@ -81,7 +81,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com'].tags).toEqual(['/Parent/Child'])
   })
 
-  it('应该忽略place:协议的书签', () => {
+  it('should ignore place: protocol bookmarks', () => {
     const html = `
       <dl>
         <dt><a href="place:type=6">Recent Tags</a></dt>
@@ -93,7 +93,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com']).toBeDefined()
   })
 
-  it('应该合并重复书签', () => {
+  it('should merge duplicate bookmarks', () => {
     const html = `
       <dl>
         <dt><a href="https://example.com" add_date="1620000000" tags="tag1">Example</a></dt>
@@ -109,7 +109,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com'].meta.title).toBe('Example 2')
   })
 
-  it('应该处理Firefox导出的HTML格式', () => {
+  it('should handle Firefox exported HTML format', () => {
     const html = `
       <!DOCTYPE NETSCAPE-Bookmark-file-1>
       <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
@@ -121,7 +121,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com']).toBeDefined()
   })
 
-  it('应该处理Chrome导出的HTML格式', () => {
+  it('should handle Chrome exported HTML format', () => {
     const html = `
       <!DOCTYPE NETSCAPE-Bookmark-file-1>
       <!-- This is an automatically generated file. -->
@@ -133,7 +133,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com']).toBeDefined()
   })
 
-  it('应该处理Safari导出的HTML格式', () => {
+  it('should handle Safari exported HTML format', () => {
     const html = `
       <!DOCTYPE NETSCAPE-Bookmark-file-1>
       <HTML>
@@ -158,7 +158,7 @@ describe('htmlToBookmarks', () => {
     ])
   })
 
-  it('应该处理没有add_date的书签', () => {
+  it('should handle bookmarks without add_date', () => {
     const html = `
       <dl>
         <dt><a href="https://example.com">Example</a></dt>
@@ -170,7 +170,7 @@ describe('htmlToBookmarks', () => {
     )
   })
 
-  it('应该处理add_date为0的书签', () => {
+  it('should handle bookmarks with add_date as 0', () => {
     const html = `
       <dl>
         <dt><a href="https://example.com" add_date="0">Example</a></dt>
@@ -182,7 +182,7 @@ describe('htmlToBookmarks', () => {
     )
   })
 
-  it('应该处理last_modified为0的书签', () => {
+  it('should handle bookmarks with last_modified as 0', () => {
     const html = `
       <dl>
         <dt><a href="https://example.com" add_date="1620000000" last_modified="0">Example</a></dt>
@@ -192,7 +192,7 @@ describe('htmlToBookmarks', () => {
     expect(result.data['https://example.com'].meta.updated).toBe(0)
   })
 
-  it('应该处理带空格的文件夹名', () => {
+  it('should handle folder names with spaces', () => {
     const html = `
       <dl>
         <dt><h3>Bookmarks Bar</h3>
@@ -212,7 +212,7 @@ describe('htmlToBookmarks', () => {
     ])
   })
 
-  it('应该处理空文件夹名', () => {
+  it('should handle empty folder names', () => {
     const html = `
       <dl>
         <dt><h3>Bookmarks Bar</h3>
@@ -238,7 +238,7 @@ describe('htmlToBookmarks', () => {
     ])
   })
 
-  it('应该处理多层空文件夹名', () => {
+  it('should handle multi-level empty folder names', () => {
     const html = `
       <dl>
         <dt><h3>Bookmarks Bar</h3>
@@ -270,7 +270,7 @@ describe('htmlToBookmarks', () => {
     ])
   })
 
-  it('应该处理包含多个斜杠和空格的文件夹名', () => {
+  it('should handle folder names with multiple slashes and spaces', () => {
     const html = `
       <dl>
         <dt><h3>Bookmarks Bar</h3>
@@ -322,45 +322,50 @@ describe('validateBookmarks', () => {
     },
   }
 
-  it('应该验证有效的书签数据', () => {
+  it('should validate valid bookmark data', () => {
     const result = validateBookmarks(validBookmarks)
     expect(result.total).toBe(1)
     expect(result.noCreated).toBe(0)
   })
 
-  it('应该拒绝非对象输入', () => {
-    // @ts-expect-error 测试无效输入类型
+  it('should reject non-object input', () => {
+    // @ts-expect-error Test invalid input type
     expect(() => validateBookmarks(null)).toThrow('无效的JSON格式')
-    // @ts-expect-error 测试无效输入类型
+    // @ts-expect-error Test invalid input type
     expect(() => validateBookmarks(undefined)).toThrow('无效的JSON格式')
-    // @ts-expect-error 测试无效输入类型
+    // @ts-expect-error Test invalid input type
     expect(() => validateBookmarks('string')).toThrow('无效的JSON格式')
   })
 
-  it('应该拒绝缺少data字段', () => {
+  it('should reject missing data field', () => {
     const invalid = { ...validBookmarks, data: undefined }
-    // @ts-expect-error 测试缺少data字段
+    // @ts-expect-error Test missing data field
     expect(() => validateBookmarks(invalid)).toThrow('缺少data字段或格式不正确')
   })
 
-  it('应该拒绝缺少meta字段', () => {
+  it('should automatically create missing meta field', () => {
     const invalid = { ...validBookmarks, meta: undefined }
-    // @ts-expect-error 测试缺少meta字段
-    expect(() => validateBookmarks(invalid)).toThrow('缺少meta字段或格式不正确')
+    // @ts-expect-error Test missing meta field
+    const result = validateBookmarks(invalid)
+    expect(result.total).toBe(1)
+    expect(result.data.meta).toBeDefined()
+    expect(result.data.meta.databaseVersion).toBe(3)
+    expect(typeof result.data.meta.created).toBe('number')
+    expect(typeof result.data.meta.exported).toBe('number')
   })
 
-  it('应该拒绝无效的meta字段', () => {
+  it('should reject invalid meta field', () => {
     const invalidMeta = {
       ...validBookmarks,
       meta: { databaseVersion: '3' },
     }
-    // @ts-expect-error 测试无效meta字段类型
+    // @ts-expect-error Test invalid meta field type
     expect(() => validateBookmarks(invalidMeta)).toThrow(
       '数据文件版本不支持，请联系开发者'
     )
   })
 
-  it('应该拒绝无效的databaseVersion值', () => {
+  it('should reject invalid databaseVersion value', () => {
     const invalidVersion = {
       ...validBookmarks,
       meta: { ...validBookmarks.meta, databaseVersion: 2 },
@@ -375,7 +380,7 @@ describe('validateBookmarks', () => {
       ...validBookmarks,
       meta: { databaseVersion: 3, created: '1620000000000' },
     }
-    // @ts-expect-error 测试无效meta字段类型
+    // @ts-expect-error Test invalid meta field type
     expect(() => validateBookmarks(invalidMeta)).toThrow(
       'meta 字段里的属性类型错误'
     )
@@ -386,13 +391,13 @@ describe('validateBookmarks', () => {
       ...validBookmarks,
       meta: { databaseVersion: 3, exported: '1620000000000' },
     }
-    // @ts-expect-error 测试无效meta字段类型
+    // @ts-expect-error Test invalid meta field type
     expect(() => validateBookmarks(invalidMeta)).toThrow(
       'meta 字段里的属性类型错误'
     )
   })
 
-  it('应该拒绝无效的书签tags字段', () => {
+  it('should reject invalid bookmark tags field', () => {
     const invalidData = {
       ...validBookmarks,
       data: {
@@ -402,13 +407,13 @@ describe('validateBookmarks', () => {
         },
       },
     }
-    // @ts-expect-error 测试无效tags字段类型
+    // @ts-expect-error Test invalid tags field type
     expect(() => validateBookmarks(invalidData)).toThrow(
       '书签 https://example.com 缺少有效的tags字段'
     )
   })
 
-  it('应该拒绝无效的书签meta字段', () => {
+  it('should reject invalid bookmark meta field', () => {
     const invalidData = {
       ...validBookmarks,
       data: {
@@ -418,13 +423,13 @@ describe('validateBookmarks', () => {
         },
       },
     }
-    // @ts-expect-error 测试无效meta字段类型
+    // @ts-expect-error Test invalid meta field type
     expect(() => validateBookmarks(invalidData)).toThrow(
       '书签 https://example.com 的meta字段缺少必要属性'
     )
   })
 
-  it('应该统计没有创建时间的书签', () => {
+  it('should count bookmarks without creation time', () => {
     const noCreatedData = {
       ...validBookmarks,
       data: {
@@ -432,7 +437,7 @@ describe('validateBookmarks', () => {
           tags: ['tag1'],
           meta: {
             title: 'Example',
-            created: 99_999_999_999_999, // 无效的创建时间
+            created: 99_999_999_999_999, // Invalid creation time
             updated: 1_620_000_001_000,
           },
         },
@@ -442,7 +447,7 @@ describe('validateBookmarks', () => {
     expect(result.noCreated).toBe(1)
   })
 
-  it('应该处理多个书签', () => {
+  it('should handle multiple bookmarks', () => {
     const multipleBookmarks = {
       ...validBookmarks,
       data: {
