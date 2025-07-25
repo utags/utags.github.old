@@ -16,6 +16,7 @@
     transformCollectionPathToQueryParams,
     convertCollectionToFilterParams,
   } from './utils/url-utils.js'
+  import { calculateBookmarkStats } from './utils/bookmark-stats.js'
   import { sortBookmarks } from './utils/sort-bookmarks.js'
   import type { SortOption } from './config/sort-options.js'
   import { filterBookmarksByUrlParams } from './utils/filter-bookmarks.js'
@@ -405,14 +406,7 @@
     }
   }
 
-  const stats = $derived({
-    bookmarksCount: filteredBookmarks.length,
-    tagsCount: new Set(
-      filteredBookmarks.flatMap(([_, entry]) => entry.tags || [])
-    ).size,
-    domainsCount: new Set(filteredBookmarks.map(([url, _]) => getHostName(url)))
-      .size,
-  })
+  const stats = $derived(calculateBookmarkStats(filteredBookmarks))
 
   // 新增导入状态
   let importProgress = $state({

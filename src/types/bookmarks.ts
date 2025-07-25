@@ -156,6 +156,20 @@ export type BookmarkObject = {
 export type BookmarksData = Record<BookmarkKey, BookmarkTagsAndMetadata>
 
 /**
+ * Statistics interface for bookmark data
+ */
+export type BookmarkStats = {
+  /** Total number of bookmarks */
+  bookmarksCount: number
+  /** Total number of unique tags */
+  tagsCount: number
+  /** Total number of all tags (including duplicates) */
+  totalTagsCount: number
+  /** Total number of unique domains */
+  domainsCount: number
+}
+
+/**
  * The bookmarks store.
  * This is the main data structure that holds all bookmark information.
  * It contains both the actual bookmark data and metadata about the store itself.
@@ -192,6 +206,11 @@ export type BookmarksStore = {
      * Stored as milliseconds since epoch.
      */
     exported?: number
+    /**
+     * Optional statistics about the bookmarks store.
+     * Contains aggregated data and metrics for the bookmark collection.
+     */
+    stats?: BookmarkStats
   }
 }
 

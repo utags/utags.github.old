@@ -235,7 +235,14 @@
             `Import progress: ${progress.processedItems}/${progress.totalItems} items processed`
           )
           // You can dispatch a custom event here to update UI if needed
-          globalThis.dispatchEvent(new CustomEvent('importProgressUpdated', { detail: {current: progress.processedItems, total: progress.totalItems} }))
+          globalThis.dispatchEvent(
+            new CustomEvent('importProgressUpdated', {
+              detail: {
+                current: progress.processedItems,
+                total: progress.totalItems,
+              },
+            })
+          )
         }
       )
 
@@ -469,27 +476,28 @@
         </div>
 
         {#if progress?.stats}
-        <div class="stats-grid mt-6">
-          <div>
-            <span class="stat-value"
-              >{progress?.current || 0}/{progress?.total || 0}</span>
-            <span class="stat-label">已处理</span>
+          <div class="stats-grid mt-6">
+            <div>
+              <span class="stat-value"
+                >{progress?.current || 0}/{progress?.total || 0}</span>
+              <span class="stat-label">已处理</span>
+            </div>
+            <div>
+              <span class="stat-value"
+                >{progress?.stats?.newBookmarks || 0}</span>
+              <span class="stat-label">新增书签</span>
+            </div>
+            <div>
+              <span class="stat-value"
+                >{progress?.stats?.newTags?.size || 0}</span>
+              <span class="stat-label">新增标签</span>
+            </div>
+            <div>
+              <span class="stat-value"
+                >{progress?.stats?.newDomains?.size || 0}</span>
+              <span class="stat-label">新增域名</span>
+            </div>
           </div>
-          <div>
-            <span class="stat-value">{progress?.stats?.newBookmarks || 0}</span>
-            <span class="stat-label">新增书签</span>
-          </div>
-          <div>
-            <span class="stat-value"
-              >{progress?.stats?.newTags?.size || 0}</span>
-            <span class="stat-label">新增标签</span>
-          </div>
-          <div>
-            <span class="stat-value"
-              >{progress?.stats?.newDomains?.size || 0}</span>
-            <span class="stat-label">新增域名</span>
-          </div>
-        </div>
         {/if}
       {:else}
         <div class="rounded-lg bg-gray-100 p-4 text-center text-gray-600">

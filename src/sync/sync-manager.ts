@@ -8,6 +8,7 @@ import { CURRENT_DATABASE_VERSION, DEFAULT_DATE } from '../config/constants.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
+import { calculateBookmarkStatsFromData } from '../utils/bookmark-stats.js'
 import {
   syncConfigStore,
   getSyncServiceById,
@@ -753,11 +754,10 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       try {
         // Sort bookmarks before uploading to maintain a consistent order
         const sortedBookmarks = Object.fromEntries(
-          normalizeBookmarkData(
-            sortBookmarks(Object.entries(mergedBookmarks), 'createdDesc')
-          )
+          sortBookmarks(Object.entries(mergedBookmarks), 'createdDesc')
         )
 
+        const stats = calculateBookmarkStatsFromData(sortedBookmarks)
         const bookmarksStore: BookmarksStore = {
           data: sortedBookmarks,
           meta: {
@@ -766,12 +766,13 @@ export class SyncManager extends EventEmitter<SyncEvents> {
               created: Date.now(),
             }),
             updated: Date.now(),
+            stats,
           },
         }
 
         // console.log('Uploading', prettyPrintJson(bookmarksStore))
         const newRemoteMeta = await adapter.upload(
-          prettyPrintJson(bookmarksStore),
+          prettyPrintJson(normalizeBookmarkData(bookmarksStore)),
           remoteSyncMeta // Pass metadata for conditional upload
         )
 

@@ -27,6 +27,8 @@ import { mockEventListener } from '../utils/test/mock-event-listener.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { sortMetaProperties } from '../utils/sort-meta-properties.js'
+import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
+import { calculateBookmarkStatsFromData } from '../utils/bookmark-stats.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import {
   mergeBookmarks,
@@ -191,16 +193,18 @@ function convertToUploadData(
     )
   )
 
+  const stats = calculateBookmarkStatsFromData(sortedBookmarks)
   const bookmarksStore: BookmarksStore = {
     data: sortedBookmarks,
     meta: {
       ...defaultStoreMeta,
+      stats,
       updated: now,
       ...meta,
     },
   }
 
-  return prettyPrintJson(bookmarksStore)
+  return prettyPrintJson(normalizeBookmarkData(bookmarksStore))
 }
 
 describe('SyncManager', () => {

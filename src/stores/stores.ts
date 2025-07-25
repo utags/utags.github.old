@@ -15,6 +15,7 @@ import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
 import { getHostName } from '../utils/url-utils.js'
+import { calculateBookmarkStatsFromData } from '../utils/bookmark-stats.js'
 import { convertDate, isValidDate } from '../utils/date.js'
 import { prettyPrintJson } from '../utils/pretty-print-json.js'
 import {
@@ -109,30 +110,31 @@ export function exportData(bookmarksData?: BookmarksData) {
   const now = new Date()
   let bookmarksStore = get(bookmarks)
   if (bookmarksData) {
+    const stats = calculateBookmarkStatsFromData(bookmarksData)
     bookmarksStore = {
-      data: Object.fromEntries(
-        normalizeBookmarkData(Object.entries(bookmarksData))
-      ),
+      data: bookmarksData,
       meta: {
         ...bookmarksStore.meta,
         exported: now.getTime(),
+        stats,
       },
     }
   } else {
+    const sortedData = Object.fromEntries(
+      sortBookmarks(Object.entries(bookmarksStore.data), 'createdDesc')
+    )
+    const stats = calculateBookmarkStatsFromData(sortedData)
     bookmarksStore = {
-      data: Object.fromEntries(
-        normalizeBookmarkData(
-          sortBookmarks(Object.entries(bookmarksStore.data), 'createdDesc')
-        )
-      ),
+      data: sortedData,
       meta: {
         ...bookmarksStore.meta,
         exported: now.getTime(),
+        stats,
       },
     }
   }
 
-  const dataString = prettyPrintJson(bookmarksStore)
+  const dataString = prettyPrintJson(normalizeBookmarkData(bookmarksStore))
   const blob = new Blob([dataString], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
