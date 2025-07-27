@@ -84,7 +84,7 @@
 
 {#if isOpen}
   <div
-    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
+    class="fixed inset-0 z-50 bg-black/60 transition-opacity"
     role="dialog"
     aria-modal="true"
     aria-label={title}

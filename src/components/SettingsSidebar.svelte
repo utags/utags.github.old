@@ -75,7 +75,7 @@
     role="button"
     aria-label={m.SETTINGS_SIDEBAR_CLOSE_BUTTON_ARIA_LABEL()}>
     <div
-      class="settings-sidebar absolute inset-y-0 right-0 z-[100] w-96 bg-white/95 p-6 shadow-2xl backdrop-blur-xl transition-transform duration-300 dark:bg-gray-800/95"
+      class="settings-sidebar absolute inset-y-0 right-0 z-[100] w-96 bg-white/98 p-6 shadow-2xl transition-transform duration-300 dark:bg-gray-800/98"
       class:translate-x-0={showSettings}
       class:translate-x-full={!showSettings}>
       <div class="mb-6 flex items-center justify-between">

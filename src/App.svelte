@@ -613,7 +613,7 @@
     <div class="filter-container flex flex-col px-5">
       <!-- 添加筛选器切换控制栏 -->
       <div
-        class="filter-switcher flex h-11.25 flex-none items-center justify-end border-b border-(color:--seperator-line-color) bg-white/95 px-5 backdrop-blur-sm dark:bg-gray-900/95">
+        class="filter-switcher flex h-11.25 flex-none items-center justify-end border-b border-(color:--seperator-line-color) bg-white/95 px-5 dark:bg-gray-900/95">
         <div class="flex flex-grow-1 items-center justify-end gap-2">
           {#each [1, 2, 3] as level}
             <button
