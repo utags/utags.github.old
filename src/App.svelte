@@ -451,11 +451,12 @@
   }
 
   const editBookmarkHandler = (e: CustomEvent<{ href: string }>) => {
-    console.log('editBookmarkHandler', e.detail)
-    const { href } = e.detail
-    addBookmarkModalInitialData = {
-      href,
-    }
+    const href = e.detail?.href
+    addBookmarkModalInitialData = href
+      ? {
+          href,
+        }
+      : undefined
     showAddBookmarkModal = true
   }
 
