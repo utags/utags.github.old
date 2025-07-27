@@ -1,11 +1,19 @@
 import { get } from 'svelte/store'
+import { SyncManager } from '../sync/sync-manager.js'
 import { initialBookmarks } from '../data/initial-bookmarks.js'
 import { initialBookmarks as initialBookmarksCN } from '../data/initial-bookmarks-zh-CN.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import { isChineseLocale } from '../utils/i18n-utils.js'
+import {
+  syncConfigStore,
+  discoverBrowserExtensionTargets,
+  isDiscovering,
+  discoveredTargets,
+  promoteDiscoveredTarget,
+} from './sync-config-store.js'
 import { filters } from './saved-filters.js'
 import { getCollections } from './collections.js'
-import { settings } from './stores.js'
+import { settings, clearAllBookmarks } from './stores.js'
 
 function initializeSettings() {
   console.log('initializing settings')
@@ -36,6 +44,21 @@ async function initializeBookmarks() {
     await bookmarkStorage.upsertBookmarks(
       Object.entries(isChineseLocale() ? initialBookmarksCN : initialBookmarks)
     )
+  }
+}
+
+/**
+ * Clear all initial bookmarks from storage
+ * Extracts URLs from initialBookmarks or initialBookmarksCN and deletes them
+ */
+export async function clearInitialBookmarks(): Promise<void> {
+  const bookmarksData = isChineseLocale()
+    ? initialBookmarksCN
+    : initialBookmarks
+  const urls = Object.keys(bookmarksData)
+
+  if (urls.length > 0) {
+    await bookmarkStorage.deleteBookmarks(urls)
   }
 }
 
@@ -147,6 +170,34 @@ function initializeFilters() {
   }
 }
 
+async function initializeSyncSettings(): Promise<boolean> {
+  const syncServices = get(syncConfigStore).syncServices
+  if (syncServices && syncServices.length > 0) {
+    return false
+  }
+
+  await discoverBrowserExtensionTargets()
+  const targets = get(discoveredTargets)
+  console.log(targets)
+  if (targets && targets.length > 0) {
+    promoteDiscoveredTarget(targets[0].id)
+
+    // Get updated sync services
+    const syncServices = get(syncConfigStore).syncServices
+    if (syncServices && syncServices.length === 1) {
+      // Clear sample data
+      await clearInitialBookmarks()
+
+      const syncManager = new SyncManager()
+      await syncManager.synchronize(syncServices[0].id)
+    }
+
+    return true
+  }
+
+  return false
+}
+
 export default async function initializeStores() {
   const $settings = get(settings)
 
@@ -161,4 +212,14 @@ export default async function initializeStores() {
 
   // run every time when loading stores
   initializeSettings()
+
+  if (!$settings.autoDiscoveredBrowserExtensionTargets) {
+    setTimeout(async () => {
+      const result = await initializeSyncSettings()
+      if (result) {
+        $settings.autoDiscoveredBrowserExtensionTargets = true
+        settings.set($settings)
+      }
+    })
+  }
 }

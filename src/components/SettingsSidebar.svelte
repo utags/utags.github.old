@@ -5,7 +5,7 @@
   import { LayoutList, PanelLeftClose } from 'lucide-svelte'
   import { getLocale, setLocale } from '../paraglide/runtime'
   import * as m from '../paraglide/messages'
-  import { settings, exportData, clearAll } from '../stores/stores.js'
+  import { settings, exportData, clearAllBookmarks } from '../stores/stores.js'
   import { viewModes } from '../config/view-modes.js'
   import { sortOptions } from '../config/sort-options.js'
   import { themeOptions } from '../config/theme-options.js'
@@ -354,7 +354,7 @@
             <div class="flex items-center justify-between px-1 py-1.5">
               <button
                 class="flex items-center gap-3 text-red-600 hover:text-red-700 dark:text-red-400"
-                onclick={clearAll}>
+                onclick={() => clearAllBookmarks()}>
                 <span>🗑️ {m.SETTINGS_SIDEBAR_CLEAR_DATA_BUTTON()}</span>
               </button>
             </div>

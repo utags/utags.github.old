@@ -37,6 +37,7 @@ export const settings = persisted(STORAGE_KEY_SETTINGS, {
   viewMode: 'compact',
   skin: 'skin1',
   isFirstRun: true,
+  autoDiscoveredBrowserExtensionTargets: false,
   alwaysShowAdvancedFields: false,
   maxDeletedBookmarks: 10_000,
   headerToolbarSettings: {
@@ -145,15 +146,18 @@ export function exportData(bookmarksData?: BookmarksData) {
   URL.revokeObjectURL(url)
 }
 
-export function clearAll() {
+export function clearAllBookmarks(noConfirm = false) {
   checkBookmarksDataReady()
 
-  // eslint-disable-next-line no-alert
-  if (confirm('请确认是否清空所有书签？此操作不可逆，建议先导出备份数据。')) {
+  if (
+    noConfirm ||
+    // eslint-disable-next-line no-alert
+    confirm('请确认是否清空所有书签？此操作不可逆，建议先导出备份数据。')
+  ) {
     const bookmarksRaw = get(bookmarks)
     bookmarksRaw.data = {}
     bookmarks.set(bookmarksRaw)
-    const event = new CustomEvent('clearAll')
+    const event = new CustomEvent('clearAllBookmarks')
     globalThis.dispatchEvent(event)
   }
 }
