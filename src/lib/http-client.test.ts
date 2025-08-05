@@ -453,6 +453,8 @@ describe('HttpClient', () => {
     delete (globalThis as any).GM
     delete (globalThis as any).XMLHttpRequest
     delete (globalThis as any).fetch
+    // Clear cache before each test
+    EnvironmentDetector.clearMessageProxyCache()
   })
 
   it('should use UserscriptHttpClient in userscript environment', async () => {
@@ -541,6 +543,212 @@ describe('HttpClient', () => {
     expect(mockGM.xmlHttpRequest).toHaveBeenCalled()
     expect(response.ok).toBe(true)
   })
+
+  it('should use message proxy when available', async () => {
+    // Mock message proxy availability
+    const mockMessageProxyClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: vi.fn().mockResolvedValue('{"proxy": true}'),
+        json: vi.fn().mockResolvedValue({ proxy: true }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      }),
+    }
+
+    // Mock the dynamic import
+    vi.doMock('./message-proxy-http-client.js', () => ({
+      messageProxyHttpClient: mockMessageProxyClient,
+    }))
+
+    // Mock EnvironmentDetector.isMessageProxyAvailable to return true
+    const originalIsMessageProxyAvailable =
+      EnvironmentDetector.isMessageProxyAvailable
+    EnvironmentDetector.isMessageProxyAvailable = vi
+      .fn()
+      .mockResolvedValue(true)
+
+    const options: HttpRequestOptions = {
+      method: 'GET',
+      url: 'https://api.example.com/data',
+      headers: { Authorization: 'Bearer token' },
+    }
+
+    const response = await HttpClient.request(options)
+
+    // Should use message proxy client
+    expect(mockMessageProxyClient.request).toHaveBeenCalledWith(options)
+    expect(response.ok).toBe(true)
+    expect(response.status).toBe(200)
+
+    // Restore original method
+    EnvironmentDetector.isMessageProxyAvailable =
+      originalIsMessageProxyAvailable
+    vi.doUnmock('./message-proxy-http-client.js')
+  })
+
+  it('should fallback to direct request when message proxy fails', async () => {
+    // Mock EnvironmentDetector.isMessageProxyAvailable to throw error
+    const originalIsMessageProxyAvailable =
+      EnvironmentDetector.isMessageProxyAvailable
+    EnvironmentDetector.isMessageProxyAvailable = vi
+      .fn()
+      .mockRejectedValue(new Error('Message proxy not available'))
+
+    // Set up browser environment as fallback
+    const mockXHR = new MockXMLHttpRequest()
+    ;(globalThis as any).XMLHttpRequest = vi.fn(() => mockXHR)
+    mockXHR.setResponse(200, 'OK', '{"fallback": true}')
+
+    const options: HttpRequestOptions = {
+      method: 'GET',
+      url: 'https://api.example.com/data',
+    }
+
+    const response = await HttpClient.request(options)
+
+    // Should fallback to browser client
+    expect(response.ok).toBe(true)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('{"fallback": true}')
+
+    // Restore original method
+    EnvironmentDetector.isMessageProxyAvailable =
+      originalIsMessageProxyAvailable
+  })
+
+  it('should fallback to direct request when message proxy is not available', async () => {
+    // Mock EnvironmentDetector.isMessageProxyAvailable to return false
+    const originalIsMessageProxyAvailable =
+      EnvironmentDetector.isMessageProxyAvailable
+    EnvironmentDetector.isMessageProxyAvailable = vi
+      .fn()
+      .mockResolvedValue(false)
+
+    // Set up userscript environment as fallback
+    ;(globalThis as any).GM = mockGM
+    const mockResponse = {
+      status: 200,
+      statusText: 'OK',
+      responseText: '{"direct": true}',
+      responseHeaders: 'content-type: application/json',
+    }
+
+    mockGM.xmlHttpRequest.mockImplementation((options: any) => {
+      setTimeout(() => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        options.onload(mockResponse)
+      }, 0)
+    })
+
+    const options: HttpRequestOptions = {
+      method: 'GET',
+      url: 'https://api.example.com/data',
+    }
+
+    const response = await HttpClient.request(options)
+
+    // Should use direct userscript client
+    expect(mockGM.xmlHttpRequest).toHaveBeenCalled()
+    expect(response.ok).toBe(true)
+    expect(response.status).toBe(200)
+
+    // Restore original method
+    EnvironmentDetector.isMessageProxyAvailable =
+      originalIsMessageProxyAvailable
+  })
+
+  it('should cache message proxy availability check', async () => {
+    const mockIsAvailable = vi.fn().mockResolvedValue(true)
+    const mockMessageProxyClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers(),
+        text: vi.fn().mockResolvedValue('cached response'),
+        json: vi.fn().mockResolvedValue({ cached: true }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      }),
+    }
+
+    // Mock the dynamic import to return our mock
+    vi.doMock('./message-proxy-http-client.js', () => ({
+      MessageProxyEnvironmentDetector: {
+        isMessageProxyAvailable: mockIsAvailable,
+      },
+      messageProxyHttpClient: mockMessageProxyClient,
+    }))
+
+    // Clear cache to ensure clean state
+    EnvironmentDetector.clearMessageProxyCache()
+
+    // First request should call isMessageProxyAvailable
+    await HttpClient.request({
+      method: 'GET',
+      url: 'https://example.com/first',
+    })
+    expect(mockIsAvailable).toHaveBeenCalledTimes(1)
+
+    // Second request should use cached result
+    await HttpClient.request({
+      method: 'GET',
+      url: 'https://example.com/second',
+    })
+    expect(mockIsAvailable).toHaveBeenCalledTimes(1) // Still only called once
+
+    // Both requests should use message proxy
+    expect(mockMessageProxyClient.request).toHaveBeenCalledTimes(2)
+
+    vi.doUnmock('./message-proxy-http-client.js')
+  })
+
+  it('should clear cache when clearMessageProxyCache is called', async () => {
+    const mockIsAvailable = vi.fn().mockResolvedValue(true)
+    const mockMessageProxyClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers(),
+        text: vi.fn().mockResolvedValue('response'),
+        json: vi.fn().mockResolvedValue({}),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      }),
+    }
+
+    // Mock the dynamic import
+    vi.doMock('./message-proxy-http-client.js', () => ({
+      MessageProxyEnvironmentDetector: {
+        isMessageProxyAvailable: mockIsAvailable,
+      },
+      messageProxyHttpClient: mockMessageProxyClient,
+    }))
+
+    // Clear cache to ensure clean state
+    EnvironmentDetector.clearMessageProxyCache()
+
+    // First request
+    await HttpClient.request({
+      method: 'GET',
+      url: 'https://example.com/first',
+    })
+    expect(mockIsAvailable).toHaveBeenCalledTimes(1)
+
+    // Clear cache
+    EnvironmentDetector.clearMessageProxyCache()
+
+    // Second request should call isMessageProxyAvailable again
+    await HttpClient.request({
+      method: 'GET',
+      url: 'https://example.com/second',
+    })
+    expect(mockIsAvailable).toHaveBeenCalledTimes(2)
+
+    vi.doUnmock('./message-proxy-http-client.js')
+  })
 })
 
 describe('HttpResponse interface compatibility', () => {
@@ -588,6 +796,23 @@ describe('HttpResponse interface compatibility', () => {
           return FetchHttpClient
         },
       },
+      {
+        name: 'MessageProxyHttpClient',
+        setup() {
+          const mockMessageProxyClient = {
+            request: vi.fn().mockResolvedValue({
+              ok: true,
+              status: 200,
+              statusText: 'OK',
+              headers: new Headers({ 'content-type': 'application/json' }),
+              text: vi.fn().mockResolvedValue('{"test": true}'),
+              json: vi.fn().mockResolvedValue({ test: true }),
+              arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+            }),
+          }
+          return mockMessageProxyClient
+        },
+      },
     ]
 
     for (const testCase of testCases) {
@@ -615,9 +840,11 @@ describe('HttpResponse interface compatibility', () => {
       expect(typeof response.arrayBuffer).toBe('function')
 
       // Test method returns
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop, @typescript-eslint/no-unsafe-call
       expect(typeof (await response.text())).toBe('string')
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop, @typescript-eslint/no-unsafe-call
+      expect(await response.text()).toEqual('{"test": true}')
+      // eslint-disable-next-line no-await-in-loop, @typescript-eslint/no-unsafe-call
       expect(await response.arrayBuffer()).toBeInstanceOf(ArrayBuffer)
     }
   })

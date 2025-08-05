@@ -233,6 +233,9 @@ export type MessageType =
   | 'GET_REMOTE_METADATA'
   | 'DOWNLOAD_DATA'
   | 'UPLOAD_DATA'
+  | 'HTTP_REQUEST'
+  | 'HTTP_RESPONSE'
+  | 'HTTP_ERROR'
 
 /**
  * Generic message structure for communication with the browser extension.
@@ -268,6 +271,30 @@ export type DataDownloadResponseMessage = Message<{
 }>
 export type MetadataRequestMessage = Message<void>
 export type MetadataResponseMessage = Message<SyncMetadata | undefined>
+
+/**
+ * HTTP request/response message types for cross-origin communication
+ */
+export type HttpRequestMessage = Message<{
+  method: string
+  url: string
+  headers?: Record<string, string>
+  body?: string
+  timeout?: number
+}>
+
+export type HttpResponseMessage = Message<{
+  ok: boolean
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  body: string
+}>
+
+export type HttpErrorMessage = Message<{
+  error: string
+  details?: any
+}>
 
 /**
  * Interface for a synchronization adapter.

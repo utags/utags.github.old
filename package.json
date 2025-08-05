@@ -1,6 +1,6 @@
 {
   "name": "utags-app",
-  "version": "0.17.0-25080201",
+  "version": "0.17.1-25080501",
   "author": "Pipecraft",
   "namespace": "https://utags.pipecraft.net/",
   "license": "MIT",
@@ -80,9 +80,12 @@
     ],
     "globals": [
       "document",
+      "chrome",
+      "GM",
       "GM_setValue",
       "GM_getValue",
       "GM_deleteValue",
+      "GM_xmlhttpRequest",
       "GM_log"
     ],
     "rules": {
@@ -129,10 +132,11 @@
       },
       {
         "files": [
-          "mock-userscript/utags-sync-target.user.js"
+          "**/*.user.js"
         ],
         "rules": {
           "unicorn/prefer-module": 0,
+          "camelcase": 0,
           "new-cap": 0
         }
       },

@@ -56,6 +56,12 @@ export type HttpResponse = {
  */
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export const EnvironmentDetector = {
+  // Cache for message proxy availability check
+  _messageProxyCache: undefined as boolean | undefined,
+  _messageProxyCacheTimestamp: 0,
+  // Cache validity duration in milliseconds (5 minutes)
+  _cacheValidityDuration: 5 * 60 * 1000,
+
   /**
    * Detect if running in userscript environment
    */
@@ -83,6 +89,56 @@ export const EnvironmentDetector = {
       typeof globalThis !== 'undefined' && typeof XMLHttpRequest !== 'undefined'
     )
   },
+
+  /**
+   * Check if message proxy is available for cross-origin requests
+   * Uses caching to avoid repeated PING/PONG tests
+   */
+  async isMessageProxyAvailable(): Promise<boolean> {
+    const now = Date.now()
+
+    // Return cached result if still valid
+    if (
+      this._messageProxyCache !== undefined &&
+      now - this._messageProxyCacheTimestamp < this._cacheValidityDuration
+    ) {
+      console.log(
+        'is messageProxyHttpClient available (2)',
+        this._messageProxyCache
+      )
+      return this._messageProxyCache
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const { MessageProxyEnvironmentDetector } = await import(
+        './message-proxy-http-client.js'
+      )
+      const isAvailable =
+        await MessageProxyEnvironmentDetector.isMessageProxyAvailable()
+
+      // Cache the result
+      this._messageProxyCache = isAvailable
+      this._messageProxyCacheTimestamp = now
+
+      console.log('is messageProxyHttpClient available (1)', isAvailable)
+      return isAvailable
+    } catch {
+      // Cache negative result on error
+      this._messageProxyCache = false
+      this._messageProxyCacheTimestamp = now
+      return false
+    }
+  },
+
+  /**
+   * Clear the message proxy availability cache
+   * Useful for testing or when proxy status might have changed
+   */
+  clearMessageProxyCache(): void {
+    this._messageProxyCache = undefined
+    this._messageProxyCacheTimestamp = 0
+  },
 }
 
 /**
@@ -92,8 +148,25 @@ export const EnvironmentDetector = {
 export const HttpClient = {
   /**
    * Make HTTP request with automatic environment detection
+   * Prioritizes message proxy for cross-origin requests
    */
   async request(options: HttpRequestOptions): Promise<HttpResponse> {
+    // First, try message proxy for cross-origin requests
+    try {
+      if (await EnvironmentDetector.isMessageProxyAvailable()) {
+        const { messageProxyHttpClient } = await import(
+          './message-proxy-http-client.js'
+        )
+        return await messageProxyHttpClient.request(options)
+      }
+    } catch (error) {
+      console.warn(
+        'Message proxy not available, falling back to direct request:',
+        error
+      )
+    }
+
+    // Fallback to direct requests based on environment
     if (EnvironmentDetector.isUserscriptEnvironment()) {
       return UserscriptHttpClient.request(options)
     }
