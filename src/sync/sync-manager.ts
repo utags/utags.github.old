@@ -5,7 +5,10 @@ import {
   type BookmarksStore,
 } from '../types/bookmarks.js'
 import { CURRENT_DATABASE_VERSION, DEFAULT_DATE } from '../config/constants.js'
-import { prettyPrintJson } from '../utils/pretty-print-json.js'
+import {
+  prettyPrintJson,
+  prettyPrintJsonSafe,
+} from '../utils/pretty-print-json.js'
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
 import { calculateBookmarkStatsFromData } from '../utils/bookmark-stats.js'
@@ -51,7 +54,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     this.unsubscriber = syncConfigStore.subscribe((newSettings) => {
       console.log(
         '[SyncManager] Settings updated:',
-        prettyPrintJson(newSettings)
+        prettyPrintJsonSafe(newSettings)
       )
       // This will be called whenever the settings change and the sync manager is subscribed to it
       this.currentSettings = newSettings

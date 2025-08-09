@@ -1,5 +1,8 @@
 import { appConfig } from '../config/app-config.js'
-import { prettyPrintJson } from '../utils/pretty-print-json.js'
+import {
+  prettyPrintJson,
+  prettyPrintJsonSafe,
+} from '../utils/pretty-print-json.js'
 import type {
   AuthStatus,
   GithubCredentials,

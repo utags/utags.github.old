@@ -314,24 +314,24 @@
           </div>
         </div>
 
-        <!-- 新增数据管理分组 -->
         <div class="setting-group gap-y-6">
-          <div class="setting-group gap-y-6">
-            <h3
-              class="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
-              Sync Settings
-            </h3>
-            <div class="gap-y-4">
-              <div class="flex items-center justify-between px-1 py-1.5">
-                <button
-                  class="flex items-center gap-3 text-gray-700 hover:text-blue-600 dark:text-gray-300"
-                  onclick={() => (showSyncSettings = true)}>
-                  <span>⚙️ Configure Sync Services</span>
-                </button>
-              </div>
+          <h3
+            class="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Sync Settings
+          </h3>
+          <div class="gap-y-4">
+            <div class="flex items-center justify-between px-1 py-1.5">
+              <button
+                class="flex items-center gap-3 text-gray-700 hover:text-blue-600 dark:text-gray-300"
+                onclick={() => (showSyncSettings = true)}>
+                <span>⚙️ Configure Sync Services</span>
+              </button>
             </div>
           </div>
+        </div>
 
+        <!-- 新增数据管理分组 -->
+        <div class="setting-group gap-y-6">
           <h3
             class="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
             {m.SETTINGS_SIDEBAR_DATA_MANAGEMENT_TITLE()}

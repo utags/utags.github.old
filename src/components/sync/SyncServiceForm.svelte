@@ -7,6 +7,7 @@
   } from '../../stores/sync-config-store.js'
 
   import InputField from '../ui/InputField.svelte'
+  import DatePicker from '../ui/DatePicker.svelte'
   import Switch from '../Switch.svelte'
   import type { SyncServiceConfig } from '../../sync/types.js'
   import type { MergeStrategy } from '../../lib/bookmark-merge-utils.js'
@@ -31,8 +32,8 @@
     enabled: true,
     autoSyncEnabled: true,
     autoSyncOnChanges: true,
-    autoSyncInterval: 60,
-    autoSyncDelayOnChanges: 5,
+    autoSyncInterval: 15,
+    autoSyncDelayOnChanges: 1,
     scope: 'all',
     credentials: {
       username: '',
@@ -83,12 +84,152 @@
     }
   })
 
+  // Validation error state
+  let validationErrors = $state<string[]>([])
+
+  /**
+   * Validates the form configuration before submission
+   * @returns Array of validation error messages
+   */
+  function validateForm(): string[] {
+    const errors: string[] = []
+
+    // Validate service name (required)
+    if (!config.name || config.name.trim().length === 0) {
+      errors.push('Service name is required')
+    } else if (config.name.trim().length > 100) {
+      errors.push('Service name must be less than 100 characters')
+    }
+
+    // Validate auto sync interval (must be positive number)
+    if (config.autoSyncInterval !== undefined) {
+      if (config.autoSyncInterval <= 0) {
+        errors.push('Auto sync interval must be greater than 0 minutes')
+      } else if (config.autoSyncInterval > 1440) {
+        errors.push(
+          'Auto sync interval must be less than 1440 minutes (24 hours)'
+        )
+      }
+    }
+
+    // Validate auto sync delay (must be positive number)
+    if (config.autoSyncDelayOnChanges !== undefined) {
+      if (config.autoSyncDelayOnChanges <= 0) {
+        errors.push('Auto sync delay must be greater than 0 minutes')
+      } else if (config.autoSyncDelayOnChanges > 60) {
+        errors.push('Auto sync delay must be less than 60 minutes')
+      }
+    }
+
+    // Validate merge strategy default date format (if provided)
+    if (config.mergeStrategy.defaultDate) {
+      const dateStr =
+        typeof config.mergeStrategy.defaultDate === 'string'
+          ? config.mergeStrategy.defaultDate.trim()
+          : String(config.mergeStrategy.defaultDate)
+
+      if (dateStr) {
+        const dateValue = new Date(dateStr)
+        if (isNaN(dateValue.getTime())) {
+          errors.push('Default date must be a valid date')
+        } else if (dateValue > new Date()) {
+          errors.push('Default date cannot be in the future')
+        }
+      }
+    }
+
+    // Type-specific validation
+    switch (config.type) {
+      case 'github':
+        if (
+          !config.credentials.token ||
+          config.credentials.token.trim().length === 0
+        ) {
+          errors.push('GitHub token is required')
+        }
+        if (!config.target.repo || config.target.repo.trim().length === 0) {
+          errors.push('Repository name is required')
+        } else if (!/^[\w.-]+\/[\w.-]+$/.test(config.target.repo.trim())) {
+          errors.push('Repository name must be in format "owner/repo"')
+        }
+        // Path and branch are optional for GitHub, no validation needed
+        break
+
+      case 'webdav':
+        if (
+          !config.credentials.username ||
+          config.credentials.username.trim().length === 0
+        ) {
+          errors.push('WebDAV username is required')
+        }
+        if (
+          !config.credentials.password ||
+          config.credentials.password.trim().length === 0
+        ) {
+          errors.push('WebDAV password is required')
+        }
+        if (!config.target.url || config.target.url.trim().length === 0) {
+          errors.push('WebDAV URL is required')
+        } else {
+          try {
+            const url = new URL(config.target.url.trim())
+            if (!['http:', 'https:'].includes(url.protocol)) {
+              errors.push('WebDAV URL must use HTTP or HTTPS protocol')
+            }
+          } catch {
+            errors.push('WebDAV URL must be a valid URL')
+          }
+        }
+        // Path is optional for WebDAV, no validation needed
+        break
+
+      case 'customApi':
+        if (!config.credentials.token && !config.credentials.apiKey) {
+          errors.push('Either token or API key is required for custom API')
+        }
+        if (!config.target.url || config.target.url.trim().length === 0) {
+          errors.push('API base URL is required')
+        } else {
+          try {
+            const url = new URL(config.target.url.trim())
+            if (!['http:', 'https:'].includes(url.protocol)) {
+              errors.push('API URL must use HTTP or HTTPS protocol')
+            }
+          } catch {
+            errors.push('API URL must be a valid URL')
+          }
+        }
+        // Path is optional for Custom API, no validation needed
+        break
+
+      case 'browserExtension':
+        // Browser extension doesn't require additional validation
+        break
+
+      default:
+        errors.push('Invalid service type selected')
+        break
+    }
+
+    return errors
+  }
+
   function handleSubmit() {
+    // Clear previous validation errors
+    validationErrors = []
+
+    // Validate form
+    const errors = validateForm()
+    if (errors.length > 0) {
+      validationErrors = errors
+      return
+    }
+
     let serviceToSave: SyncServiceConfig
 
     const baseConfig = {
       id: config.id,
-      name: config.name,
+      name: config.name.trim(),
       type: config.type,
       enabled: config.enabled,
       autoSyncEnabled: config.autoSyncEnabled,
@@ -96,7 +237,13 @@
       autoSyncInterval: config.autoSyncInterval,
       autoSyncDelayOnChanges: config.autoSyncDelayOnChanges,
       scope: config.scope,
-      mergeStrategy: config.mergeStrategy,
+      mergeStrategy: {
+        ...config.mergeStrategy,
+        defaultDate:
+          typeof config.mergeStrategy.defaultDate === 'string'
+            ? config.mergeStrategy.defaultDate.trim() || ''
+            : String(config.mergeStrategy.defaultDate || ''),
+      },
     }
 
     switch (config.type) {
@@ -105,12 +252,12 @@
           ...baseConfig,
           type: 'github',
           credentials: {
-            token: config.credentials.token,
+            token: config.credentials.token?.trim() || '',
           },
           target: {
-            repo: config.target.repo,
-            path: config.target.path,
-            branch: config.target.branch,
+            repo: config.target.repo?.trim() || '',
+            path: config.target.path?.trim() || '',
+            branch: config.target.branch?.trim() || '',
           },
         }
         break
@@ -119,12 +266,12 @@
           ...baseConfig,
           type: 'webdav',
           credentials: {
-            username: config.credentials.username,
-            password: config.credentials.password,
+            username: config.credentials.username?.trim() || '',
+            password: config.credentials.password?.trim() || '',
           },
           target: {
-            url: config.target.url,
-            path: config.target.path,
+            url: config.target.url?.trim() || '',
+            path: config.target.path?.trim() || '',
           },
         }
         break
@@ -133,13 +280,13 @@
           ...baseConfig,
           type: 'customApi',
           credentials: {
-            token: config.credentials.token,
-            apiKey: config.credentials.apiKey,
+            token: config.credentials.token?.trim() || '',
+            apiKey: config.credentials.apiKey?.trim() || '',
           },
           target: {
-            url: config.target.url,
-            path: config.target.path,
-            authTestEndpoint: config.target.authTestEndpoint,
+            url: config.target.url?.trim() || '',
+            path: config.target.path?.trim() || '',
+            authTestEndpoint: config.target.authTestEndpoint?.trim() || '',
           },
         }
         break
@@ -171,6 +318,15 @@
     showForm = false
   }
 
+  /**
+   * Clears validation errors when user starts editing
+   */
+  function clearValidationErrors() {
+    if (validationErrors.length > 0) {
+      validationErrors = []
+    }
+  }
+
   function onInputEnter() {
     handleSubmit()
   }
@@ -182,6 +338,25 @@
   onConfirm={handleSubmit}
   {onInputEnter}>
   <div class="space-y-4 p-1">
+    <!-- Validation Errors Display -->
+    {#if validationErrors.length > 0}
+      <div class="rounded-md bg-red-50 p-4 dark:bg-red-900/20">
+        <div class="flex">
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Please fix the following errors:
+            </h3>
+            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+              <ul class="list-disc space-y-1 pl-5">
+                {#each validationErrors as error}
+                  <li>{error}</li>
+                {/each}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
     <div
       class="flex items-center justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
       <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -189,7 +364,10 @@
       <Switch bind:checked={config.enabled} />
     </div>
 
-    <InputField bind:value={config.name} placeholder="My Sync Service">
+    <InputField
+      bind:value={config.name}
+      placeholder="My Sync Service"
+      onInput={clearValidationErrors}>
       Service Name:
     </InputField>
 
@@ -220,43 +398,55 @@
       {#if config.type === 'webdav'}
         <InputField
           bind:value={config.target.url}
-          placeholder="https://example.com/dav">
+          placeholder="https://example.com/dav"
+          onInput={clearValidationErrors}>
           WebDAV URL:
         </InputField>
         <InputField
           bind:value={config.target.path}
-          placeholder="utags/bookmarks.json">
+          placeholder="utags/bookmarks.json"
+          onInput={clearValidationErrors}>
           Path:
         </InputField>
         <InputField
           bind:value={config.credentials.username}
-          placeholder="Username">
+          placeholder="Username"
+          onInput={clearValidationErrors}>
           Username:
         </InputField>
         <InputField
           type="password"
           bind:value={config.credentials.password}
-          placeholder="Password">
+          placeholder="Password"
+          onInput={clearValidationErrors}>
           Password:
         </InputField>
       {/if}
 
       {#if config.type === 'github'}
-        <InputField bind:value={config.target.repo} placeholder="owner/repo">
+        <InputField
+          bind:value={config.target.repo}
+          placeholder="owner/repo"
+          onInput={clearValidationErrors}>
           Repository Name:
         </InputField>
         <InputField
           bind:value={config.target.path}
-          placeholder="utags/bookmarks.json">
+          placeholder="utags/bookmarks.json"
+          onInput={clearValidationErrors}>
           File Path:
         </InputField>
-        <InputField bind:value={config.target.branch} placeholder="main">
+        <InputField
+          bind:value={config.target.branch}
+          placeholder="main"
+          onInput={clearValidationErrors}>
           Branch:
         </InputField>
         <InputField
           type="password"
           bind:value={config.credentials.token}
-          placeholder="GitHub Personal Access Token">
+          placeholder="GitHub Personal Access Token"
+          onInput={clearValidationErrors}>
           Token:
         </InputField>
       {/if}
@@ -264,29 +454,34 @@
       {#if config.type === 'customApi'}
         <InputField
           bind:value={config.target.url}
-          placeholder="https://api.example.com/v1">
+          placeholder="https://api.example.com/v1"
+          onInput={clearValidationErrors}>
           API Base URL:
         </InputField>
         <InputField
           bind:value={config.target.path}
-          placeholder="utags-bookmarks.json">
+          placeholder="utags-bookmarks.json"
+          onInput={clearValidationErrors}>
           Path:
         </InputField>
         <InputField
           bind:value={config.target.authTestEndpoint}
-          placeholder="auth/status">
+          placeholder="auth/status"
+          onInput={clearValidationErrors}>
           Auth Test Endpoint:
         </InputField>
         <InputField
           type="password"
           bind:value={config.credentials.token}
-          placeholder="Bearer Token">
+          placeholder="Bearer Token"
+          onInput={clearValidationErrors}>
           Token:
         </InputField>
         <InputField
           type="password"
           bind:value={config.credentials.apiKey}
-          placeholder="API Key">
+          placeholder="API Key"
+          onInput={clearValidationErrors}>
           API Key:
         </InputField>
       {/if}
@@ -301,7 +496,10 @@
         <Switch bind:checked={config.autoSyncEnabled} />
       </div>
 
-      <InputField type="number" bind:value={config.autoSyncInterval}>
+      <InputField
+        type="number"
+        bind:value={config.autoSyncInterval}
+        onInput={clearValidationErrors}>
         Auto-sync Interval (minutes):
       </InputField>
 
@@ -310,7 +508,10 @@
           >Auto-sync on changes</span>
         <Switch bind:checked={config.autoSyncOnChanges} />
       </div>
-      <InputField type="number" bind:value={config.autoSyncDelayOnChanges}>
+      <InputField
+        type="number"
+        bind:value={config.autoSyncDelayOnChanges}
+        onInput={clearValidationErrors}>
         Auto-sync Delay on Changes (minutes):
       </InputField>
     </div>
@@ -347,9 +548,11 @@
           {/each}
         </select>
       </div>
-      <InputField bind:value={config.mergeStrategy.defaultDate}>
+      <DatePicker
+        bind:value={config.mergeStrategy.defaultDate}
+        onInput={clearValidationErrors}>
         Default Date for Invalid Timestamps:
-      </InputField>
+      </DatePicker>
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
           >Prefer Oldest Created Timestamp</span>

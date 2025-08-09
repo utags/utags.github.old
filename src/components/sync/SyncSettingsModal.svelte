@@ -22,6 +22,7 @@
   let editingService = $state<SyncServiceConfig | null>(null)
   let showConfirmModal = $state(false)
   let serviceToDelete = $state<string | null>(null)
+  let syncingServices = $state<Set<string>>(new Set())
 
   const syncManager = new SyncManager()
 
@@ -48,8 +49,68 @@
     serviceToDelete = null
   }
 
-  function handleSyncNow(serviceId: string) {
-    syncManager.synchronize(serviceId)
+  async function handleSyncNow(serviceId: string) {
+    syncingServices.add(serviceId)
+    syncingServices = new Set(syncingServices) // Trigger reactivity
+    try {
+      await syncManager.synchronize(serviceId)
+    } finally {
+      syncingServices.delete(serviceId)
+      syncingServices = new Set(syncingServices) // Trigger reactivity
+    }
+  }
+
+  /**
+   * Format timestamp to readable date string
+   * @param timestamp - Unix timestamp in milliseconds
+   * @param serviceType - Type of sync service for precision control
+   * @returns Formatted date string or appropriate message
+   */
+  function formatLastSyncTime(
+    timestamp?: number,
+    serviceType?: string
+  ): string {
+    if (!timestamp) {
+      return 'Never synced'
+    }
+
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSeconds = Math.floor(diffMs / 1000)
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    // For browserExtension, show seconds precision due to 1-minute sync cycle
+    if (serviceType === 'browserExtension') {
+      if (diffSeconds < 10) {
+        return 'Just now'
+      } else if (diffSeconds < 60) {
+        return `${diffSeconds} second${diffSeconds === 1 ? '' : 's'} ago`
+      } else if (diffMinutes < 60) {
+        return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+      } else if (diffHours < 24) {
+        return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+      } else if (diffDays < 7) {
+        return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+      } else {
+        return date.toLocaleDateString()
+      }
+    }
+
+    // For other service types, use minute precision
+    if (diffMinutes < 1) {
+      return 'Just now'
+    } else if (diffMinutes < 60) {
+      return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+    } else if (diffDays < 7) {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+    } else {
+      return date.toLocaleDateString()
+    }
   }
 
   function handleSetAsActive(serviceId: string) {
@@ -57,7 +118,11 @@
   }
 </script>
 
-<Modal bind:isOpen={showSyncSettings} showConfirm={false} title="Sync Settings">
+<Modal
+  bind:isOpen={showSyncSettings}
+  showConfirm={false}
+  cancelText="Close"
+  title="Sync Settings">
   <div class="flex flex-col gap-6 p-2">
     <div class="flex justify-end gap-3">
       <button
@@ -77,17 +142,21 @@
     <ul class="space-y-3">
       {#each $syncConfigStore.syncServices as service (service.id)}
         <li
-          class="group flex items-center justify-between rounded-xl border border-blue-400 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500">
+          class="group rounded-xl border border-blue-400 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500">
           <div class="flex items-center gap-4">
             <div
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
               {#if $syncConfigStore.activeSyncServiceId === service.id && false}
                 <CheckCircle class="text-green-500" size={22} />
               {:else}
-                <RefreshCw size={20} />
+                <RefreshCw
+                  size={20}
+                  class={syncingServices.has(service.id)
+                    ? 'animate-spin'
+                    : ''} />
               {/if}
             </div>
-            <div>
+            <div class="flex-1">
               <p class="font-semibold text-gray-900 dark:text-gray-50">
                 {service.name}
               </p>
@@ -102,10 +171,16 @@
                   class:dark:text-red-400={!service.enabled}
                   >{service.enabled ? 'Enabled' : 'Disabled'}</span>
               </div>
+              <div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                Last sync: {formatLastSyncTime(
+                  service.lastSyncTimestamp,
+                  service.type
+                )}
+              </div>
             </div>
           </div>
           <div
-            class="flex items-center gap-1 transition-opacity group-hover:opacity-100 md:opacity-0">
+            class="mt-3 flex items-center justify-end gap-1 border-t border-gray-200 pt-3 transition-opacity group-hover:opacity-100 md:opacity-0 dark:border-gray-600">
             <button
               class="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
               onclick={() => handleEdit(service)}
@@ -121,8 +196,11 @@
             <button
               class="rounded-full p-2 text-blue-500 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/50"
               onclick={() => handleSyncNow(service.id)}
-              title="Sync Now">
-              <RefreshCw size={16} />
+              title="Sync Now"
+              disabled={syncingServices.has(service.id)}>
+              <RefreshCw
+                size={16}
+                class={syncingServices.has(service.id) ? 'animate-spin' : ''} />
             </button>
             {#if $syncConfigStore.activeSyncServiceId !== service.id && false}
               <button

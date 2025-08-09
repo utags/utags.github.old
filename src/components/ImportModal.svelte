@@ -6,6 +6,7 @@
     removeEventListener,
   } from 'browser-extension-utils'
   import Modal from './Modal.svelte'
+  import DatePicker from './ui/DatePicker.svelte'
   import { type BookmarksData } from '../types/bookmarks.js'
   import { validateBookmarksFile } from '../lib/bookmark-import-utils'
   import {
@@ -392,13 +393,13 @@
             <p class="mt-1">
               创建日期影响书签排序和合并结果，请尽可能填写较早的日期
             </p>
-            <div class="mt-2 flex items-center">
-              <label class="mr-2">默认创建日期:</label>
-              <input
-                type="date"
-                class="rounded border px-2 py-1"
+            <div class="mt-2">
+              <DatePicker
+                bind:value={mergeStrategy.defaultDate}
                 max={new Date().toISOString().split('T')[0]}
-                bind:value={mergeStrategy.defaultDate} />
+                classNames="rounded border px-2 py-1">
+                默认创建日期:
+              </DatePicker>
             </div>
           </div>
         {/if}
