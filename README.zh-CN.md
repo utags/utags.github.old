@@ -128,6 +128,55 @@ npm run dev
 
 在 `http://localhost:5173` 访问应用
 
+### 生产环境部署
+
+#### 方法 1：从源码构建部署
+
+```bash
+# 克隆仓库
+git clone https://github.com/utags/utags-bookmarks.git
+cd utags-bookmarks
+
+# 安装依赖
+npm install
+
+# 构建生产版本
+npm run build
+
+# 选项1：将 dist 文件夹部署到你的 Web 服务器
+# 构建文件将位于 'dist' 目录中
+
+# 选项2：启动本地预览服务器
+npm run preview
+# 这将在 http://localhost:4173 提供构建文件的服务
+```
+
+#### 方法 2：部署预构建版本
+
+```bash
+# 克隆 gh-pages 分支（包含预构建文件）
+git clone -b gh-pages --single-branch https://github.com/utags/utags-bookmarks.git utags-bookmarks-dist
+cd utags-bookmarks-dist
+
+# 将文件部署到你的 Web 服务器
+# 此目录中的所有文件都已准备好部署
+```
+
+**更新到最新版本：**
+
+```bash
+cd utags-bookmarks-dist
+
+# 获取并重置到最新版本
+# 注意：gh-pages 分支的历史记录会在每次更新时被覆盖
+git fetch origin gh-pages
+git reset --hard origin/gh-pages
+
+# 重新部署更新后的文件到你的 Web 服务器
+```
+
+> **注意**：对于生产环境部署，请确保你的 Web 服务器配置为提供静态文件服务，并处理单页应用的客户端路由。
+
 ## 🤝 贡献
 
 通过以下方式贡献：

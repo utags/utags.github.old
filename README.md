@@ -122,6 +122,55 @@ npm run dev
 
 Access the application at `http://localhost:5173`
 
+### Production Deployment
+
+#### Method 1: Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/utags/utags-bookmarks.git
+cd utags-bookmarks
+
+# Install dependencies
+npm install
+
+# Build for production
+npm run build
+
+# Option 1: Deploy the dist folder to your web server
+# The built files will be in the 'dist' directory
+
+# Option 2: Start a local preview server
+npm run preview
+# This will serve the built files at http://localhost:4173
+```
+
+#### Method 2: Deploy Pre-built Version
+
+```bash
+# Clone the gh-pages branch (contains pre-built files)
+git clone -b gh-pages --single-branch https://github.com/utags/utags-bookmarks.git utags-bookmarks-dist
+cd utags-bookmarks-dist
+
+# Deploy the files to your web server
+# All files in this directory are ready for deployment
+```
+
+**To update to the latest version:**
+
+```bash
+cd utags-bookmarks-dist
+
+# Fetch and reset to the latest version
+# Note: gh-pages branch history is overwritten with each update
+git fetch origin gh-pages
+git reset --hard origin/gh-pages
+
+# Re-deploy the updated files to your web server
+```
+
+> **Note**: For production deployment, ensure your web server is configured to serve static files and handle client-side routing for the single-page application.
+
 ## 🤝 Contributing
 
 Contributions through:
