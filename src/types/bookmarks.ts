@@ -64,6 +64,8 @@ export type BookmarkMetadata = {
   read?: boolean
   /** Optional: A string indicating the source or method by which the bookmark was added (e.g., "import", "manual", "extension"). */
   source?: string
+  /** Optional: Search keywords associated with the bookmark for enhanced searchability. */
+  searchKeyword?: string
 }
 
 /**

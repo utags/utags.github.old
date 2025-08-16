@@ -271,8 +271,15 @@
       }
       $bookmarks.data[url] = newEntry
 
+      // Handle URL change: preserve creation time and remove old entry
       const orgUrl = initialData?.href
       if (orgUrl && orgUrl !== url) {
+        const originalEntry = $bookmarks.data[orgUrl]
+        if (originalEntry?.meta?.created) {
+          // Preserve the original creation timestamp
+          newEntry.meta.created = originalEntry.meta.created
+        }
+        // Remove the old bookmark entry to avoid duplicates
         delete $bookmarks.data[orgUrl]
       }
     }
