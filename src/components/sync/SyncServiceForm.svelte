@@ -308,6 +308,7 @@
       serviceToSave = {
         ...serviceToSave,
         lastSyncTimestamp: service.lastSyncTimestamp,
+        lastDataChangeTimestamp: service.lastDataChangeTimestamp,
         lastSyncLocalDataHash: service.lastSyncLocalDataHash,
         lastSyncMeta: service.lastSyncMeta,
       }

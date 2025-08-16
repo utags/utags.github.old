@@ -375,7 +375,8 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         return false // Error handling done in _mergeData
       }
 
-      const { mergedBookmarks, hasChangesForRemote } = mergeResult
+      const { mergedBookmarks, hasChangesForRemote, hasChangesForLocal } =
+        mergeResult
 
       // Stage 3: Upload Data
       const uploadSuccess = await this._uploadData(
@@ -385,6 +386,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         remoteStoreMeta,
         remoteSyncMeta,
         hasChangesForRemote!,
+        hasChangesForLocal!,
         currentSyncTimestamp
       )
 
@@ -477,8 +479,8 @@ export class SyncManager extends EventEmitter<SyncEvents> {
 
       // Validate data integrity if this is not the first sync
       if (
-        serviceConfig.lastSyncTimestamp &&
-        serviceConfig.lastSyncTimestamp > 0
+        serviceConfig.lastDataChangeTimestamp &&
+        serviceConfig.lastDataChangeTimestamp > 0
       ) {
         const missingData: string[] = []
 
@@ -522,8 +524,8 @@ export class SyncManager extends EventEmitter<SyncEvents> {
 
           // Additional validation for non-first sync: remoteStoreMeta should not be empty
           if (
-            serviceConfig.lastSyncTimestamp &&
-            serviceConfig.lastSyncTimestamp > 0 &&
+            serviceConfig.lastDataChangeTimestamp &&
+            serviceConfig.lastDataChangeTimestamp > 0 &&
             !remoteStoreMeta
           ) {
             const errorMessage = `Data validation failed for ${serviceConfig.name}: Missing remoteStoreMeta. This may indicate communication issues or other anomalies.`
@@ -603,6 +605,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     success: boolean
     mergedBookmarks?: BookmarksData
     hasChangesForRemote?: boolean
+    hasChangesForLocal?: boolean
   }> {
     const mergeStrategy = {
       ...defaultMergeStrategy,
@@ -610,7 +613,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     }
     const syncOption: SyncOption = {
       currentSyncTime: currentSyncTimestamp,
-      lastSyncTime: serviceConfig.lastSyncTimestamp || 0,
+      lastSyncTime: serviceConfig.lastDataChangeTimestamp || 0,
     }
 
     this.updateStatus({ type: 'merging' })
@@ -627,6 +630,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
           success: true,
           mergedBookmarks: localData,
           hasChangesForRemote: Object.keys(localData).length > 0,
+          hasChangesForLocal: false,
         }
       }
 
@@ -685,6 +689,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         success: true,
         mergedBookmarks: finalRemoteData,
         hasChangesForRemote,
+        hasChangesForLocal,
       }
     } catch (error: any) {
       if (error.name === 'MergeConflictError') {
@@ -739,6 +744,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     remoteStoreMeta: BookmarksStore['meta'] | undefined,
     remoteSyncMeta: SyncMetadata | undefined,
     hasChangesForRemote: boolean,
+    hasChangesForLocal: boolean,
     currentSyncTimestamp: number
   ): Promise<boolean> {
     // if remote was empty (first sync) as a reason to upload
@@ -782,6 +788,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         const updatedServiceConfig: SyncServiceConfig = {
           ...serviceConfig,
           lastSyncTimestamp: currentSyncTimestamp,
+          lastDataChangeTimestamp: currentSyncTimestamp,
           lastSyncMeta: newRemoteMeta,
         }
         updateSyncService(updatedServiceConfig)
@@ -839,6 +846,9 @@ export class SyncManager extends EventEmitter<SyncEvents> {
       const updatedServiceConfig: SyncServiceConfig = {
         ...serviceConfig,
         lastSyncTimestamp: currentSyncTimestamp,
+        lastDataChangeTimestamp: hasChangesForLocal
+          ? currentSyncTimestamp
+          : serviceConfig.lastDataChangeTimestamp,
         lastSyncMeta: remoteSyncMeta || serviceConfig.lastSyncMeta,
       }
       updateSyncService(updatedServiceConfig)

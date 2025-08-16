@@ -263,6 +263,7 @@ describe('sync-config-store', () => {
       const configWithMeta = {
         ...githubConfig,
         lastSyncTimestamp: 123_456_789,
+        lastDataChangeTimestamp: 123_456_789,
         lastSyncLocalDataHash: 'hash123',
         lastSyncMeta: {
           timestamp: 123_456_789,
@@ -283,6 +284,7 @@ describe('sync-config-store', () => {
       const store = get(syncConfigStore)
       const updated = store.syncServices[0]
       expect(updated.lastSyncTimestamp).toBeUndefined()
+      expect(updated.lastDataChangeTimestamp).toBeUndefined()
       expect(updated.lastSyncLocalDataHash).toBeUndefined()
       expect(updated.lastSyncMeta).toBeUndefined()
     })
@@ -291,6 +293,7 @@ describe('sync-config-store', () => {
       const configWithMeta = {
         ...githubConfig,
         lastSyncTimestamp: 123_456_789,
+        lastDataChangeTimestamp: 123_456_789,
         lastSyncLocalDataHash: 'hash123',
         lastSyncMeta: {
           timestamp: 123_456_789,
@@ -309,6 +312,7 @@ describe('sync-config-store', () => {
       const store = get(syncConfigStore)
       const updated = store.syncServices[0]
       expect(updated.lastSyncTimestamp).toBe(123_456_789)
+      expect(updated.lastDataChangeTimestamp).toBe(123_456_789)
       expect(updated.lastSyncLocalDataHash).toBe('hash123')
       expect(updated.lastSyncMeta).toEqual(configWithMeta.lastSyncMeta)
     })
@@ -317,6 +321,7 @@ describe('sync-config-store', () => {
       const configWithMeta = {
         ...webdavConfig,
         lastSyncTimestamp: 123_456_789,
+        lastDataChangeTimestamp: 123_456_789,
         lastSyncLocalDataHash: 'hash123',
         lastSyncMeta: {
           timestamp: 123_456_789,
@@ -338,6 +343,7 @@ describe('sync-config-store', () => {
       let store = get(syncConfigStore)
       let updated = store.syncServices[0]
       expect(updated.lastSyncTimestamp).toBeUndefined()
+      expect(updated.lastDataChangeTimestamp).toBeUndefined()
       expect(updated.lastSyncLocalDataHash).toBeUndefined()
       expect(updated.lastSyncMeta).toBeUndefined()
 
@@ -349,6 +355,9 @@ describe('sync-config-store', () => {
       updated = store.syncServices[0]
       expect(updated.lastSyncTimestamp).toEqual(
         configWithMeta.lastSyncTimestamp
+      )
+      expect(updated.lastDataChangeTimestamp).toEqual(
+        configWithMeta.lastDataChangeTimestamp
       )
       expect(updated.lastSyncLocalDataHash).toEqual(
         configWithMeta.lastSyncLocalDataHash
@@ -367,6 +376,7 @@ describe('sync-config-store', () => {
       store = get(syncConfigStore)
       updated = store.syncServices[0]
       expect(updated.lastSyncTimestamp).toBeUndefined()
+      expect(updated.lastDataChangeTimestamp).toBeUndefined()
       expect(updated.lastSyncLocalDataHash).toBeUndefined()
       expect(updated.lastSyncMeta).toBeUndefined()
     })
@@ -1058,6 +1068,7 @@ describe('sync-config-store', () => {
       expect(promotedService.autoSyncOnChanges).toBe(true)
       expect(promotedService.autoSyncDelayOnChanges).toBe(0.2)
       expect(promotedService.lastSyncTimestamp).toBe(0)
+      expect(promotedService.lastDataChangeTimestamp).toBe(0)
 
       // Verify merge strategy defaults
       expect(promotedService.mergeStrategy).toBeDefined()

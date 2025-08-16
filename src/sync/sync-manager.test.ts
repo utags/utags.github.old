@@ -1474,7 +1474,7 @@ describe('SyncManager', () => {
       expect(finalLocalData).toEqual(expectedMergedData)
     })
 
-    it('should handle sync with lastSyncTimestamp set in serviceConfig', async () => {
+    it('should handle sync with lastDataChangeTimestamp set in serviceConfig', async () => {
       // Arrange: Setup local data with timestamps after lastSyncTimestamp
       const lastSyncTimestamp = now - 100_000 // Set a past timestamp for last sync
       const localData: BookmarksData = {
@@ -1531,8 +1531,8 @@ describe('SyncManager', () => {
         tags: 'union', // Combine tags from both sources
         defaultDate: DEFAULT_DATE,
       }
-      // Set lastSyncTimestamp in service config
-      serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
+      // Set lastDataChangeTimestamp in service config
+      serviceConfigWithStrategy.lastDataChangeTimestamp = lastSyncTimestamp
       syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
         activeSyncServiceId: serviceConfigWithStrategy.id,
@@ -1671,7 +1671,7 @@ describe('SyncManager', () => {
       })
     })
 
-    it('should handle sync with lastSyncTimestamp when both local and remote have changes', async () => {
+    it('should handle sync with lastDataChangeTimestamp when both local and remote have changes', async () => {
       // Arrange: Setup initial local data
       const initialLocalData: BookmarksData = {
         'http://example.com/modified-both': {
@@ -1701,11 +1701,11 @@ describe('SyncManager', () => {
       }
       await bookmarkStorage.overwriteBookmarks(initialLocalData)
 
-      // Set lastSyncTimestamp in service config
+      // Set lastDataChangeTimestamp in service config
       const lastSyncTime = now - 45_000
       serviceConfigWithStrategy = {
         ...serviceConfigWithStrategy,
-        lastSyncTimestamp: lastSyncTime,
+        lastDataChangeTimestamp: lastSyncTime,
         mergeStrategy: {
           meta: 'remote',
           tags: 'union',
@@ -1876,7 +1876,7 @@ describe('SyncManager', () => {
       expect(finalLocalData).toEqual(expectedMergedData)
     })
 
-    it('should handle sync with lastSyncTimestamp and newer merge strategy', async () => {
+    it('should handle sync with lastDataChangeTimestamp and newer merge strategy', async () => {
       // Arrange: Setup lastSyncTimestamp
       const lastSyncTimestamp = now - 100_000 // Last sync was 100 seconds ago
 
@@ -1886,7 +1886,7 @@ describe('SyncManager', () => {
         tags: 'newer',
         defaultDate: DEFAULT_DATE,
       }
-      serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
+      serviceConfigWithStrategy.lastDataChangeTimestamp = lastSyncTimestamp
 
       syncConfigStore.set({
         syncServices: [serviceConfigWithStrategy],
@@ -2071,10 +2071,10 @@ describe('SyncManager', () => {
       expect(finalLocalData).toEqual(expectedMergedData)
     })
 
-    it('should handle sync with lastSyncTimestamp, newer strategy, and updates on both local and remote', async () => {
+    it('should handle sync with lastDataChangeTimestamp, newer strategy, and updates on both local and remote', async () => {
       // Arrange
       const lastSyncTimestamp = now - 100_000 // e.g., 100 seconds ago
-      serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
+      serviceConfigWithStrategy.lastDataChangeTimestamp = lastSyncTimestamp
       serviceConfigWithStrategy.mergeStrategy = {
         meta: 'newer',
         tags: 'newer',
@@ -2279,10 +2279,10 @@ describe('SyncManager', () => {
       expect(finalLocalData).toEqual(expectedMergedData)
     })
 
-    it('should handle bookmark deletions and updates with lastSyncTimestamp', async () => {
+    it('should handle bookmark deletions and updates with lastDataChangeTimestamp', async () => {
       // Arrange
       const lastSyncTimestamp = now - 100_000 // e.g., 100 seconds ago
-      serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
+      serviceConfigWithStrategy.lastDataChangeTimestamp = lastSyncTimestamp
       serviceConfigWithStrategy.mergeStrategy = {
         meta: 'newer',
         tags: 'newer',
@@ -2516,10 +2516,10 @@ describe('SyncManager', () => {
       ).toBe('Remote Updated Version')
     })
 
-    it('should handle multiple local/remote deletions and updates with lastSyncTimestamp, meta:merge, tags:remote', async () => {
+    it('should handle multiple local/remote deletions and updates with lastDataChangeTimestamp, meta:merge, tags:remote', async () => {
       // Arrange
       const lastSyncTimestamp = now - 200_000 // e.g., 200 seconds ago
-      serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
+      serviceConfigWithStrategy.lastDataChangeTimestamp = lastSyncTimestamp
       serviceConfigWithStrategy.mergeStrategy = {
         meta: 'merge', // Meta fields are merged, newer wins for conflicts
         tags: 'remote', // Tags from remote always win
@@ -3017,10 +3017,10 @@ describe('SyncManager', () => {
       ).toEqual(['local-updated-tag'])
     })
 
-    it('should handle deleted bookmarks with lastSyncTimestamp, meta:merge, tags:remote', async () => {
+    it('should handle deleted bookmarks with lastDataChangeTimestamp, meta:merge, tags:remote', async () => {
       // Arrange
       const lastSyncTimestamp = now - 100_000 // e.g., 100 seconds ago
-      serviceConfigWithStrategy.lastSyncTimestamp = lastSyncTimestamp
+      serviceConfigWithStrategy.lastDataChangeTimestamp = lastSyncTimestamp
       serviceConfigWithStrategy.mergeStrategy = {
         meta: 'merge',
         tags: 'remote',
@@ -3435,7 +3435,7 @@ describe('SyncManager', () => {
           ...serviceConfigWithStrategy,
           id: 'largeDataService',
           name: 'Large Data Sync Service',
-          lastSyncTimestamp: initialLastSyncTimestamp,
+          lastDataChangeTimestamp: initialLastSyncTimestamp,
           mergeStrategy: newMergeStrategy,
         }
 
@@ -5743,11 +5743,11 @@ describe('SyncManager', () => {
       expect(infoHandler).not.toHaveBeenCalled() // Assuming no specific info messages for a standard successful sync
     })
 
-    it('should fail validation when lastSyncTimestamp > 0 but required data is missing', async () => {
-      // Set up a service config with lastSyncTimestamp > 0 to trigger validation
+    it('should fail validation when lastDataChangeTimestamp > 0 but required data is missing', async () => {
+      // Set up a service config with lastDataChangeTimestamp > 0 to trigger validation
       const configWithLastSync: SyncServiceConfig = {
         ...serviceConfig,
-        lastSyncTimestamp: Date.now() - 1000, // Set to a past timestamp
+        lastDataChangeTimestamp: Date.now() - 1000, // Set to a past timestamp
       }
 
       syncConfigStore.set({
@@ -5810,11 +5810,11 @@ describe('SyncManager', () => {
       expect(syncEndHandler).toHaveBeenCalledTimes(1)
     })
 
-    it('should fail validation when lastSyncTimestamp > 0 but remoteStoreMeta is missing', async () => {
-      // Set up a service config with lastSyncTimestamp > 0
+    it('should fail validation when lastDataChangeTimestamp > 0 but remoteStoreMeta is missing', async () => {
+      // Set up a service config with lastDataChangeTimestamp > 0
       const configWithLastSync: SyncServiceConfig = {
         ...serviceConfig,
-        lastSyncTimestamp: Date.now() - 1000,
+        lastDataChangeTimestamp: Date.now() - 1000,
       }
 
       syncConfigStore.set({

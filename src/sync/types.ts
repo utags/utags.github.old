@@ -32,6 +32,7 @@ export type SyncServiceConfig<
   autoSyncDelayOnChanges?: number // Delay in minutes after data changes to trigger sync, e.g., 1. Requires autoSyncOnChanges to be true.
   scope: 'all' | string // Sync scope: 'all' or a collectionId
   lastSyncTimestamp?: number // Timestamp of the last successful remote data sync
+  lastDataChangeTimestamp?: number // Timestamp of the last synchronization that detected data changes (local or remote)
   lastSyncLocalDataHash?: string // Hash of local data at the time of last successful sync
   lastSyncMeta?: SyncMetadata // Metadata of the last successful sync
   enabled: boolean // Whether this sync configuration is active

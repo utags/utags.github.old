@@ -224,6 +224,7 @@ export function promoteDiscoveredTarget(serviceId: string) {
     autoSyncOnChanges: true,
     autoSyncDelayOnChanges: 0.2, // 12 seconds
     lastSyncTimestamp: 0,
+    lastDataChangeTimestamp: 0,
   }
 
   addSyncService(newService)
@@ -352,6 +353,7 @@ export function updateSyncService(updatedConfig: SyncServiceConfig): void {
           ? {
               ...updatedConfig,
               lastSyncTimestamp: undefined,
+              lastDataChangeTimestamp: undefined,
               lastSyncLocalDataHash: undefined,
               lastSyncMeta: undefined,
             }
