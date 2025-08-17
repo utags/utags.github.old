@@ -94,6 +94,16 @@
    */
   function handleKeydown(event: KeyboardEvent) {
     if (disabled) return
+
+    // Special case: when tags exist and input is empty, don't stop propagation for Enter key
+    // This allows the Enter key to bubble up (e.g., for form submission)
+    if (event.key === 'Enter' && tags.length > 0 && inputValue.trim() === '') {
+      // Don't call event.stopPropagation() in this case
+      event.preventDefault()
+      return
+    }
+
+    // For all other cases, stop propagation as before
     event.stopPropagation()
 
     // Add tag on Enter
