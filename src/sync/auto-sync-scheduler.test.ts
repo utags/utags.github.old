@@ -442,6 +442,96 @@ describe('AutoSyncScheduler', () => {
       expect(addToSyncQueue).not.toHaveBeenCalled()
     })
 
+    it('should not schedule sync when autoSyncInterval is met but recent changes exist within autoSyncDelayOnChanges', async () => {
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'service1',
+            type: 'customApi',
+            enabled: true,
+            autoSyncEnabled: true,
+            autoSyncInterval: 30, // 30 minutes
+            lastSyncTimestamp: Date.now() - 35 * 60 * 1000, // Synced 35 mins ago (interval condition met)
+            autoSyncOnChanges: true,
+            autoSyncDelayOnChanges: 10, // 10 minutes delay on changes
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'service1',
+      })
+
+      // Bookmarks updated 5 minutes ago (within the 10-minute delay period)
+      ;(bookmarkStorage.getBookmarksStore as Mock).mockResolvedValue({
+        meta: { updated: Date.now() - 5 * 60 * 1000 },
+      })
+
+      await triggerCheckAndScheduleViaInterval()
+
+      // Should not schedule immediate sync
+      expect(addToSyncQueue).not.toHaveBeenCalled()
+    })
+
+    it('should schedule immediate sync when autoSyncInterval is met and no recent changes within autoSyncDelayOnChanges', async () => {
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'service1',
+            type: 'customApi',
+            enabled: true,
+            autoSyncEnabled: true,
+            autoSyncInterval: 30, // 30 minutes
+            lastSyncTimestamp: Date.now() - 35 * 60 * 1000, // Synced 35 mins ago (interval condition met)
+            autoSyncOnChanges: true,
+            autoSyncDelayOnChanges: 10, // 10 minutes delay on changes
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'service1',
+      })
+
+      // Bookmarks updated 45 minutes ago (outside the 10-minute delay period)
+      ;(bookmarkStorage.getBookmarksStore as Mock).mockResolvedValue({
+        meta: { updated: Date.now() - 45 * 60 * 1000 },
+      })
+
+      await triggerCheckAndScheduleViaInterval()
+
+      // Should schedule immediate sync
+      expect(addToSyncQueue).toHaveBeenCalledWith(
+        { serviceId: 'service1' },
+        mockSyncManagerInstance
+      )
+    })
+
+    it('should schedule immediate sync when autoSyncInterval is met and autoSyncDelayOnChanges is not configured', async () => {
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'service1',
+            type: 'customApi',
+            enabled: true,
+            autoSyncEnabled: true,
+            autoSyncInterval: 30, // 30 minutes
+            lastSyncTimestamp: Date.now() - 35 * 60 * 1000, // Synced 35 mins ago (interval condition met)
+            autoSyncOnChanges: false,
+            // autoSyncDelayOnChanges not configured
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'service1',
+      })
+
+      // Bookmarks updated recently
+      ;(bookmarkStorage.getBookmarksStore as Mock).mockResolvedValue({
+        meta: { updated: Date.now() - 2 * 60 * 1000 },
+      })
+
+      await triggerCheckAndScheduleViaInterval()
+
+      // Should schedule immediate sync since autoSyncDelayOnChanges is not configured
+      expect(addToSyncQueue).toHaveBeenCalledWith(
+        { serviceId: 'service1' },
+        mockSyncManagerInstance
+      )
+    })
+
     it('should not schedule sync if autoSyncOnChanges delay not met after last update', async () => {
       syncConfigStore.set({
         syncServices: [

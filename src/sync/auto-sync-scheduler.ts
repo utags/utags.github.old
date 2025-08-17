@@ -214,20 +214,8 @@ async function checkAndScheduleSync(
       let shouldSync = false
       const lastSyncTime = config.lastSyncTimestamp || 0
 
-      // 1. Check based on autoSyncInterval
-      if (config.autoSyncInterval && config.autoSyncInterval > 0) {
-        const intervalMillis = config.autoSyncInterval * 60 * 1000
-        if (currentTime - intervalMillis > lastSyncTime) {
-          console.log(
-            `[AutoSyncScheduler] Service ${config.id} due for interval sync. Last sync: ${new Date(lastSyncTime).toISOString()}`
-          )
-          shouldSync = true
-        }
-      }
-
-      // 2. Check based on autoSyncOnChanges and autoSyncDelayOnChanges
+      // 1. Check based on autoSyncOnChanges and autoSyncDelayOnChanges
       if (
-        !shouldSync &&
         config.autoSyncOnChanges &&
         config.autoSyncDelayOnChanges &&
         config.autoSyncDelayOnChanges > 0 &&
@@ -267,6 +255,27 @@ async function checkAndScheduleSync(
         ) {
           console.log(
             `[AutoSyncScheduler] Service ${config.id} due for on-changes sync. Last local update: ${new Date(lastBookmarksUpdateTime).toISOString()}, Last service sync: ${new Date(lastSyncTime).toISOString()}`
+          )
+          shouldSync = true
+        } else if (localChangesSinceLastSync) {
+          // console.log(
+          //   `[AutoSyncScheduler] Service ${config.id} not due for on-changes sync. Last local update: ${new Date(lastBookmarksUpdateTime).toISOString()}, Last service sync: ${new Date(lastSyncTime).toISOString()}`
+          // )
+          shouldSync = false
+          continue
+        }
+      }
+
+      // 2. Check based on autoSyncInterval
+      if (
+        !shouldSync &&
+        config.autoSyncInterval &&
+        config.autoSyncInterval > 0
+      ) {
+        const intervalMillis = config.autoSyncInterval * 60 * 1000
+        if (currentTime - intervalMillis > lastSyncTime) {
+          console.log(
+            `[AutoSyncScheduler] Service ${config.id} due for interval sync. Last sync: ${new Date(lastSyncTime).toISOString()}`
           )
           shouldSync = true
         }
