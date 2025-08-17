@@ -51,7 +51,7 @@
     mergeStrategy: {
       meta: 'merge',
       tags: 'union',
-      defaultDate: '',
+      defaultDate: 0,
       preferOldestCreated: true,
       preferNewestUpdated: true,
     },
@@ -123,18 +123,11 @@
 
     // Validate merge strategy default date format (if provided)
     if (config.mergeStrategy.defaultDate) {
-      const dateStr =
-        typeof config.mergeStrategy.defaultDate === 'string'
-          ? config.mergeStrategy.defaultDate.trim()
-          : String(config.mergeStrategy.defaultDate)
-
-      if (dateStr) {
-        const dateValue = new Date(dateStr)
-        if (isNaN(dateValue.getTime())) {
-          errors.push('Default date must be a valid date')
-        } else if (dateValue > new Date()) {
-          errors.push('Default date cannot be in the future')
-        }
+      const dateValue = new Date(config.mergeStrategy.defaultDate)
+      if (isNaN(dateValue.getTime())) {
+        errors.push('Default date must be a valid date')
+      } else if (dateValue > new Date()) {
+        errors.push('Default date cannot be in the future')
       }
     }
 
@@ -239,10 +232,7 @@
       scope: config.scope,
       mergeStrategy: {
         ...config.mergeStrategy,
-        defaultDate:
-          typeof config.mergeStrategy.defaultDate === 'string'
-            ? config.mergeStrategy.defaultDate.trim() || ''
-            : String(config.mergeStrategy.defaultDate || ''),
+        defaultDate: config.mergeStrategy.defaultDate || 0,
       },
     }
 

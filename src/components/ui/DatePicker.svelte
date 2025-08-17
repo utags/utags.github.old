@@ -35,14 +35,37 @@
     children,
   }: Props = $props()
 
+  /**
+   * Convert timestamp to datetime-local format (yyyy-MM-ddThh:mm)
+   * @param timestamp - Unix timestamp in milliseconds
+   * @returns Formatted datetime string for datetime-local input
+   */
+  function formatTimestampToDatetimeLocal(timestamp: number): string {
+    if (!timestamp || isNaN(timestamp)) {
+      return ''
+    }
+    const date = new Date(timestamp)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+
   // Convert value to string for date input and handle two-way binding
   let dateValue = $state(
-    typeof value === 'number' ? String(value) : value || ''
+    typeof value === 'number'
+      ? formatTimestampToDatetimeLocal(value)
+      : value || ''
   )
 
   // Sync external value changes to internal dateValue
   $effect(() => {
-    dateValue = typeof value === 'number' ? String(value) : value || ''
+    dateValue =
+      typeof value === 'number'
+        ? formatTimestampToDatetimeLocal(value)
+        : value || ''
   })
 
   /**
@@ -52,7 +75,10 @@
   function handleDateTimeChange(event: Event) {
     const target = event.target as HTMLInputElement
     dateValue = target.value
-    value = target.value
+    value =
+      typeof value === 'number'
+        ? new Date(target.value).getTime()
+        : target.value
     onInput() // Call the onInput callback
   }
 </script>

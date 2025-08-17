@@ -177,7 +177,7 @@ type MergeStrategy = {
   title: MergeMetaStrategy
   tags: MergeTagsStrategy
   // conflict: 'skip' | 'overwrite' | 'rename'
-  defaultDate: number | string
+  defaultDate: number
   skipExisting?: boolean // default false
   updateOverDelete?: boolean // default true
   overwriteLocalDeleted?: boolean // 是否覆盖本地已删除的书签

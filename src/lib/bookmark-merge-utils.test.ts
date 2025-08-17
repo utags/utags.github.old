@@ -3772,7 +3772,7 @@ describe('mergeBookmarks', () => {
       const remoteData: BookmarksData = {}
       const strategy: MergeStrategy = {
         ...baseStrategy,
-        defaultDate: '', // Empty string for defaultDate
+        defaultDate: 0, // Invalid timestamp for defaultDate
       }
       const expectedUpdatesForRemote: BookmarksData = {
         'http://example.com/invalid-date': {
@@ -3810,7 +3810,7 @@ describe('mergeBookmarks', () => {
       const remoteData: BookmarksData = {}
       const strategy: MergeStrategy = {
         ...baseStrategy,
-        defaultDate: 'not-a-valid-date', // Invalid date string for defaultDate
+        defaultDate: Number.NaN, // Invalid number for defaultDate
       }
       const expectedUpdatesForRemote: BookmarksData = {
         'http://example.com/invalid-date-str': {

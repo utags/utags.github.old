@@ -60,7 +60,7 @@
     meta: 'merge' as MergeMetaStrategy,
     tags: 'union' as MergeTagsStrategy,
     // conflict: 'skip' as 'skip' | 'overwrite' | 'rename',
-    defaultDate: new Date(2000, 0, 1).toISOString().split('T')[0],
+    defaultDate: new Date(2000, 0, 1).getTime(),
   })
 
   onMount(() => {

@@ -21,8 +21,8 @@ export type MergeStrategy = {
   meta: MergeMetaStrategy
   /** Strategy for merging tags. default is 'union' or 'merge' */
   tags: MergeTagsStrategy
-  /** Default date to use if created/updated timestamps are invalid. Can be a timestamp number or a date string. */
-  defaultDate: number | string
+  /** Default date to use if created/updated timestamps are invalid. Must be a timestamp number. */
+  defaultDate: number
   /**
    * Determines if the oldest 'created' timestamp should be preferred during merge.
    * Defaults to true (prefer oldest).
