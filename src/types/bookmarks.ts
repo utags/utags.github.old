@@ -213,6 +213,26 @@ export type BookmarksStore = {
      * Contains aggregated data and metrics for the bookmark collection.
      */
     stats?: BookmarkStats
+    /**
+     * Information about the last device that uploaded data to this store.
+     * This helps track sync operations across multiple devices.
+     */
+    lastUploadDevice?: {
+      /** Unique device identifier */
+      deviceId: string
+      /** Browser name and version */
+      browser: string
+      /** Operating system information */
+      os: string
+      /** Device type (desktop, mobile, tablet) */
+      deviceType: string
+      /** Timestamp when the upload occurred */
+      uploadTimestamp: number
+      /** User agent string */
+      userAgent: string
+      /** The origin (domain) from which the data was uploaded */
+      origin: string
+    }
   }
 }
 

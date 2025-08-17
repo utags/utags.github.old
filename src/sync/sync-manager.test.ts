@@ -29,6 +29,7 @@ import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { sortMetaProperties } from '../utils/sort-meta-properties.js'
 import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
 import { calculateBookmarkStatsFromData } from '../utils/bookmark-stats.js'
+import { getDeviceInfo } from '../utils/device-utils.js'
 import { bookmarkStorage } from '../lib/bookmark-storage.js'
 import {
   mergeBookmarks,
@@ -194,11 +195,21 @@ function convertToUploadData(
   )
 
   const stats = calculateBookmarkStatsFromData(sortedBookmarks)
+  const deviceInfo = getDeviceInfo()
   const bookmarksStore: BookmarksStore = {
     data: sortedBookmarks,
     meta: {
       ...defaultStoreMeta,
       stats,
+      lastUploadDevice: {
+        deviceId: deviceInfo.deviceId,
+        browser: deviceInfo.browser,
+        os: deviceInfo.os,
+        deviceType: deviceInfo.deviceType,
+        uploadTimestamp: now,
+        userAgent: navigator.userAgent,
+        origin: globalThis.location.origin,
+      },
       updated: now,
       ...meta,
     },

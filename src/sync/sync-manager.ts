@@ -12,6 +12,7 @@ import {
 import { sortBookmarks } from '../utils/sort-bookmarks.js'
 import { normalizeBookmarkData } from '../utils/normalize-bookmark-data.js'
 import { calculateBookmarkStatsFromData } from '../utils/bookmark-stats.js'
+import { getDeviceInfo } from '../utils/device-utils.js'
 import {
   syncConfigStore,
   getSyncServiceById,
@@ -747,6 +748,9 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     hasChangesForLocal: boolean,
     currentSyncTimestamp: number
   ): Promise<boolean> {
+    // Create a single timestamp for consistency across the function
+    const operationTimestamp = Date.now()
+
     // if remote was empty (first sync) as a reason to upload
     const isFirstSync = !remoteSyncMeta && !(await adapter.getRemoteMetadata()) // More robust check for first sync
 
@@ -767,15 +771,25 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         )
 
         const stats = calculateBookmarkStatsFromData(sortedBookmarks)
+        const deviceInfo = getDeviceInfo()
         const bookmarksStore: BookmarksStore = {
           data: sortedBookmarks,
           meta: {
             ...(remoteStoreMeta || {
               databaseVersion: CURRENT_DATABASE_VERSION,
-              created: Date.now(),
+              created: operationTimestamp,
             }),
-            updated: Date.now(),
+            updated: operationTimestamp,
             stats,
+            lastUploadDevice: {
+              deviceId: deviceInfo.deviceId,
+              browser: deviceInfo.browser,
+              os: deviceInfo.os,
+              deviceType: deviceInfo.deviceType,
+              uploadTimestamp: operationTimestamp,
+              userAgent: navigator.userAgent,
+              origin: globalThis.location.origin,
+            },
           },
         }
 
@@ -815,7 +829,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
           this.updateStatus({
             type: 'conflict',
             details: conflictDetails,
-            lastAttemptTime: Date.now(),
+            lastAttemptTime: operationTimestamp,
           })
           this.emit('syncConflict', {
             serviceId: serviceConfig.id,
@@ -835,7 +849,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         this.updateStatus({
           type: 'error',
           error: errorMessage,
-          lastAttemptTime: Date.now(),
+          lastAttemptTime: operationTimestamp,
         })
         return false
       }
