@@ -376,8 +376,15 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         return false // Error handling done in _mergeData
       }
 
-      const { mergedBookmarks, hasChangesForRemote, hasChangesForLocal } =
-        mergeResult
+      const {
+        mergedBookmarks,
+        hasChangesForRemote,
+        hasChangesForLocal,
+        updatesForLocal,
+        updatesForRemote,
+        localDeletions,
+        remoteDeletions,
+      } = mergeResult
 
       // Stage 3: Upload Data
       const uploadSuccess = await this._uploadData(
@@ -390,6 +397,19 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         hasChangesForLocal!,
         currentSyncTimestamp
       )
+
+      if (uploadSuccess && (hasChangesForRemote || hasChangesForLocal)) {
+        this.logMergeHistory(
+          serviceConfig,
+          hasChangesForRemote!,
+          hasChangesForLocal!,
+          currentSyncTimestamp,
+          updatesForLocal!,
+          updatesForRemote!,
+          localDeletions!,
+          remoteDeletions!
+        )
+      }
 
       operationSuccessful = uploadSuccess // uploadSuccess is true if successful
       return operationSuccessful
@@ -607,6 +627,10 @@ export class SyncManager extends EventEmitter<SyncEvents> {
     mergedBookmarks?: BookmarksData
     hasChangesForRemote?: boolean
     hasChangesForLocal?: boolean
+    updatesForLocal?: BookmarksData
+    updatesForRemote?: BookmarksData
+    localDeletions?: string[]
+    remoteDeletions?: string[]
   }> {
     const mergeStrategy = {
       ...defaultMergeStrategy,
@@ -632,6 +656,10 @@ export class SyncManager extends EventEmitter<SyncEvents> {
           mergedBookmarks: localData,
           hasChangesForRemote: Object.keys(localData).length > 0,
           hasChangesForLocal: false,
+          updatesForLocal: {},
+          updatesForRemote: localData,
+          localDeletions: [],
+          remoteDeletions: [],
         }
       }
 
@@ -691,6 +719,10 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         mergedBookmarks: finalRemoteData,
         hasChangesForRemote,
         hasChangesForLocal,
+        updatesForLocal,
+        updatesForRemote,
+        localDeletions,
+        remoteDeletions,
       }
     } catch (error: any) {
       if (error.name === 'MergeConflictError') {
@@ -873,6 +905,104 @@ export class SyncManager extends EventEmitter<SyncEvents> {
         noUploadNeeded: true,
       })
       return true
+    }
+  }
+
+  /**
+   * Logs merge history for debugging and audit purposes.
+   * Records the merge operation details and persists them to localStorage.
+   * @param serviceId - The ID of the sync service
+   * @param hasChangesForRemote - Whether there are changes to upload to remote
+   * @param hasChangesForLocal - Whether there are changes to apply locally
+   * @param syncTimestamp - The timestamp of the sync operation
+   */
+  private logMergeHistory(
+    serviceConfig: SyncServiceConfig,
+    hasChangesForRemote: boolean,
+    hasChangesForLocal: boolean,
+    syncTimestamp: number,
+    updatesForLocal: BookmarksData,
+    updatesForRemote: BookmarksData,
+    localDeletions: string[],
+    remoteDeletions: string[]
+  ): void {
+    const mergeHistoryEntry = {
+      serviceId: serviceConfig.id,
+      serviceType: serviceConfig.type,
+      serviceName: serviceConfig.name,
+      timestamp: syncTimestamp,
+      date: new Date(syncTimestamp).toISOString(),
+      lastDataChangeTimestamp: serviceConfig.lastDataChangeTimestamp,
+      lastDataChangeDate: serviceConfig.lastDataChangeTimestamp
+        ? new Date(serviceConfig.lastDataChangeTimestamp).toISOString()
+        : null,
+      hasChangesForRemote,
+      hasChangesForLocal,
+      updatesForLocal: {
+        count: Object.keys(updatesForLocal).length,
+        bookmarks: Object.keys(updatesForLocal),
+      },
+      updatesForRemote: {
+        count: Object.keys(updatesForRemote).length,
+        bookmarks: Object.keys(updatesForRemote),
+      },
+      localDeletions: {
+        count: localDeletions.length,
+        urls: localDeletions,
+      },
+      remoteDeletions: {
+        count: remoteDeletions.length,
+        urls: remoteDeletions,
+      },
+      deviceInfo: {
+        userAgent: navigator.userAgent,
+        origin: globalThis.location?.origin || 'unknown',
+      },
+    }
+
+    // Console log for immediate debugging with enhanced timestamp information
+    const lastSyncTimestamp = serviceConfig.lastDataChangeTimestamp || 0
+    const lastSyncFormatted = lastSyncTimestamp
+      ? new Date(lastSyncTimestamp).toLocaleString()
+      : 'Never'
+    const currentTimestampFormatted = new Date(syncTimestamp).toLocaleString()
+
+    console.log(
+      `[SyncManager] Merge History\n` +
+        `  Service: ${serviceConfig.id} (${serviceConfig.type}: ${serviceConfig.name})\n` +
+        `  Remote Changes: ${hasChangesForRemote} (${mergeHistoryEntry.updatesForRemote.count} updates, ${mergeHistoryEntry.remoteDeletions.count} deletions)\n` +
+        `  Local Changes: ${hasChangesForLocal} (${mergeHistoryEntry.updatesForLocal.count} updates, ${mergeHistoryEntry.localDeletions.count} deletions)\n` +
+        `  Last Sync: ${lastSyncFormatted} (timestamp: ${lastSyncTimestamp})\n` +
+        `  Current Timestamp: ${currentTimestampFormatted} (timestamp: ${syncTimestamp})`
+    )
+
+    try {
+      // Persist to localStorage for historical tracking
+      const storageKey = 'utags-merge-history'
+      const existingHistory = JSON.parse(
+        localStorage.getItem(storageKey) || '[]'
+      ) as Array<typeof mergeHistoryEntry>
+
+      // Add new entry to the beginning of the array
+      existingHistory.unshift(mergeHistoryEntry)
+
+      // Keep only the last 100 entries to prevent localStorage bloat
+      const maxHistoryEntries = 100
+      if (existingHistory.length > maxHistoryEntries) {
+        existingHistory.splice(maxHistoryEntries)
+      }
+
+      // Save back to localStorage
+      localStorage.setItem(storageKey, JSON.stringify(existingHistory))
+
+      console.log(
+        `[SyncManager] Merge history saved. Total entries: ${existingHistory.length}`
+      )
+    } catch (error) {
+      console.warn(
+        '[SyncManager] Failed to persist merge history to localStorage:',
+        error
+      )
     }
   }
 

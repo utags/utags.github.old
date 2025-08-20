@@ -50,6 +50,8 @@ export type BookmarkMetadata = {
    * This timestamp is crucial for determining the most recent state of a bookmark, especially for sync conflict resolution and data auditing purposes.
    */
   updated2?: number
+  // TODO: updated3 for merge and import
+  updated3?: number
   /**
    * Timestamp (in milliseconds since the UNIX epoch) indicating when the bookmark was soft-deleted.
    * A value here signifies that the bookmark is marked as deleted but may still be recoverable.
