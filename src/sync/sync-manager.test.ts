@@ -176,7 +176,9 @@ function setUpdated2ForBookmarks(
 
 function convertToUploadData(
   remoteData: BookmarksData,
-  meta?: { created?: number; updated?: number }
+  meta?: { created?: number; updated?: number },
+  lastDataChangeTimestamp?: number,
+  currentSyncTimestamp?: number
 ): string {
   // Sort bookmarks before uploading to maintain a consistent order
   const sortedBookmarks = Object.fromEntries(
@@ -209,6 +211,8 @@ function convertToUploadData(
         uploadTimestamp: now,
         userAgent: navigator.userAgent,
         origin: globalThis.location.origin,
+        lastDataChangeTimestamp: lastDataChangeTimestamp,
+        currentSyncTimestamp: currentSyncTimestamp ?? now,
       },
       updated: now,
       ...meta,
@@ -1643,7 +1647,12 @@ describe('SyncManager', () => {
 
       // Verify uploaded data
       expect(uploadSpy).toHaveBeenCalledWith(
-        convertToUploadData(expectedRemoteData),
+        convertToUploadData(
+          expectedRemoteData,
+          undefined,
+          lastSyncTimestamp,
+          currentSyncTime
+        ),
         expect.objectContaining({
           version: 'remote-v1',
           timestamp: expect.any(Number),
@@ -1863,7 +1872,12 @@ describe('SyncManager', () => {
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        convertToUploadData(expectedRemoteData),
+        convertToUploadData(
+          expectedRemoteData,
+          undefined,
+          lastSyncTime,
+          currentSyncTime
+        ),
         remoteMeta
       )
 
@@ -2058,7 +2072,12 @@ describe('SyncManager', () => {
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        convertToUploadData(expectedRemoteData),
+        convertToUploadData(
+          expectedRemoteData,
+          undefined,
+          lastSyncTimestamp,
+          currentSyncTime
+        ),
         remoteMeta
       )
 
@@ -2269,7 +2288,12 @@ describe('SyncManager', () => {
       )
 
       expect(uploadSpy).toHaveBeenCalledWith(
-        convertToUploadData(expectedRemoteData),
+        convertToUploadData(
+          expectedRemoteData,
+          undefined,
+          lastSyncTimestamp,
+          currentSyncTime
+        ),
         remoteMeta
       )
       expect(saveStoreSpy).toHaveBeenCalledWith(
@@ -2488,7 +2512,12 @@ describe('SyncManager', () => {
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        convertToUploadData(expectedRemoteData),
+        convertToUploadData(
+          expectedRemoteData,
+          undefined,
+          lastSyncTimestamp,
+          currentSyncTime
+        ),
         remoteMeta
       )
 
@@ -2925,7 +2954,14 @@ describe('SyncManager', () => {
       // Need to stringify then parse because of potential undefined fields from merge that JSON.stringify removes
       const uploadedData = JSON.parse(uploadSpy.mock.calls[0][0])
       expect(uploadedData).toEqual(
-        JSON.parse(convertToUploadData(expectedRemoteData))
+        JSON.parse(
+          convertToUploadData(
+            expectedRemoteData,
+            undefined,
+            lastSyncTimestamp,
+            currentSyncTime
+          )
+        )
       )
 
       // Check that bookmarkStorage was updated with the merged data
@@ -3356,7 +3392,12 @@ describe('SyncManager', () => {
 
       // Check that upload was called with the correctly merged data
       expect(uploadSpy).toHaveBeenCalledWith(
-        convertToUploadData(expectedRemoteData),
+        convertToUploadData(
+          expectedRemoteData,
+          undefined,
+          lastSyncTimestamp,
+          currentSyncTime
+        ),
         remoteMeta
       )
 

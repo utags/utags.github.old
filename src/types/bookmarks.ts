@@ -234,6 +234,10 @@ export type BookmarksStore = {
       userAgent: string
       /** The origin (domain) from which the data was uploaded */
       origin: string
+      /** Last data change timestamp from service config */
+      lastDataChangeTimestamp?: number
+      /** Current sync operation timestamp */
+      currentSyncTimestamp?: number
     }
   }
 }
