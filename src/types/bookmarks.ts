@@ -37,20 +37,27 @@ export type BookmarkMetadata = {
   /**
    * Timestamp (in milliseconds since the UNIX epoch) of the last manual edit by the user.
    * This includes direct modifications to fields like title, URL, tags, description, or notes via the application's edit interface.
-   * It should NOT be updated by automated processes such as sync, import, or batch operations unless those operations are explicitly designed to mimic a direct user edit.
+   * This field is ONLY updated when the user manually edits the bookmark through the UI.
+   * It should NOT be updated by automated processes such as sync, import, or batch operations.
    */
   updated: number
   /**
-   * Timestamp (in milliseconds since the UNIX epoch) of the last modification to the bookmark, regardless of the source.
-   * This field is updated upon ANY change to the bookmark's data, including:
-   *  - Manual user edits (will be the same as 'updated').
-   *  - Automated processes like synchronization with a remote server.
-   *  - Bulk operations (e.g., batch tagging, batch deletion/restoration).
-   *  - Import processes that might update or overwrite existing bookmark data.
-   * This timestamp is crucial for determining the most recent state of a bookmark, especially for sync conflict resolution and data auditing purposes.
+   * Timestamp (in milliseconds since the UNIX epoch) of the last batch modification to the bookmark.
+   * This field is updated when the bookmark is modified through batch operations, including:
+   *  - Bulk tagging or tag removal operations
+   *  - Batch deletion and restoration operations
+   *  - Mass editing operations that affect multiple bookmarks simultaneously
+   * This timestamp helps track when bookmarks were last modified through automated bulk processes.
    */
   updated2?: number
-  // TODO: updated3 for merge and import
+  /**
+   * Timestamp (in milliseconds since the UNIX epoch) of the last synchronization or import merge operation.
+   * This field is updated when the bookmark is modified during:
+   *  - Synchronization processes with remote servers (merge conflicts resolution)
+   *  - Import operations that merge or overwrite existing bookmark data
+   *  - Data reconciliation processes during sync operations
+   * This timestamp is crucial for sync conflict resolution and tracking data merge history.
+   */
   updated3?: number
   /**
    * Timestamp (in milliseconds since the UNIX epoch) indicating when the bookmark was soft-deleted.

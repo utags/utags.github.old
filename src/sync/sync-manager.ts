@@ -822,7 +822,7 @@ export class SyncManager extends EventEmitter<SyncEvents> {
               userAgent: navigator.userAgent,
               origin: globalThis.location.origin,
               lastDataChangeTimestamp: serviceConfig.lastDataChangeTimestamp,
-              currentSyncTimestamp: currentSyncTimestamp,
+              currentSyncTimestamp,
             },
           },
         }

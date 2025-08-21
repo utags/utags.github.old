@@ -161,7 +161,7 @@ function convertToDownloadData(remoteData: BookmarksData): string {
   return JSON.stringify(bookmarksStore)
 }
 
-function setUpdated2ForBookmarks(
+function setUpdated3ForBookmarks(
   bookmarksData: BookmarksData,
   currentSyncTime: number,
   exceptions: string[]
@@ -169,7 +169,7 @@ function setUpdated2ForBookmarks(
   const exceptionsSet = new Set(exceptions)
   for (const key of Object.keys(bookmarksData)) {
     if (bookmarksData[key] && !exceptionsSet.has(key)) {
-      bookmarksData[key].meta.updated2 = currentSyncTime
+      bookmarksData[key].meta.updated3 = currentSyncTime
     }
   }
 }
@@ -211,7 +211,7 @@ function convertToUploadData(
         uploadTimestamp: now,
         userAgent: navigator.userAgent,
         origin: globalThis.location.origin,
-        lastDataChangeTimestamp: lastDataChangeTimestamp,
+        lastDataChangeTimestamp,
         currentSyncTimestamp: currentSyncTimestamp ?? now,
       },
       updated: now,
@@ -749,12 +749,12 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/conflict',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -764,7 +764,7 @@ describe('SyncManager', () => {
         // remote
         'http://example.com/remote-only',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -1123,12 +1123,12 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/item2',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -1139,7 +1139,7 @@ describe('SyncManager', () => {
         'http://example.com/item2',
         'http://example.com/item3',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -1277,7 +1277,7 @@ describe('SyncManager', () => {
             title: 'Remote Item 1', // Remote title (newer)
             description: 'Local description', // Preserved local field
             url: 'http://example.com/item1-updated', // Added remote field
-            updated2: currentSyncTime, // Updated2 should be currentSyncTime
+            updated3: currentSyncTime, // Updated3 should be currentSyncTime
           },
         },
       }
@@ -1432,13 +1432,13 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/shared-item',
         'http://example.com/local-only',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -1448,7 +1448,7 @@ describe('SyncManager', () => {
         // remote
         'http://example.com/remote-only',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -1623,12 +1623,12 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/unchanged',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -1639,7 +1639,7 @@ describe('SyncManager', () => {
         'http://example.com/unchanged',
         'http://example.com/new-remote',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -1848,13 +1848,13 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/unmodified',
         // 'http://example.com/modified-local',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -1864,7 +1864,7 @@ describe('SyncManager', () => {
         'http://example.com/unmodified',
         'http://example.com/new-remote',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -2046,13 +2046,13 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/unchanged',
         'http://example.com/local-modified',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -2064,7 +2064,7 @@ describe('SyncManager', () => {
         'http://example.com/conflict',
         'http://example.com/remote-modified',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -2262,14 +2262,14 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/nochange',
         'http://example.com/local_newer',
         'http://example.com/local_only_new',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -2281,7 +2281,7 @@ describe('SyncManager', () => {
         'http://example.com/remote_newer',
         'http://example.com/remote_only_new',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -2489,12 +2489,12 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items
+      // Add updated3 for merged items
       const exceptionsForLocal = [
         // local
         'http://example.com/local_updated',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -2504,7 +2504,7 @@ describe('SyncManager', () => {
         'http://example.com/both_updated',
         'http://example.com/remote_updated',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -2924,7 +2924,7 @@ describe('SyncManager', () => {
 
       const expectedRemoteData = structuredClone(expectedMergedData)
 
-      // Add updated2 for merged items that are not deleted
+      // Add updated3 for merged items that are not deleted
       const exceptions = [
         // 'http://example.com/local_del_remote_exists_newer',
         'http://example.com/remote_del_local_exists_newer',
@@ -2932,14 +2932,14 @@ describe('SyncManager', () => {
         'http://example.com/only_local_new',
         // 'http://example.com/only_remote_new',
       ]
-      setUpdated2ForBookmarks(expectedMergedData, currentSyncTime, exceptions)
+      setUpdated3ForBookmarks(expectedMergedData, currentSyncTime, exceptions)
 
       const exceptionsForRemote = [
         'http://example.com/only_remote_new',
         'http://example.com/both_exist_remote_newer',
         'http://example.com/local_del_remote_exists_newer',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -3373,7 +3373,7 @@ describe('SyncManager', () => {
         // local
         'http://example.com/remote_deleted_older',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedMergedData,
         currentSyncTime,
         exceptionsForLocal
@@ -3384,7 +3384,7 @@ describe('SyncManager', () => {
         'http://example.com/remote_deleted_newer',
         'http://example.com/both_deleted_remote_newer',
       ]
-      setUpdated2ForBookmarks(
+      setUpdated3ForBookmarks(
         expectedRemoteData,
         currentSyncTime,
         exceptionsForRemote
@@ -3519,7 +3519,7 @@ describe('SyncManager', () => {
               title,
               created: timestamp - 10_000,
               updated: timestamp,
-              updated2: timestamp + 1, // ensure updated2 is present
+              updated3: timestamp + 1, // ensure updated3 is present
             },
             tags: [...tags],
           }
@@ -5136,7 +5136,7 @@ describe('SyncManager', () => {
           localData['http://example.com/item1']?.meta.created,
           remoteData['http://example.com/item1']?.meta.created
         ),
-        updated2: currentSyncTime,
+        updated3: currentSyncTime,
       })
       expect(finalData['http://example.com/item2']).toBeDefined()
       expect(finalData['http://example.com/item3']).toBeDefined()
@@ -5278,7 +5278,7 @@ describe('SyncManager', () => {
           localData['http://example.com/item1']?.meta.updated || DEFAULT_DATE,
           remoteData['http://example.com/item1']?.meta.created || DEFAULT_DATE
         ),
-        updated2: currentSyncTime,
+        updated3: currentSyncTime,
       })
       expect(finalData['http://example.com/item2']).toBeDefined()
       expect(finalData['http://example.com/item3']).toBeDefined()

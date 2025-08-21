@@ -32,6 +32,7 @@ const createBookmarkEntry = (
   tags: string[],
   extraFileds?: Record<string, unknown>,
   updated2?: number,
+  updated3?: number,
   deletedMeta?: BookmarkTagsAndMetadata['deletedMeta']
 ): BookmarkTagsAndMetadata => ({
   meta: {
@@ -39,6 +40,7 @@ const createBookmarkEntry = (
     updated,
     title,
     updated2,
+    updated3,
     ...extraFileds,
   },
   tags,
@@ -139,13 +141,13 @@ const runMergeTest = async ({
 
     expect(localBookmark.meta).toEqual(finalLocalBookmark.meta)
     expect(remoteBookmark.meta).toEqual(finalRemoteBookmark.meta)
-    expect({ ...localBookmark.meta, updated2: 0 }).toEqual({
+    expect({ ...localBookmark.meta, updated3: 0 }).toEqual({
       ...remoteBookmark.meta,
-      updated2: 0,
+      updated3: 0,
     })
 
     // Compare meta, ignoring specified keys
-    const ignoredMetaKeys = ['updated2']
+    const ignoredMetaKeys = ['updated3']
     expect(
       areObjectsEqual(localBookmark.meta, remoteBookmark.meta, ignoredMetaKeys)
     ).toBe(true)
@@ -172,8 +174,8 @@ const runMergeTest = async ({
     expect(localBookmark).toEqual(finalLocalBookmark)
     expect(remoteBookmark).toEqual(finalRemoteBookmark)
 
-    finalLocalBookmark.meta.updated2 = 0
-    finalRemoteBookmark.meta.updated2 = 0
+    finalLocalBookmark.meta.updated3 = 0
+    finalRemoteBookmark.meta.updated3 = 0
     expect(finalLocalBookmark).toEqual(finalRemoteBookmark)
   }
 }
@@ -217,6 +219,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'local field',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -229,6 +232,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'remote field',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -239,7 +243,7 @@ describe('mergeBookmarks', () => {
             updated: oneHourAgo + 1,
             title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated logic
             remoteField: 'remote field',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tag1', 'tag2'], // 'union' tags strategy
         },
@@ -251,7 +255,7 @@ describe('mergeBookmarks', () => {
             updated: oneHourAgo + 1,
             title: 'Local A', // 'local' meta strategy, remote is effectively newer due to updated logic
             localField: 'local field',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tag1', 'tag2'], // 'union' tags strategy
         },
@@ -264,7 +268,7 @@ describe('mergeBookmarks', () => {
             title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated logic
             localField: 'local field',
             remoteField: 'remote field',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tag1', 'tag2'], // 'union' tags strategy
         },
@@ -319,7 +323,7 @@ describe('mergeBookmarks', () => {
               updated: oneHourAgo + 1,
               title: 'Remote A', // 'newer' meta strategy, remote is effectively newer due to updated logic
               remoteField: 'remote field',
-              updated2: now,
+              updated3: now,
             },
             tags: ['tag2'], // 'newer' tags strategy
           },
@@ -339,7 +343,7 @@ describe('mergeBookmarks', () => {
               updated: oneHourAgo + 1,
               title: 'Remote A', // 'remote' meta strategy, remote is effectively newer due to updated logic
               remoteField: 'remote field',
-              updated2: now,
+              updated3: now,
             },
             tags: ['tag2'], // 'remote' tags strategy
           },
@@ -359,7 +363,7 @@ describe('mergeBookmarks', () => {
               updated: oneHourAgo + 1,
               title: 'Local A', // 'local' meta strategy, remote is effectively newer due to updated logic
               localField: 'local field',
-              updated2: now,
+              updated3: now,
             },
             tags: ['tag1'], // 'local' tags strategy
           },
@@ -385,7 +389,7 @@ describe('mergeBookmarks', () => {
               updated: oneHourAgo,
               title: 'Local A', // 'local' meta strategy, remote is effectively newer due to updated logic
               localField: 'local field',
-              updated2: now,
+              updated3: now,
             },
             tags: ['tag1'], // 'local' tags strategy
           },
@@ -403,6 +407,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'local field',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -415,6 +420,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'remote field',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -425,7 +431,7 @@ describe('mergeBookmarks', () => {
             updated: oneHourAgo,
             title: 'Local A', // 'newer' meta strategy, local is effectively newer due to updated logic
             localField: 'local field',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tag1', 'tag2'], // 'union' tags strategy
         },
@@ -457,6 +463,7 @@ describe('mergeBookmarks', () => {
           'Local B',
           ['local'],
           {},
+          undefined,
           now
         ),
       }
@@ -487,6 +494,7 @@ describe('mergeBookmarks', () => {
           'Remote C',
           ['remote'],
           {},
+          undefined,
           now
         ),
       }
@@ -590,6 +598,7 @@ describe('mergeBookmarks', () => {
           'Valid Remote',
           ['remote'],
           {},
+          undefined,
           now
         ),
         // 'http://example.com/another-valid' should take local's version as it's newer
@@ -600,6 +609,7 @@ describe('mergeBookmarks', () => {
           'Another Valid Local', // from local (newer)
           ['local', 'extra'], // tags union, but remote is staled
           {},
+          undefined,
           now
         ),
       }
@@ -610,6 +620,7 @@ describe('mergeBookmarks', () => {
           'Valid Local',
           ['local'],
           {},
+          undefined,
           now
         ),
         'http://example.com/another-valid': createBookmarkEntry(
@@ -618,6 +629,7 @@ describe('mergeBookmarks', () => {
           'Another Valid Local', // from local (newer)
           ['local', 'extra'], // tags union, but remote is staled
           {},
+          undefined,
           now
         ),
       }
@@ -786,6 +798,7 @@ describe('mergeBookmarks', () => {
         [DELETED_BOOKMARK_TAG, 'archived'],
         { originalTitle: 'Was Deleted Bookmark' }, // extra meta fields
         oneHourAgo, // updated2 (deletion time)
+        oneHourAgo, // updated3
         {
           deleted: oneHourAgo, // Renamed from deletedAt to match expected type
           actionType: 'SYNC', // Corrected to a valid DeleteActionType based on type definition
@@ -843,6 +856,7 @@ describe('mergeBookmarks', () => {
           'Valid Local F',
           ['local'],
           {},
+          undefined,
           now
         ),
       }
@@ -862,6 +876,7 @@ describe('mergeBookmarks', () => {
           'Valid Local F',
           ['local'],
           {},
+          undefined,
           now
         ),
       }
@@ -890,6 +905,7 @@ describe('mergeBookmarks', () => {
           'Valid Local F',
           ['local'],
           {},
+          undefined,
           now
         ),
       }
@@ -927,6 +943,7 @@ describe('mergeBookmarks', () => {
           'Valid Remote G',
           ['remote'],
           {},
+          undefined,
           now
         ),
       }
@@ -945,6 +962,7 @@ describe('mergeBookmarks', () => {
           'Valid Remote G',
           ['remote'],
           {},
+          undefined,
           now
         ),
       }
@@ -973,6 +991,7 @@ describe('mergeBookmarks', () => {
           'Valid Remote G',
           ['remote'],
           {},
+          undefined,
           now
         ),
       }
@@ -1038,7 +1057,7 @@ describe('mergeBookmarks', () => {
             title: 'Stale Local H', // Assuming 'local' strategy for meta if not specified, or merged based on strategy
             localField: 'local field',
             remoteField: 'remote field',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local', 'remote'], // 'union' strategy for tags
         },
@@ -1074,7 +1093,7 @@ describe('mergeBookmarks', () => {
             created: defaultDateTimestamp,
             updated: defaultDateTimestamp,
             title: 'Local I',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1110,7 +1129,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: oneHourAgo, // Should fall back to created because updated is invalid
             title: 'Local J',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1144,7 +1163,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: oneHourAgo, // Should fall back to created because updated is invalid
             title: 'Local K',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1180,7 +1199,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo, // Should use updated timestamp because created is invalid
             updated: oneHourAgo,
             title: 'Local L',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1215,7 +1234,7 @@ describe('mergeBookmarks', () => {
             created: threeHoursAgo, // Should use the earlier timestamp (updated)
             updated: threeHoursAgo,
             title: 'Local M',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1250,7 +1269,7 @@ describe('mergeBookmarks', () => {
             created: defaultDateTimestamp, // Should use defaultDate
             updated: defaultDateTimestamp, // Should use defaultDate
             title: 'Local N',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1284,7 +1303,7 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo, // Should use the earlier timestamp
             updated: twoHoursAgo,
             title: 'Local O',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1318,7 +1337,7 @@ describe('mergeBookmarks', () => {
             created: threeHoursAgo, // Should normalize to the earlier timestamp
             updated: threeHoursAgo, // Updated should be at least as late as created
             title: 'Local P',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1352,7 +1371,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo, // Should keep valid created
             updated: oneHourAgo, // Should fall back to created
             title: 'Local Q',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1376,6 +1395,7 @@ describe('mergeBookmarks', () => {
       'Local Title',
       ['common', 'local'],
       {},
+      undefined,
       oneHourAgo
     )
     const remoteEntryNewer = createBookmarkEntry(
@@ -1384,6 +1404,7 @@ describe('mergeBookmarks', () => {
       'Remote Newer Title',
       ['common', 'remote'],
       {},
+      undefined,
       now
     )
     const remoteEntryOlder = createBookmarkEntry(
@@ -1392,6 +1413,7 @@ describe('mergeBookmarks', () => {
       'Remote Older Title',
       ['common'],
       {},
+      undefined,
       threeHoursAgo
     )
 
@@ -1405,7 +1427,7 @@ describe('mergeBookmarks', () => {
             ...localEntry.meta,
             title: 'Local Title', // Explicitly local
             updated: remoteEntryNewer.meta.updated,
-            updated2: now + 1, // Max of updated times + 1
+            updated3: now + 1, // Max of updated times + 1
           },
           tags: ['common', 'local', 'remote'], // Tags strategy is 'union' by default
         },
@@ -1430,7 +1452,7 @@ describe('mergeBookmarks', () => {
             ...remoteEntryNewer.meta,
             title: 'Remote Newer Title', // Explicitly remote
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['common', 'local', 'remote'], // Tags strategy is 'union' by default
         },
@@ -1455,7 +1477,7 @@ describe('mergeBookmarks', () => {
             ...remoteEntryNewer.meta, // Newer meta base
             title: 'Remote Newer Title',
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['common', 'local', 'remote'], // Tags strategy is 'union' by default
         },
@@ -1480,7 +1502,7 @@ describe('mergeBookmarks', () => {
             ...remoteEntryNewer.meta,
             title: 'Remote Newer Title',
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['common', 'remote', 'local'], // Tags strategy is 'union' by default
         },
@@ -1509,7 +1531,7 @@ describe('mergeBookmarks', () => {
             ...remoteEntryNewer.meta, // effectively, newer object's properties overwrite older
             title: 'Remote Newer Title',
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['common', 'local', 'remote'], // Tags strategy is 'union' by default
         },
@@ -1550,7 +1572,7 @@ describe('mergeBookmarks', () => {
             ...localNewerEntry.meta,
             title: 'Local Newer Title',
             created: remoteOlderEntry.meta.created, // 'merge' keeps older created if newer one is later
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['common', 'local', 'remote'],
         },
@@ -1593,7 +1615,7 @@ describe('mergeBookmarks', () => {
           meta: {
             ...remoteEntryNewer.meta, // meta strategy is 'newer'
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagL1', 'common'], // Explicitly local tags
         },
@@ -1616,7 +1638,7 @@ describe('mergeBookmarks', () => {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagR1', 'common'], // Explicitly remote tags
         },
@@ -1633,7 +1655,7 @@ describe('mergeBookmarks', () => {
           meta: {
             ...remoteEntryNewer.meta,
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagR1', 'common'], // Explicitly remote tags
         },
@@ -1656,7 +1678,7 @@ describe('mergeBookmarks', () => {
         'http://item.com': {
           meta: {
             ...remoteEntryNewer.meta,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagR1', 'common'], // Newer tags
         },
@@ -1674,7 +1696,7 @@ describe('mergeBookmarks', () => {
           meta: {
             ...remoteEntryNewer.meta,
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagR1', 'common'], // Newer tags
         },
@@ -1717,7 +1739,7 @@ describe('mergeBookmarks', () => {
         'http://item.com': {
           meta: {
             ...localNewerEntry.meta, // meta strategy is 'newer' by default
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagL-new', 'common-new'], // Newer tags from local
         },
@@ -1736,7 +1758,7 @@ describe('mergeBookmarks', () => {
           meta: {
             ...localNewerEntry.meta, // meta strategy is 'newer' by default
             created: remoteOlderEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagL-new', 'common-new'], // Newer tags from local
         },
@@ -1760,7 +1782,7 @@ describe('mergeBookmarks', () => {
           meta: {
             ...remoteEntryNewer.meta,
             created: localEntry.meta.created,
-            updated2: now + 1,
+            updated3: now + 1,
           },
           tags: ['tagL1', 'common', 'tagR1'], // .sort(), // Union of tags, sorted for consistent test
         },
@@ -1787,6 +1809,7 @@ describe('mergeBookmarks', () => {
           'Local Deleted',
           [DELETED_BOOKMARK_TAG, 'local'],
           {},
+          undefined,
           threeHoursAgo,
           { deleted: threeHoursAgo, actionType: 'DELETE' }
         ),
@@ -1798,6 +1821,7 @@ describe('mergeBookmarks', () => {
           'Remote Active',
           ['remote'],
           {},
+          undefined,
           oneHourAgo
         ),
       }
@@ -1809,7 +1833,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: oneHourAgo,
             title: 'Remote Active',
-            updated2: now,
+            updated3: now,
           },
           tags: ['remote'], // Remote's tags, as it's the chosen version
         },
@@ -1828,7 +1852,7 @@ describe('mergeBookmarks', () => {
             created: threeHoursAgo,
             updated: oneHourAgo,
             title: 'Remote Active',
-            updated2: now,
+            updated3: now,
           },
           tags: ['remote'], // Remote's tags, as it's the chosen version
         },
@@ -1851,6 +1875,7 @@ describe('mergeBookmarks', () => {
           'Local Active',
           ['local'],
           {},
+          undefined,
           oneHourAgo
         ),
       }
@@ -1862,6 +1887,7 @@ describe('mergeBookmarks', () => {
           'Remote Deleted',
           [DELETED_BOOKMARK_TAG, 'remote'],
           {},
+          undefined,
           threeHoursAgo,
           { deleted: threeHoursAgo, actionType: 'DELETE' }
         ),
@@ -1872,7 +1898,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: oneHourAgo,
             title: 'Local Active',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1892,7 +1918,7 @@ describe('mergeBookmarks', () => {
             created: threeHoursAgo,
             updated: oneHourAgo,
             title: 'Local Active',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -1915,6 +1941,7 @@ describe('mergeBookmarks', () => {
           'Local Active',
           ['local'],
           {},
+          undefined,
           oneHourAgo
         ),
       }
@@ -1925,6 +1952,7 @@ describe('mergeBookmarks', () => {
           'Remote Deleted',
           [DELETED_BOOKMARK_TAG, 'remote'],
           {},
+          undefined,
           twoHoursAgo + 30_000,
           { deleted: threeHoursAgo, actionType: 'DELETE' }
         ),
@@ -1935,7 +1963,7 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo + 10_000,
             updated: oneHourAgo,
             title: 'Local Active',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local', DELETED_BOOKMARK_TAG, 'remote'],
           deletedMeta: { deleted: threeHoursAgo, actionType: 'DELETE' },
@@ -1959,6 +1987,7 @@ describe('mergeBookmarks', () => {
           'Local Active',
           ['local'],
           {},
+          undefined,
           oneHourAgo
         ),
       }
@@ -1969,6 +1998,7 @@ describe('mergeBookmarks', () => {
           'Remote Deleted',
           [DELETED_BOOKMARK_TAG, 'remote'],
           {},
+          undefined,
           twoHoursAgo + 30_000,
           { deleted: threeHoursAgo, actionType: 'DELETE' }
         ),
@@ -1979,7 +2009,7 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo + 10_000,
             updated: oneHourAgo,
             title: 'Local Active',
-            updated2: now,
+            updated3: now,
           },
           tags: ['local'],
         },
@@ -2002,6 +2032,7 @@ describe('mergeBookmarks', () => {
           'Local Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'local'],
           {},
+          undefined,
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -2014,6 +2045,7 @@ describe('mergeBookmarks', () => {
           'Remote Deleted Older',
           [DELETED_BOOKMARK_TAG, 'remote'],
           {},
+          undefined,
           threeHoursAgo,
           { deleted: threeHoursAgo, actionType: 'SYNC' }
         ),
@@ -2025,7 +2057,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: oneHourAgo,
             title: 'Local Deleted Newer',
-            updated2: now,
+            updated3: now,
           },
           tags: [DELETED_BOOKMARK_TAG, 'local'],
           deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' }, // from local
@@ -2047,7 +2079,7 @@ describe('mergeBookmarks', () => {
             created: threeHoursAgo,
             updated: oneHourAgo,
             title: 'Local Deleted Newer',
-            updated2: now,
+            updated3: now,
           },
           tags: [DELETED_BOOKMARK_TAG, 'local'],
           deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' }, // from local
@@ -2072,6 +2104,7 @@ describe('mergeBookmarks', () => {
           'Local Deleted Newer',
           [DELETED_BOOKMARK_TAG, 'local'],
           {},
+          undefined,
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -2084,6 +2117,7 @@ describe('mergeBookmarks', () => {
           'Remote Deleted Older',
           [DELETED_BOOKMARK_TAG, 'remote'],
           {},
+          undefined,
           twoHoursAgo + 3000,
           { deleted: threeHoursAgo, actionType: 'SYNC' }
         ),
@@ -2095,7 +2129,7 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo + 1000,
             updated: oneHourAgo,
             title: 'Local Deleted Newer',
-            updated2: now,
+            updated3: now,
           },
           tags: [DELETED_BOOKMARK_TAG, 'local', 'remote'],
           deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' }, // from local
@@ -2123,6 +2157,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'local deleted newer',
           },
+          undefined,
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -2136,6 +2171,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'remote avtive older',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -2149,6 +2185,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'local deleted older',
           },
+          undefined,
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' } // older deletion time
         ),
@@ -2162,6 +2199,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'remote avtive newer',
           },
+          undefined,
           now
         ),
       }
@@ -2196,7 +2234,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted',
                 localField: 'local deleted newer',
-                updated2: now + 1, // Assuming updated2 is based on the newer item's update time + 1
+                updated3: now + 1, // Assuming updated3 is based on the newer item's update time + 1
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -2217,7 +2255,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted',
                 localField: 'local deleted newer',
-                updated2: now + 1, // Assuming updated2 is based on the newer item's update time + 1
+                updated3: now + 1, // Assuming updated3 is based on the newer item's update time + 1
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -2239,7 +2277,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted', // from local
                 localField: 'local deleted newer', // from local
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -2260,7 +2298,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted', // from local
                 localField: 'local deleted newer', // from local
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -2281,7 +2319,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from newer (local)
                 title: 'Remote Active', // from remote
                 remoteField: 'remote avtive older', // from remote
-                updated2: now + 1, // from newer (local)
+                updated3: now + 1, // from newer (local)
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
               // If meta is remote, and remote is not deleted, deletedMeta should be undefined.
@@ -2305,7 +2343,7 @@ describe('mergeBookmarks', () => {
                 updated: oneHourAgo, // from newer (local)
                 title: 'Remote Active', // from remote
                 remoteField: 'remote avtive older', // from remote
-                updated2: now + 1, // from newer (local)
+                updated3: now + 1, // from newer (local)
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
               // If meta is remote, and remote is not deleted, deletedMeta should be undefined.
@@ -2332,7 +2370,7 @@ describe('mergeBookmarks', () => {
                 title: 'Local Deleted', // from newer (local)
                 localField: 'local deleted newer', // from local
                 remoteField: 'remote avtive older', // from remote
-                updated2: now + 1, // from newer (local)
+                updated3: now + 1, // from newer (local)
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -2354,7 +2392,7 @@ describe('mergeBookmarks', () => {
                 title: 'Local Deleted', // from newer (local)
                 localField: 'local deleted newer', // from local
                 remoteField: 'remote avtive older', // from remote
-                updated2: now + 1, // from newer (local)
+                updated3: now + 1, // from newer (local)
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag'], // from local (newer tags)
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -2377,7 +2415,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Remote Active New', // from remote (newer)
                 remoteField: 'remote avtive newer', // from remote
-                updated2: now + 1, // from remote (newer) + 1
+                updated3: now + 1, // from remote (newer) + 1
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-old', 'remote-tag-new'],
               deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta,
@@ -2398,7 +2436,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Local Deleted Old', // from local (older)
                 localField: 'local deleted older', // from local
-                updated2: now + 1, // from remote (newer) + 1
+                updated3: now + 1, // from remote (newer) + 1
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-old', 'remote-tag-new'],
               deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta,
@@ -2419,7 +2457,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Remote Active New', // from remote (newer)
                 remoteField: 'remote avtive newer', // from remote
-                updated2: now + 1, // from remote (newer) + 1
+                updated3: now + 1, // from remote (newer) + 1
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-old', 'remote-tag-new'],
               deletedMeta: localDeletedOlderData['http://item.com'].deletedMeta,
@@ -2441,7 +2479,7 @@ describe('mergeBookmarks', () => {
                 title: 'Remote Active New', // from remote (newer)
                 localField: 'local deleted older', // from local
                 remoteField: 'remote avtive newer', // from remote
-                updated2: now + 1, // from remote (newer) + 1
+                updated3: now + 1, // from remote (newer) + 1
               },
               // If remote (newer) is chosen for meta, and it's not deleted, then the merged item is not deleted.
               // Tags are 'local', so DELETED_BOOKMARK_TAG comes from local.
@@ -2520,6 +2558,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'active newer',
           },
+          undefined,
           now
         ),
       }
@@ -2532,6 +2571,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'deleted older',
           },
+          undefined,
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -2546,6 +2586,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'active older',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -2558,6 +2599,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'deleted newer',
           },
+          undefined,
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -2593,7 +2635,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Active Newer',
                 localField: 'active newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: ['local-tag-newer'], // from local (newer)
             },
@@ -2613,7 +2655,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Active Newer',
                 localField: 'active newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: ['local-tag-newer'], // from local (newer)
             },
@@ -2633,7 +2675,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Active Newer',
                 localField: 'active newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 'local-tag-newer',
@@ -2658,7 +2700,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Active Newer',
                 localField: 'active newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 'local-tag-newer',
@@ -2683,7 +2725,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Remote Deleted Older',
                 remoteField: 'deleted older',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 'local-tag-newer',
@@ -2709,7 +2751,7 @@ describe('mergeBookmarks', () => {
                 title: 'Local Active Newer',
                 localField: 'active newer',
                 remoteField: 'deleted older',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 'local-tag-newer',
@@ -2734,7 +2776,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
@@ -2755,7 +2797,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
@@ -2776,7 +2818,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Local Active Older', // from local
                 localField: 'active older',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
@@ -2797,7 +2839,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
@@ -2818,7 +2860,7 @@ describe('mergeBookmarks', () => {
                 updated: now, // from remote (newer)
                 title: 'Remote Deleted Newer', // from remote (newer)
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
@@ -2840,7 +2882,7 @@ describe('mergeBookmarks', () => {
                 title: 'Remote Deleted Newer', // from remote (newer)
                 localField: 'active older',
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'], // from remote (newer)
               deletedMeta: { deleted: now, actionType: 'DELETE' }, // from remote (newer)
@@ -2906,6 +2948,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'deleted newer',
           },
+          undefined,
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -2919,6 +2962,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'deleted older',
           },
+          undefined,
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -2933,6 +2977,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'deleted older',
           },
+          undefined,
           oneHourAgo,
           { deleted: oneHourAgo, actionType: 'DELETE' }
         ),
@@ -2946,6 +2991,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'deleted newer',
           },
+          undefined,
           now,
           { deleted: now, actionType: 'DELETE' }
         ),
@@ -2960,6 +3006,7 @@ describe('mergeBookmarks', () => {
           {
             localField: 'deleted older no deleted metadata',
           },
+          undefined,
           oneHourAgo
         ),
       }
@@ -2972,6 +3019,7 @@ describe('mergeBookmarks', () => {
           {
             remoteField: 'deleted newer no deleted metadata',
           },
+          undefined,
           now
         ),
       }
@@ -3006,7 +3054,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted Newer',
                 localField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -3028,7 +3076,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted Newer',
                 localField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -3049,7 +3097,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted Newer',
                 localField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-older'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -3070,7 +3118,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Remote Deleted Older',
                 remoteField: 'deleted older',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-older'],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
@@ -3091,7 +3139,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Remote Deleted Older',
                 remoteField: 'deleted older',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: oneHourAgo, actionType: 'DELETE' },
@@ -3112,7 +3160,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Local Deleted Newer',
                 localField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'local-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -3133,7 +3181,7 @@ describe('mergeBookmarks', () => {
                 updated: now,
                 title: 'Remote Deleted Newer',
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [DELETED_BOOKMARK_TAG, 'remote-tag-newer'],
               deletedMeta: { deleted: now, actionType: 'DELETE' },
@@ -3155,7 +3203,7 @@ describe('mergeBookmarks', () => {
                 title: 'Local Deleted Newer', // union takes newer title
                 localField: 'deleted newer',
                 remoteField: 'deleted older',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 DELETED_BOOKMARK_TAG,
@@ -3181,7 +3229,7 @@ describe('mergeBookmarks', () => {
                 title: 'Remote Deleted Newer', // union takes newer title
                 localField: 'deleted older',
                 remoteField: 'deleted newer',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 DELETED_BOOKMARK_TAG,
@@ -3207,7 +3255,7 @@ describe('mergeBookmarks', () => {
                 title: 'Remote Deleted Newer', // union takes newer title
                 localField: 'deleted older no deleted metadata',
                 remoteField: 'deleted newer no deleted metadata',
-                updated2: now + 1,
+                updated3: now + 1,
               },
               tags: [
                 DELETED_BOOKMARK_TAG,
@@ -3288,37 +3336,39 @@ describe('mergeBookmarks', () => {
     })
   })
 
-  describe('updated2 Timestamp Handling', () => {
-    it('should correctly set updated2 based on the max of local and remote update times + 1', async () => {
+  describe('updated3 Timestamp Handling', () => {
+    it('should correctly set updated3 based on the max of local and remote update times + 1', async () => {
       const localData: BookmarksData = {
-        'http://updated2.com': createBookmarkEntry(
+        'http://updated3.com': createBookmarkEntry(
           twoHoursAgo, // created
           twoHoursAgo, // updated
           'Local',
           ['tag', 'local'],
           {},
-          oneHourAgo // updated2 (newer than updated)
+          oneHourAgo, // ensure local data is valid
+          oneHourAgo // updated3 (newer than updated)
         ),
       }
       const remoteData: BookmarksData = {
-        'http://updated2.com': createBookmarkEntry(
+        'http://updated3.com': createBookmarkEntry(
           twoHoursAgo, // created
           now, // updated (newest)
           'Remote',
           ['tag', 'remote']
-          // no updated2, so updated is newest for remote
+          // no updated3, so updated is newest for remote
         ),
       }
-      // local effective last update: oneHourAgo (from updated2)
+      // local effective last update: oneHourAgo (from updated3)
       // remote effective last update: now (from updated)
       // max is 'now'
       const expectedUpdatesForLocal: BookmarksData = {
-        'http://updated2.com': {
+        'http://updated3.com': {
           meta: {
             created: twoHoursAgo,
             updated: now, // from remote, as it's newer
             title: 'Remote', // from remote, as it's newer
-            updated2: now + 1, // max(oneHourAgo, now) + 1
+            updated2: oneHourAgo,
+            updated3: now + 1, // max(oneHourAgo, now) + 1
           },
           tags: ['tag', 'local', 'remote'], // union
         },
@@ -3372,7 +3422,7 @@ describe('mergeBookmarks', () => {
 
   describe('Advanced Merge Scenarios', () => {
     // Scenario 1: Local new, Remote none
-    it('should add local new item to remote and update updated2', async () => {
+    it('should add local new item to remote and update updated3', async () => {
       const localData: BookmarksData = {
         'http://example.com/new-local': createBookmarkEntry(
           now - 2000, // Created now - 2000
@@ -3389,7 +3439,8 @@ describe('mergeBookmarks', () => {
           'New Local Item',
           ['local-tag'],
           {},
-          baseSyncOption.currentSyncTime // updated2 should be currentSyncTime
+          undefined,
+          baseSyncOption.currentSyncTime // updated3 should be currentSyncTime
         ),
       }
       await runMergeTest({
@@ -3403,7 +3454,7 @@ describe('mergeBookmarks', () => {
     })
 
     // Scenario 2: Remote new, Local none
-    it('should add remote new item to local and update updated2', async () => {
+    it('should add remote new item to local and update updated3', async () => {
       const localData: BookmarksData = {}
       const remoteData: BookmarksData = {
         'http://example.com/new-remote': createBookmarkEntry(
@@ -3420,7 +3471,8 @@ describe('mergeBookmarks', () => {
           'New Remote Item',
           ['remote-tag'],
           {},
-          baseSyncOption.currentSyncTime // updated2 should be currentSyncTime
+          undefined,
+          baseSyncOption.currentSyncTime // updated3 should be currentSyncTime
         ),
       }
       await runMergeTest({
@@ -3463,7 +3515,8 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo,
             updated: oneHourAgo,
             title: 'Updated Local Item 1',
-            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+            updated2: oneHourAgo,
+            updated3: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
           },
           tags: ['local-updated'], // Assuming 'local' tag strategy or similar if not union
         },
@@ -3527,7 +3580,8 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo,
             updated: oneHourAgo,
             title: 'Updated Remote Item 2', // meta: 'newer'
-            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+            updated2: oneHourAgo,
+            updated3: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
           },
           tags: ['original', 'remote-updated'].sort(), // tags: 'union'
         },
@@ -3573,7 +3627,8 @@ describe('mergeBookmarks', () => {
             updated: oneHourAgo + 1000, // Newer update time
             title: 'Remote Conflict Version', // Newer title
             remoteOnly: 'yes', // Newer meta object properties win
-            updated2: Math.max(
+            updated2: oneHourAgo + 1000,
+            updated3: Math.max(
               oneHourAgo + 1000 + 1,
               baseSyncOption.currentSyncTime
             ),
@@ -3600,7 +3655,8 @@ describe('mergeBookmarks', () => {
             title: 'Remote Conflict Version', // Newer title
             localOnly: 'yes',
             remoteOnly: 'yes', // Newer meta object properties win
-            updated2: Math.max(
+            updated2: oneHourAgo + 1000,
+            updated3: Math.max(
               oneHourAgo + 1000 + 1,
               baseSyncOption.currentSyncTime
             ),
@@ -3650,7 +3706,8 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo,
             updated: oneHourAgo, // from local, as it's newer
             title: 'To Be Deleted by Local',
-            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+            updated2: oneHourAgo,
+            updated3: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
           },
           tags: [DELETED_BOOKMARK_TAG, 'other-tag', 'remote-tag'].sort(), // Union of tags, including DELETED_BOOKMARK_TAG
         },
@@ -3696,7 +3753,8 @@ describe('mergeBookmarks', () => {
             created: twoHoursAgo,
             updated: oneHourAgo, // from remote, as it's newer
             title: 'To Be Deleted by Remote',
-            updated2: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
+            updated2: oneHourAgo,
+            updated3: Math.max(oneHourAgo + 1, baseSyncOption.currentSyncTime),
           },
           tags: ['local-tag', DELETED_BOOKMARK_TAG, 'other-tag'],
         },
@@ -3780,7 +3838,7 @@ describe('mergeBookmarks', () => {
             created: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
             updated: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
             title: 'Local Invalid Date',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tag1'],
         },
@@ -3818,7 +3876,7 @@ describe('mergeBookmarks', () => {
             created: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
             updated: DEFAULT_DATE, // Should fall back to DEFAULT_DATE from constants
             title: 'Local Invalid Date Str',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tag1'],
         },
@@ -3865,7 +3923,7 @@ describe('mergeBookmarks', () => {
             created: localCreated, // Expect oldest created
             updated: oneHourAgo, // Timestamps from remote due to 'remote' meta strategy for other fields
             title: 'Remote Title',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tagL', 'tagR'], // Union
         },
@@ -3911,7 +3969,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: localUpdated, // Expect newest updated
             title: 'Remote Title',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tagL', 'tagR'], // Union
         },
@@ -3939,7 +3997,7 @@ describe('mergeBookmarks', () => {
             created: oneHourAgo,
             updated: remoteUpdated, // Expect updated of remote
             title: 'Remote Title',
-            updated2: now,
+            updated3: now,
           },
           tags: ['tagL', 'tagR'], // Union
         },
@@ -4106,7 +4164,8 @@ describe('mergeBookmarks Batch Processing', () => {
           created: oneHourAgo,
           updated: now - 10_000,
           title: `Remote Page ${i}`,
-          updated2: now,
+          updated2: now - 5000,
+          updated3: now,
         },
         tags: [`tag${i}`],
       }

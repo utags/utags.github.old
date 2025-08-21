@@ -72,7 +72,7 @@ export type MergeDecision = {
  * If 'created' is invalid, both 'created' and 'updated' are set to 'defaultDate'.
  * If 'updated' is invalid but 'created' is valid, 'updated' is set to 'created'.
  * This function directly modifies the 'meta' object of the provided bookmark data.
- * It does not explicitly handle 'updated2' as its validity is usually tied to specific operations like sync or import.
+ * It does not explicitly handle 'updated2' and 'updated3' as their validity is usually tied to specific operations like batch modifications (updated2) or sync/import/merge operations (updated3).
  * @param {BookmarkTagsAndMetadata | undefined} data - The bookmark data to normalize. Can be undefined.
  * @param {number} defaultDate - The default timestamp to use if 'created' is invalid.
  */
@@ -101,31 +101,45 @@ function normalizeBookmark(
     meta.updated = meta.created
   }
 
-  // Ensure updated2 is not earlier than updated or created if it exists
+  // Ensure updated2 and updated3 are not earlier than updated or created if they exist
   // if (meta.updated2 && meta.updated2 < Math.max(meta.created, meta.updated)) {
   //   // This case might indicate an inconsistency. Depending on the desired behavior,
   //   // it could be logged, or updated2 could be adjusted.
-  //   // For now, we assume updated2 is managed correctly by the calling process (e.g., sync, import)
+  //   // For now, we assume updated2 is managed correctly by the calling process (e.g., batch operations)
+  // }
+  // if (meta.updated3 && meta.updated3 < Math.max(meta.created, meta.updated)) {
+  //   // Similar handling for updated3 which is managed by sync/import/merge operations
   // }
 }
 
 /**
  * Gets the most recent update timestamp from a bookmark's metadata.
  * It considers 'created' (creation time), 'updated' (manual user edit time),
- * and 'updated2' (timestamp of the last modification, often by sync, merge, or import operations).
+ * 'updated2' (timestamp for batch modification operations), and 'updated3' (timestamp for sync/import/merge operations).
  * This function is crucial for determining the effective last modification time for synchronization logic
  * and conflict resolution, ensuring all relevant updates are considered.
  * @param {BookmarkTagsAndMetadata['meta']} meta - The metadata object of a bookmark.
- * @returns {number} The latest timestamp among meta.created, meta.updated, and meta.updated2 (defaults to 0 if meta.updated2 is not present).
+ * @param {boolean} excludeSyncTimestamp - When true, excludes 'updated3' (sync/import/merge timestamp) from consideration.
+ *   This is useful for determining if a bookmark has actual content modifications (user edits or batch operations)
+ *   versus sync-only operations. Used in merge logic to distinguish between real content changes and sync metadata updates.
+ * @returns {number} The latest timestamp among meta.created, meta.updated, meta.updated2, and optionally meta.updated3 (defaults to 0 if not present).
  */
-function getUpdated(meta: BookmarkTagsAndMetadata['meta']): number {
-  return Math.max(meta.created, meta.updated, meta.updated2 || 0)
+function getUpdated(
+  meta: BookmarkTagsAndMetadata['meta'],
+  excludeSyncTimestamp = false
+): number {
+  return Math.max(
+    meta.created,
+    meta.updated,
+    meta.updated2 || 0,
+    excludeSyncTimestamp ? 0 : meta.updated3 || 0
+  )
 }
 
 /**
  * Checks if a bookmark is considered valid for synchronization based on its last effective update time.
  * A bookmark is deemed valid if it exists (has data and metadata) and its most recent update timestamp
- * (obtained via getUpdated, which considers created, updated, and updated2)
+ * (obtained via getUpdated, which considers created, updated, updated2, and optionally updated3)
  * is strictly greater than the 'lastSyncTime'. This implies the bookmark has been modified
  * since the last successful synchronization finished.
  *
@@ -135,18 +149,22 @@ function getUpdated(meta: BookmarkTagsAndMetadata['meta']): number {
  * is the exact end timestamp of the previous sync, then '>' is appropriate for new changes).
  * @param {BookmarkTagsAndMetadata | undefined} data - The bookmark data to check. Can be undefined if the bookmark doesn't exist on one side.
  * @param {number} lastSyncTime - The timestamp marking the completion of the last successful synchronization. Changes after this point are considered new.
+ * @param {boolean} excludeSyncTimestamp - When true, excludes 'updated3' (sync/import/merge timestamp) from validation.
+ *   This allows checking for actual content modifications (user edits or batch operations) versus sync-only operations.
+ *   Used in merge logic to determine if a bookmark has real changes that warrant propagation or deletion handling.
  * @returns {boolean} True if the bookmark is valid for sync (i.e., modified after lastSyncTime), false otherwise.
  */
 function isValid(
   data: BookmarkTagsAndMetadata | undefined,
-  lastSyncTime: number
+  lastSyncTime: number,
+  excludeSyncTimestamp = false
 ): data is BookmarkTagsAndMetadata {
   // Type predicate to narrow down type
   if (!data || !data.meta) {
     return false
   }
 
-  return getUpdated(data.meta) > lastSyncTime
+  return getUpdated(data.meta, excludeSyncTimestamp) > lastSyncTime
 }
 
 /**
@@ -160,7 +178,7 @@ function isValid(
  *   4. If the bookmark exists only in one source, it determines if it should be propagated to the other source or marked for deletion based on its validity.
  *   5. Merges 'created' and 'updated' timestamps according to the specified strategy (e.g., prefer oldest created, newest updated).
  *   6. Determines the `mergeTarget`, which indicates how the merged data should be applied (e.g., update local, update remote, update both, or no operation).
- *   7. Sets the `updated2` timestamp on the merged data to mark it as processed in the current sync cycle if an update is to occur.
+ *   7. Sets the `updated3` timestamp on the merged data to mark it as processed in the current sync cycle if an update is to occur.
  *   8. Accumulates changes into `updatesForLocal`, `updatesForRemote`, `localDeletions`, and `remoteDeletions` lists.
  * The function processes bookmarks in batches for improved performance and responsiveness.
  *
@@ -267,16 +285,20 @@ export async function mergeBookmarks(
 
         // Determine if the local or remote version has been modified since the last sync.
         // A bookmark is 'valid' if it has been modified after lastSyncTime.
-        const localValid = isValid(local, lastSyncTime)
-        const remoteValid = isValid(remote, lastSyncTime)
+        // localValid/remoteValid: Check for actual content modifications (excludes sync-only operations)
+        // localValid2/remoteValid2: Check for any modifications including sync operations
+        // const localValid = isValid(local, lastSyncTime, true)
+        // const remoteValid = isValid(remote, lastSyncTime, true)
+        const localValid2 = isValid(local, lastSyncTime, false)
+        const remoteValid2 = isValid(remote, lastSyncTime, false)
 
         if (local && remote) {
           // Case 1: Bookmark exists in both local and remote sources.
           const data = mergeBothSources(
             local,
-            localValid,
+            localValid2,
             remote,
-            remoteValid,
+            remoteValid2,
             strategy
           )
 
@@ -305,6 +327,11 @@ export async function mergeBookmarks(
               local.meta.updated,
               remote.meta.updated
             )
+
+            data.meta.updated2 =
+              local.meta.updated2 && remote.meta.updated2
+                ? Math.max(local.meta.updated2, remote.meta.updated2)
+                : local.meta.updated2 || remote.meta.updated2
           }
 
           // Determine the merge target based on the merged data and original local/remote versions.
@@ -314,22 +341,22 @@ export async function mergeBookmarks(
           //      the merge process resulted in data identical to both original local and remote versions (e.g., both sides made the exact same change, including timestamps).
           //   3. Identical and no update needed: Both local and remote are identical, and neither was 'valid' (no changes since last sync).
           //   4. Both marked for deletion and strategy aligns with this (though deletion is handled earlier, this is a conceptual possibility for mergeTarget=0).
-          // In these cases (mergeTarget === 0), no update action is taken for this item. It's skipped, and 'updated2' is not set.
+          // In these cases (mergeTarget === 0), no update action is taken for this item. It's skipped, and 'updated3' is not set.
           // The calling context might have specific rules for logging or handling conflicts if desired.
           const mergeTarget = determinMergeTarget(data, local, remote)
           if (mergeTarget === 0) {
             // If there's a conflict or no action needed (mergeTarget === 0), skip this item.
-            // No updates will be queued for local or remote, and updated2 will not be set here.
+            // No updates will be queued for local or remote, and updated3 will not be set here.
             continue
           }
 
-          // Ensure 'updated2' reflects this merge operation and is the most recent timestamp.
+          // Ensure 'updated3' reflects this merge operation and is the most recent timestamp.
           // This is only calculated if mergeTarget indicates an update is needed (i.e., not 0).
           // Using currentSyncTime here helps handle edge cases, such as when a bookmark was just updated
           // (updated === currentSyncTime) or if the user's local clock was modified, making currentSyncTime
           // potentially less than a pre-existing 'updated' timestamp from a future-dated manual edit.
-          // Adding 1 to existing getUpdated values ensures updated2 is strictly newer if based on those.
-          data.meta.updated2 = Math.max(
+          // Adding 1 to existing getUpdated values ensures updated3 is strictly newer if based on those.
+          data.meta.updated3 = Math.max(
             getUpdated(local.meta) + 1,
             getUpdated(remote.meta) + 1,
             currentSyncTime
@@ -348,13 +375,13 @@ export async function mergeBookmarks(
           }
         } else if (local && !remote) {
           // Case 2: Bookmark exists only locally.
-          if (localValid) {
+          if (localValid2) {
             // Local version is newer or new; it should be propagated to remote.
-            // Update 'updated2' to mark it as processed in this sync cycle.
-            // Using currentSyncTime ensures 'updated2' reflects this sync operation, handling cases
+            // Update 'updated3' to mark it as processed in this sync cycle.
+            // Using currentSyncTime ensures 'updated3' reflects this sync operation, handling cases
             // like recent local updates or local clock adjustments.
             const clone = structuredClone(local)
-            clone.meta.updated2 = Math.max(
+            clone.meta.updated3 = Math.max(
               getUpdated(local.meta) + 1,
               currentSyncTime
             )
@@ -367,13 +394,13 @@ export async function mergeBookmarks(
           }
         } else if (!local && remote) {
           // Case 3: Bookmark exists only remotely.
-          if (remoteValid) {
+          if (remoteValid2) {
             // Remote version is newer or new; it should be propagated to local.
-            // Update 'updated2' to mark it as processed in this sync cycle.
-            // Using currentSyncTime ensures 'updated2' reflects this sync operation, handling cases
+            // Update 'updated3' to mark it as processed in this sync cycle.
+            // Using currentSyncTime ensures 'updated3' reflects this sync operation, handling cases
             // like recent remote updates or clock adjustments on the remote source if applicable.
             const clone = structuredClone(remote)
-            clone.meta.updated2 = Math.max(
+            clone.meta.updated3 = Math.max(
               getUpdated(remote.meta) + 1,
               currentSyncTime
             )
@@ -693,7 +720,7 @@ function mergeDeletedMeta(
 /**
  * Determines the merge target by comparing the content of the merged bookmark data
  * with the original local and remote bookmark data. Content comparison excludes operational
- * timestamps like 'updated2' to focus on user-editable data (tags, title, description, etc.).
+ * timestamps like 'updated2' and 'updated3' to focus on user-editable data (tags, title, description, etc.).
  *
  * The merge target indicates how the merged data should be applied:
  * - `0`: NoOp / Conflict (Content-wise). The merged content is identical to both original local and remote content,
@@ -719,11 +746,11 @@ function determinMergeTarget(
   // Determine if the content (tags, meta excluding 'updated2', and deletedMeta)
   // of the local or remote bookmark differs from the merged result.
   // This helps decide the mergeTarget by focusing on user-editable content changes.
-  // Timestamps ('updated2') are excluded from this specific content comparison
+  // Timestamps ('updated2' and 'updated3') are excluded from this specific content comparison
   // because their merging is handled by mergeCreatedAndUpdated and the overall timestamp logic,
   // and they don't solely define a content conflict that requires a specific mergeTarget direction (1, 2, or 3) here.
-  // The 'updated2' field is an operational timestamp and not user content.
-  const ignoredMetaKeys = ['updated2']
+  // The 'updated2' field is for batch operations and 'updated3' field is for sync/import/merge operations, both are operational timestamps and not user content.
+  const ignoredMetaKeys = ['updated2', 'updated3']
 
   const localContentChanged =
     !areArraysEqual(mergedData.tags, local.tags) ||
