@@ -293,6 +293,7 @@
   "SORT_OPTION_TITLE_DESC": "Titel (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "Aktualisierungsdatum ↑",
   "SORT_OPTION_UPDATED_DESC": "Aktualisierungsdatum ↓",
+  "STARRED": "Mit Stern markiert",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Tag-Inhalt löschen",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "Klicken, um Tag zu bearbeiten",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Tipp: Verwenden Sie die Eingabetaste oder ein Komma, um mehrere Tags zu trennen",

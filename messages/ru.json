@@ -342,6 +342,7 @@
   "SORT_OPTION_TITLE_DESC": "Название (Я-А)",
   "SORT_OPTION_UPDATED_ASC": "Дата обновления ↑",
   "SORT_OPTION_UPDATED_DESC": "Дата обновления ↓",
+  "STARRED": "Помеченные",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Очистить содержимое тега",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "Нажмите, чтобы изменить тег",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Подсказка: Используйте Enter или запятую для разделения нескольких тегов",

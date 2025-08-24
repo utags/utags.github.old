@@ -159,6 +159,7 @@
   "SORT_OPTION_TITLE_DESC": "제목 (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "업데이트 날짜 ↑",
   "SORT_OPTION_UPDATED_DESC": "업데이트 날짜 ↓",
+  "STARRED": "중요",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "태그 내용 지우기",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "태그를 편집하려면 클릭하세요",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "팁: 여러 태그를 구분하려면 Enter 키나 쉼표를 사용하세요",

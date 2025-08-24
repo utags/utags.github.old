@@ -159,6 +159,7 @@
   "SORT_OPTION_TITLE_DESC": "タイトル (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "更新日時 ↑",
   "SORT_OPTION_UPDATED_DESC": "更新日時 ↓",
+  "STARRED": "スター付き",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "タグの内容をクリア",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "クリックしてタグを編集",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "ヒント：複数のタグを区切るには、Enterキーまたはカンマを使用します",

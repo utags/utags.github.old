@@ -159,6 +159,7 @@
   "SORT_OPTION_TITLE_DESC": "Tiêu đề (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "Ngày cập nhật ↑",
   "SORT_OPTION_UPDATED_DESC": "Ngày cập nhật ↓",
+  "STARRED": "Đã đánh dấu sao",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Xóa nội dung thẻ",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "Nhấp để chỉnh sửa thẻ",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Mẹo: Sử dụng Enter hoặc dấu phẩy để phân tách nhiều thẻ",

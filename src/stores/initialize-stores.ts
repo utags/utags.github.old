@@ -71,6 +71,22 @@ function initializeCollections() {
       ? [
           {
             id: crypto.randomUUID(),
+            name: '已加星标',
+            pathname: 'starred',
+            filterString: `t=${[
+              '★',
+              '★★',
+              '★★★',
+              '☆',
+              '☆☆',
+              '☆☆☆',
+              'starred',
+            ].join(',')}`,
+            created: now,
+            updated: now,
+          },
+          {
+            id: crypto.randomUUID(),
             name: '稍后阅读',
             pathname: 'read-later',
             filterString: `t=${[
@@ -92,6 +108,22 @@ function initializeCollections() {
           },
         ]
       : [
+          {
+            id: crypto.randomUUID(),
+            name: 'Starred',
+            pathname: 'starred',
+            filterString: `t=${[
+              '★',
+              '★★',
+              '★★★',
+              '☆',
+              '☆☆',
+              '☆☆☆',
+              'starred',
+            ].join(',')}`,
+            created: now,
+            updated: now,
+          },
           {
             id: crypto.randomUUID(),
             name: 'Read Later',

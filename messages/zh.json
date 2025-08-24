@@ -149,6 +149,7 @@
   "SORT_OPTION_TITLE_DESC": "标题 (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "更新时间 ↑",
   "SORT_OPTION_UPDATED_DESC": "更新时间 ↓",
+  "STARRED": "已加星标",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "清空标签内容",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "点击编辑标签",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "提示：输入多个标签时请用回车键或逗号分隔",

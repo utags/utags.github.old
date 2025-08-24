@@ -547,5 +547,42 @@ describe('collections store', () => {
       // Verify result
       expect(result).toBe('tag=special')
     })
+
+    it('should return filterString from builtin collections when not found in user collections', () => {
+      // Prepare empty user collections
+      collections.set([])
+
+      // Call function with builtin collection pathname
+      const starredResult = getFilterStringByPathname('starred')
+      const readLaterResult = getFilterStringByPathname('read-later')
+
+      // Verify results - should find builtin collections
+      expect(starredResult).toBeDefined()
+      expect(starredResult).toContain('t=')
+      expect(starredResult).toContain('starred')
+
+      expect(readLaterResult).toBeDefined()
+      expect(readLaterResult).toContain('t=')
+      expect(readLaterResult).toContain('read-later')
+    })
+
+    it('should prioritize user collections over builtin collections', () => {
+      // Prepare user collection with same pathname as builtin
+      const userCollection = {
+        id: '1',
+        name: 'User Starred',
+        pathname: 'starred',
+        filterString: 'tag=user-starred',
+        created: Date.now(),
+        updated: Date.now(),
+      }
+      collections.set([userCollection])
+
+      // Call function
+      const result = getFilterStringByPathname('starred')
+
+      // Verify result - should return user collection, not builtin
+      expect(result).toBe('tag=user-starred')
+    })
   })
 })

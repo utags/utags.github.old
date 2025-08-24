@@ -159,6 +159,7 @@
   "SORT_OPTION_TITLE_DESC": "標題 (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "更新時間 ↑",
   "SORT_OPTION_UPDATED_DESC": "更新時間 ↓",
+  "STARRED": "已加星號",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "清空標籤內容",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "點擊編輯標籤",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "提示：輸入多個標籤時請用 Enter 鍵或逗號分隔",

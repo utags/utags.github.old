@@ -30,6 +30,27 @@ type SaveCollectionParams = {
 
 let collections: Persisted<Collection[]>
 
+const builtinCollections = [
+  {
+    id: crypto.randomUUID(),
+    name: 'Starred',
+    pathname: 'starred',
+    filterString: `t=${['★', '★★', '★★★', '☆', '☆☆', '☆☆☆', 'starred'].join(
+      ','
+    )}`,
+    created: 0,
+    updated: 0,
+  },
+  {
+    id: crypto.randomUUID(),
+    name: 'Read Later',
+    pathname: 'read-later',
+    filterString: `t=${['read-later', 'Read Later', 'toread', '稍后阅读'].join(',')}`,
+    created: 0,
+    updated: 0,
+  },
+]
+
 /**
  * Retrieves the collections store
  * Initializes the store if it hasn't been initialized yet
@@ -201,6 +222,10 @@ export function getFilterStringByPathname(
   pathname: string
 ): string | undefined {
   const $collections = get(getCollections())
-  const collection = $collections.find((c) => c.pathname === pathname)
+  // If not found in user collections, search in builtin collections
+  const collection =
+    $collections.find((c) => c.pathname === pathname) ||
+    builtinCollections.find((c) => c.pathname === pathname)
+
   return collection ? collection.filterString : undefined
 }

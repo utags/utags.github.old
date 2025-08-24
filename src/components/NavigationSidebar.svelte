@@ -77,8 +77,12 @@
         { name: m.ALL_BOOKMARKS(), icon: 'list', href: `${base}#` },
         // { name: '所有书签', icon: 'list', href: '/all#' },
         // { name: '存档', icon: 'list', href: '/archive#' },
-        // { name: '已加星标', icon: 'list', href: '/starred#' },
         // { name: '已删除书签', icon: 'list', href: '/deleted#' },
+        {
+          name: m.STARRED(),
+          icon: 'star',
+          href: buildCollectionPath('starred'),
+        },
         {
           name: m.READ_LATER(),
           icon: 'bookmark-plus',
@@ -116,8 +120,9 @@
   $effect(() => {
     const firstNavGroup = navGroups[0]
     if (firstNavGroup) {
-      firstNavGroup.items[3].href = `?${buildTimeQuerySearchParams(locationSearchString, 'created', '1m').toString()}`
-      firstNavGroup.items[4].href = `?${buildTimeQuerySearchParams(locationSearchString, 'updated', '1m').toString()}`
+      // FIXME: 索引不应该写死，有忘记更新的风险
+      firstNavGroup.items[4].href = `?${buildTimeQuerySearchParams(locationSearchString, 'created', '1m').toString()}`
+      firstNavGroup.items[5].href = `?${buildTimeQuerySearchParams(locationSearchString, 'updated', '1m').toString()}`
     }
   })
 

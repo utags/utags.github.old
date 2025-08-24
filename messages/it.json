@@ -293,6 +293,7 @@
   "SORT_OPTION_TITLE_DESC": "Titolo (Z-A)",
   "SORT_OPTION_UPDATED_ASC": "Data di aggiornamento ↑",
   "SORT_OPTION_UPDATED_DESC": "Data di aggiornamento ↓",
+  "STARRED": "Speciali",
   "TAG_INPUT_CLEAR_TAG_CONTENT_TOOLTIP": "Cancella contenuto tag",
   "TAG_INPUT_EDIT_TAG_TOOLTIP": "Clicca per modificare il tag",
   "TAG_INPUT_HINT_ENTER_COMMA_SEPARATOR": "Suggerimento: usa Invio o virgola per separare più tag",
