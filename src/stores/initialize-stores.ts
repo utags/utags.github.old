@@ -160,6 +160,14 @@ function initializeFilters() {
       ? [
           {
             id: crypto.randomUUID(),
+            name: '常用网站',
+            description: '常用网站',
+            filterString: `#${encodeURIComponent('常用, Popular')}`,
+            created: now,
+            updated: now,
+          },
+          {
+            id: crypto.randomUUID(),
             name: 'Tools',
             description: '好用的工具',
             filterString: `#${encodeURIComponent('工具,Tools')}`,
@@ -176,6 +184,14 @@ function initializeFilters() {
           },
         ]
       : [
+          {
+            id: crypto.randomUUID(),
+            name: 'Popular',
+            description: 'Popular websites',
+            filterString: `#${encodeURIComponent('常用, Popular')}`,
+            created: now,
+            updated: now,
+          },
           {
             id: crypto.randomUUID(),
             name: 'Tools',
@@ -238,9 +254,8 @@ export default async function initializeStores() {
   // only run once
   if ($settings.isFirstRun) {
     initializeCollections()
+    initializeFilters()
   }
-
-  initializeFilters()
 
   // run every time when loading stores
   initializeSettings()

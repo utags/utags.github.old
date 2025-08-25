@@ -13,6 +13,7 @@ export const initialBookmarks = {
       updated: Date.now(),
     },
     tags: [
+      '★',
       'Open Source',
       'Bookmarks', // 书签 (also English)
       'Bookmark Manager', // 书签管理器
@@ -79,7 +80,7 @@ export const initialBookmarks = {
       created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
       updated: Date.now() - 4000,
     },
-    tags: ['Open Source', 'Browser Extension', 'Userscript'],
+    tags: ['★', 'Open Source', 'Browser Extension', 'Userscript'],
   },
   'https://utags.link/c/public/help': {
     meta: {
@@ -128,6 +129,7 @@ export const initialBookmarks = {
       updated: Date.now() - 4000,
     },
     tags: [
+      '★',
       'Open Source',
       'Bookmark Manager', // 书签管理器
       'Tools/Free', // 工具/免费
@@ -288,6 +290,202 @@ export const initialBookmarks = {
     tags: [
       'Userscript',
       '💰 Sponsors', // 💰 赞助商
+    ],
+  },
+  'https://gemini.google.com/app': {
+    meta: {
+      title: 'Google Gemini',
+      description:
+        'Google Gemini is an advanced AI assistant that can help with writing, analysis, coding, and creative tasks through natural conversation.',
+      created: Date.now() - 5000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 50_000,
+    },
+    tags: ['AI Chat', 'Tools/AI', 'Google', 'Assistant'],
+  },
+  'https://chatgpt.com/': {
+    meta: {
+      title: 'ChatGPT',
+      description:
+        'ChatGPT is an AI-powered conversational assistant by OpenAI that can help with various tasks including writing, coding, analysis, and creative projects.',
+      created: Date.now() - 6000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 49_000,
+    },
+    tags: ['AI Chat', 'Tools/AI', 'OpenAI', 'Assistant'],
+  },
+  'https://www.doubao.com/chat/': {
+    meta: {
+      title: 'Doubao (豆包)',
+      description:
+        "Doubao is ByteDance's AI assistant that provides intelligent conversation, content creation, and problem-solving capabilities in Chinese and English.",
+      created: Date.now() - 7000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 48_000,
+    },
+    tags: ['AI Chat', 'Tools/AI', 'ByteDance', 'Assistant', 'Chinese'],
+  },
+  'https://chat.deepseek.com/': {
+    meta: {
+      title: 'DeepSeek Chat',
+      description:
+        'DeepSeek Chat is an AI conversational platform that offers advanced reasoning capabilities for coding, mathematics, and general problem-solving tasks.',
+      created: Date.now() - 8000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 47_000,
+    },
+    tags: ['AI Chat', 'Tools/AI', 'DeepSeek', 'Assistant', 'Coding'],
+  },
+  'https://www.google.com/': {
+    meta: {
+      title: 'Google',
+      description:
+        "Google is the world's most popular search engine, providing comprehensive web search, images, videos, news, and various online services.",
+      created: Date.now() - 9000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 100_000,
+    },
+    tags: ['Popular', 'Search Engine', 'Google', 'Web Search', 'Essential'],
+  },
+  'https://www.bing.com/': {
+    meta: {
+      title: 'Bing',
+      description:
+        'Microsoft Bing is a web search engine that provides search results for web pages, images, videos, and news with AI-powered features.',
+      created: Date.now() - 10_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 99_000,
+    },
+    tags: ['Popular', 'Search Engine', 'Microsoft', 'Web Search', 'AI Search'],
+  },
+  'https://www.youtube.com/': {
+    meta: {
+      title: 'YouTube',
+      description:
+        "YouTube is the world's largest video sharing platform where users can watch, upload, and share videos on virtually any topic.",
+      created: Date.now() - 11_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 98_000,
+    },
+    tags: [
+      'Popular',
+      'Video',
+      'Entertainment',
+      'Google',
+      'Social Media',
+      'Learning',
+    ],
+  },
+  'https://www.reddit.com/': {
+    meta: {
+      title: 'Reddit',
+      description:
+        'Reddit is a social news aggregation and discussion website where users can share content, participate in discussions, and vote on posts.',
+      created: Date.now() - 12_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 97_000,
+    },
+    tags: [
+      'Popular',
+      'Social Media',
+      'Discussion',
+      'News',
+      'Community',
+      'Forum',
+    ],
+  },
+  'https://www.tiktok.com/': {
+    meta: {
+      title: 'TikTok',
+      description:
+        'TikTok is a popular short-form video hosting service where users create and share entertaining videos with music, effects, and filters.',
+      created: Date.now() - 13_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 96_000,
+    },
+    tags: [
+      'Popular',
+      'Video',
+      'Social Media',
+      'Entertainment',
+      'Short Video',
+      'Mobile',
+    ],
+  },
+  'https://twitter.com/': {
+    meta: {
+      title: 'Twitter (X)',
+      description:
+        'Twitter (now X) is a microblogging platform where users share short messages, news, and engage in real-time conversations.',
+      created: Date.now() - 14_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 95_000,
+    },
+    tags: [
+      'Popular',
+      'Social Media',
+      'Microblogging',
+      'News',
+      'Real-time',
+      'Communication',
+    ],
+  },
+  'https://www.facebook.com/': {
+    meta: {
+      title: 'Facebook',
+      description:
+        'Facebook is a social networking platform that connects people worldwide, allowing users to share updates, photos, and communicate with friends.',
+      created: Date.now() - 15_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 94_000,
+    },
+    tags: [
+      'Popular',
+      'Social Media',
+      'Social Network',
+      'Communication',
+      'Meta',
+      'Friends',
+    ],
+  },
+  'https://www.instagram.com/': {
+    meta: {
+      title: 'Instagram',
+      description:
+        'Instagram is a photo and video sharing social networking service where users can share visual content and stories.',
+      created: Date.now() - 16_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 93_000,
+    },
+    tags: [
+      'Popular',
+      'Social Media',
+      'Photo Sharing',
+      'Video',
+      'Meta',
+      'Visual Content',
+    ],
+  },
+  'https://www.linkedin.com/': {
+    meta: {
+      title: 'LinkedIn',
+      description:
+        'LinkedIn is a professional networking platform for career development, business connections, and professional content sharing.',
+      created: Date.now() - 17_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 92_000,
+    },
+    tags: [
+      'Popular',
+      'Professional',
+      'Networking',
+      'Career',
+      'Business',
+      'Social Media',
+    ],
+  },
+  'https://github.com/': {
+    meta: {
+      title: 'GitHub',
+      description:
+        'GitHub is a web-based platform for version control and collaboration, hosting millions of software development projects.',
+      created: Date.now() - 18_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 91_000,
+    },
+    tags: [
+      'Popular',
+      'Development',
+      'Git',
+      'Code Repository',
+      'Collaboration',
+      'Open Source',
     ],
   },
 }

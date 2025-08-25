@@ -13,6 +13,7 @@ export const initialBookmarks = {
       updated: Date.now(),
     },
     tags: [
+      '★',
       '开源项目',
       '书签',
       '书签管理器',
@@ -68,13 +69,22 @@ export const initialBookmarks = {
       'Bookmarks',
     ],
   },
+  'https://scriptcat.org/zh-CN/script-show-page/2784': {
+    meta: {
+      title: 'Userscript - 🏷️ 小鱼标签 (UTags) - 为链接添加用户标签',
+      note: `为网页上的用户、帖子、视频添加自定义标签和备注，让你的浏览体验更加个性化和高效。轻松识别用户、整理内容、过滤无关信息。同时也是一个现代化的书签管理工具。支持 100+ 热门网站，包括 V2EX、X (Twitter)、YouTube、TikTok、Reddit、GitHub、B站、抖音、小红书、知乎、掘金、豆瓣、吾爱破解、pixiv、LINUX DO、小众软件、NGA、BOSS直聘等。`,
+      created: Date.now() - 3500 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() - 3500,
+    },
+    tags: ['开源项目', 'Tools', '用户脚本', 'userscript'],
+  },
   'https://github.com/utags/utags': {
     meta: {
       title: 'GitHub - utags/utags: 🏷️ 小鱼标签 (UTags) - 为链接添加用户标签',
       created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
       updated: Date.now() - 4000,
     },
-    tags: ['开源项目', '浏览器扩展', '用户脚本', 'userscript'],
+    tags: ['★', '开源项目', '浏览器扩展', '用户脚本', 'userscript'],
   },
   'https://utags.link/c/public/help-zh': {
     meta: {
@@ -114,7 +124,7 @@ export const initialBookmarks = {
       created: Date.now() - 4000 - Math.floor(Math.random() * 3_600_000),
       updated: Date.now() - 4000,
     },
-    tags: ['开源项目', '书签', '书签管理器', '工具/免费', 'Bookmarks'],
+    tags: ['★', '开源项目', '书签', '书签管理器', '工具/免费', 'Bookmarks'],
   },
 
   'https://tapmeplus1.com/zh': {
@@ -220,5 +230,185 @@ export const initialBookmarks = {
       updated: Date.now() - 4000,
     },
     tags: ['userscript', '用户脚本', '💰 赞助商'],
+  },
+  'https://gemini.google.com/app': {
+    meta: {
+      title: 'Google Gemini',
+      description:
+        'Google Gemini 是谷歌推出的先进AI助手，可以通过自然对话帮助用户进行写作、分析、编程和创意任务。',
+      created: Date.now() - 5000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 50_000,
+    },
+    tags: ['AI对话', '工具/AI', 'Google', 'AI助手'],
+  },
+  'https://chatgpt.com/': {
+    meta: {
+      title: 'ChatGPT',
+      description:
+        'ChatGPT 是 OpenAI 开发的AI对话助手，可以帮助用户完成写作、编程、分析和创意项目等各种任务。',
+      created: Date.now() - 6000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 49_000,
+    },
+    tags: ['AI对话', '工具/AI', 'OpenAI', 'AI助手'],
+  },
+  'https://www.doubao.com/chat/': {
+    meta: {
+      title: '豆包',
+      description:
+        '豆包是字节跳动推出的AI助手，提供智能对话、内容创作和问题解决能力，支持中英文交流。',
+      created: Date.now() - 7000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 48_000,
+    },
+    tags: ['AI对话', '工具/AI', '字节跳动', 'AI助手', '中文'],
+  },
+  'https://chat.deepseek.com/': {
+    meta: {
+      title: 'DeepSeek Chat',
+      description:
+        'DeepSeek Chat 是一个AI对话平台，在编程、数学和通用问题解决方面提供先进的推理能力。',
+      created: Date.now() - 8000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 47_000,
+    },
+    tags: ['AI对话', '工具/AI', 'DeepSeek', 'AI助手', '编程'],
+  },
+  'https://www.google.com/': {
+    meta: {
+      title: 'Google',
+      description:
+        'Google 是全球最受欢迎的搜索引擎，提供全面的网页搜索、图片、视频、新闻和各种在线服务。',
+      created: Date.now() - 9000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 100_000,
+    },
+    tags: ['常用', '搜索引擎', 'Google', '网页搜索', '必备工具'],
+  },
+  'https://www.bing.com/': {
+    meta: {
+      title: 'Bing',
+      description:
+        'Microsoft Bing 是微软推出的网页搜索引擎，提供网页、图片、视频和新闻搜索，具备AI驱动的功能。',
+      created: Date.now() - 10_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 99_000,
+    },
+    tags: ['常用', '搜索引擎', 'Microsoft', '网页搜索', 'AI搜索'],
+  },
+  'https://www.youtube.com/': {
+    meta: {
+      title: 'YouTube',
+      description:
+        'YouTube 是全球最大的视频分享平台，用户可以观看、上传和分享几乎任何主题的视频内容。',
+      created: Date.now() - 11_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 98_000,
+    },
+    tags: ['常用', '视频', '娱乐', 'Google', '社交媒体', '学习'],
+  },
+  'https://www.reddit.com/': {
+    meta: {
+      title: 'Reddit',
+      description:
+        'Reddit 是一个社交新闻聚合和讨论网站，用户可以分享内容、参与讨论并对帖子进行投票。',
+      created: Date.now() - 12_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 97_000,
+    },
+    tags: ['常用', '社交媒体', '讨论', '新闻', '社区', '论坛'],
+  },
+  'https://www.tiktok.com/': {
+    meta: {
+      title: 'TikTok',
+      description:
+        'TikTok 是一个流行的短视频平台，用户可以创建和分享带有音乐、特效和滤镜的娱乐视频。',
+      created: Date.now() - 13_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 96_000,
+    },
+    tags: ['常用', '视频', '社交媒体', '娱乐', '短视频', '移动应用'],
+  },
+  'https://github.com/': {
+    meta: {
+      title: 'GitHub',
+      description:
+        'GitHub 是基于网页的版本控制和协作平台，托管着数百万个软件开发项目。',
+      created: Date.now() - 14_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 95_000,
+    },
+    tags: ['常用', '开发', 'Git', '代码仓库', '协作', '开源'],
+  },
+  'https://www.douyin.com/': {
+    meta: {
+      title: '抖音',
+      description:
+        '抖音是字节跳动旗下的短视频社交平台，用户可以创作和分享15秒至几分钟的短视频内容。',
+      created: Date.now() - 15_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 94_000,
+    },
+    tags: ['常用', '短视频', '社交媒体', '娱乐', '字节跳动', '国内平台'],
+  },
+  'https://www.xiaohongshu.com/': {
+    meta: {
+      title: '小红书',
+      description:
+        '小红书是一个生活方式分享平台，用户可以分享购物心得、旅行攻略、美妆技巧等生活经验。',
+      created: Date.now() - 16_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 93_000,
+    },
+    tags: ['常用', '生活方式', '购物', '分享', '社交媒体', '国内平台'],
+  },
+  'https://www.zhihu.com/': {
+    meta: {
+      title: '知乎',
+      description:
+        '知乎是中文互联网高质量的问答社区和创作者聚集的原创内容平台，用户可以提问、回答和分享知识。',
+      created: Date.now() - 17_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 92_000,
+    },
+    tags: ['常用', '问答', '知识分享', '社区', '学习', '国内平台'],
+  },
+  'https://weibo.com/': {
+    meta: {
+      title: '微博',
+      description:
+        '新浪微博是中国领先的社交媒体平台，用户可以发布短文、图片和视频，关注热点话题和名人动态。',
+      created: Date.now() - 18_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 91_000,
+    },
+    tags: ['常用', '社交媒体', '微博客', '新闻', '热点', '国内平台'],
+  },
+  'https://www.bilibili.com/': {
+    meta: {
+      title: 'B站 (哔哩哔哩)',
+      description:
+        'B站是中国年轻人高度聚集的文化社区和视频平台，以ACG内容起家，现涵盖生活、娱乐、学习等多元内容。',
+      created: Date.now() - 19_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 90_000,
+    },
+    tags: ['常用', '视频', 'ACG', '学习', '娱乐', '国内平台'],
+  },
+  'https://www.taobao.com/': {
+    meta: {
+      title: '淘宝',
+      description:
+        '淘宝是阿里巴巴集团旗下的网上购物平台，提供海量商品和便捷的在线购物体验。',
+      created: Date.now() - 20_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 89_000,
+    },
+    tags: ['常用', '电商', '购物', '阿里巴巴', '在线购物', '支付宝'],
+  },
+  'https://www.jd.com/': {
+    meta: {
+      title: '京东',
+      description:
+        '京东是中国领先的综合性电商平台，以正品保障和快速配送服务著称。',
+      created: Date.now() - 21_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 88_000,
+    },
+    tags: ['常用', '电商', '购物', '京东', '在线购物', '物流'],
+  },
+  'https://www.baidu.com/': {
+    meta: {
+      title: '百度',
+      description:
+        '百度是中国最大的搜索引擎，提供网页搜索、图片搜索、新闻搜索等多种搜索服务。',
+      created: Date.now() - 22_000 - Math.floor(Math.random() * 3_600_000),
+      updated: Date.now() + 87_000,
+    },
+    tags: ['常用', '搜索引擎', '百度', '中文搜索', '本土化'],
   },
 }
