@@ -45,14 +45,21 @@ const initVisibilityChangeHandler = (syncManager: SyncManager) => {
       console.log(`[AutoSyncScheduler] Tab ${currentTabId} became visible.`)
       // If tab becomes visible and doesn't have the lock, try to acquire it.
       // This helps if this tab was in the background and lost the lock, or another tab crashed.
-      if (!checkHasLock()) {
+      if (checkHasLock()) {
+        // If already holding the lock, still perform a sync check on visibility change
+        console.log(
+          '[AutoSyncScheduler] Already holding lock, performing sync check on visibility.'
+        )
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        checkAndScheduleSync(syncManager, true)
+      } else {
         console.log(
           '[AutoSyncScheduler] Attempting to acquire lock on visibility.'
         )
         if (acquireLock()) {
           // If lock acquired, perform a sync check.
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          checkAndScheduleSync(syncManager)
+          checkAndScheduleSync(syncManager, true)
         }
       }
     } else if (document.visibilityState === 'hidden') {
@@ -172,9 +179,11 @@ function releaseLock(): void {
  * Checks sync services based on their configuration and adds them to the sync queue if necessary.
  * This function will only proceed if the current tab holds the auto-sync lock.
  * @param {SyncManager} syncManagerInstance - An instance of SyncManager to pass to addToSyncQueue.
+ * @param {boolean} isFromVisibilityChange - Whether this call is triggered by a visibility change event.
  */
 async function checkAndScheduleSync(
-  syncManagerInstance: SyncManager
+  syncManagerInstance: SyncManager,
+  isFromVisibilityChange = false
 ): Promise<void> {
   // Ensure this tab holds the lock before proceeding.
   // Attempt to acquire if not held, but don't proceed if acquisition fails.
@@ -214,70 +223,79 @@ async function checkAndScheduleSync(
       let shouldSync = false
       const lastSyncTime = config.lastSyncTimestamp || 0
 
-      // 1. Check based on autoSyncOnChanges and autoSyncDelayOnChanges
-      if (
-        config.autoSyncOnChanges &&
-        config.autoSyncDelayOnChanges &&
-        config.autoSyncDelayOnChanges > 0 &&
-        lastBookmarksUpdateTime > 0 // Only if bookmarks have been updated
-      ) {
-        const delayMillis = config.autoSyncDelayOnChanges * 60 * 1000
-        // Sync if enough time has passed since last update AND since last sync for this service
-
-        // --- On-changes sync check ---
-        // This block determines if a sync should be triggered due to local bookmark changes
-        // since the last successful sync for this specific service.
-
-        // Condition 1: Local bookmarks have been updated since the last sync.
-        // `lastBookmarksUpdateTime` is the timestamp of the most recent local bookmark modification.
-        // `lastSyncTime` is the timestamp when the last sync for this service started.
-        // A buffer of `SYNC_COMPLETION_BUFFER_MS` (e.g., 3000ms) is added to `lastSyncTime`
-        // to ensure that the comparison accounts for the time taken by the previous sync to complete.
-        // If `lastBookmarksUpdateTime` is greater, it means new changes have occurred after the previous sync concluded.
-        const localChangesSinceLastSync =
-          lastBookmarksUpdateTime > lastSyncTime + SYNC_COMPLETION_BUFFER_MS
-
-        // Condition 2: Sufficient time has passed since the last local bookmark update.
-        // This prevents syncing too frequently if changes are happening in rapid succession.
-        // `currentTime - delayMillis` represents the earliest time a sync should be considered based on the configured delay.
-        const enoughTimeSinceLastUpdate =
-          currentTime - delayMillis > lastBookmarksUpdateTime
-
-        // Condition 3: Sufficient time has passed since the last sync for this service.
-        // This also helps in respecting the configured sync interval/delay, ensuring we don't sync too often
-        // even if local changes are detected.
-        const enoughTimeSinceLastServiceSync =
-          currentTime - delayMillis > lastSyncTime
+      // Special case: If triggered by visibility change and adapter type is browserExtension,
+      // immediately sync without checking intervals
+      if (isFromVisibilityChange && config.type === 'browserExtension') {
+        console.log(
+          `[AutoSyncScheduler] Service ${config.id} (browserExtension) triggered by visibility change, syncing immediately.`
+        )
+        shouldSync = true
+      } else {
+        // 1. Check based on autoSyncOnChanges and autoSyncDelayOnChanges
         if (
-          localChangesSinceLastSync &&
-          enoughTimeSinceLastUpdate &&
-          enoughTimeSinceLastServiceSync
+          config.autoSyncOnChanges &&
+          config.autoSyncDelayOnChanges &&
+          config.autoSyncDelayOnChanges > 0 &&
+          lastBookmarksUpdateTime > 0 // Only if bookmarks have been updated
         ) {
-          console.log(
-            `[AutoSyncScheduler] Service ${config.id} due for on-changes sync. Last local update: ${new Date(lastBookmarksUpdateTime).toISOString()}, Last service sync: ${new Date(lastSyncTime).toISOString()}`
-          )
-          shouldSync = true
-        } else if (localChangesSinceLastSync) {
-          // console.log(
-          //   `[AutoSyncScheduler] Service ${config.id} not due for on-changes sync. Last local update: ${new Date(lastBookmarksUpdateTime).toISOString()}, Last service sync: ${new Date(lastSyncTime).toISOString()}`
-          // )
-          shouldSync = false
-          continue
-        }
-      }
+          const delayMillis = config.autoSyncDelayOnChanges * 60 * 1000
+          // Sync if enough time has passed since last update AND since last sync for this service
 
-      // 2. Check based on autoSyncInterval
-      if (
-        !shouldSync &&
-        config.autoSyncInterval &&
-        config.autoSyncInterval > 0
-      ) {
-        const intervalMillis = config.autoSyncInterval * 60 * 1000
-        if (currentTime - intervalMillis > lastSyncTime) {
-          console.log(
-            `[AutoSyncScheduler] Service ${config.id} due for interval sync. Last sync: ${new Date(lastSyncTime).toISOString()}`
-          )
-          shouldSync = true
+          // --- On-changes sync check ---
+          // This block determines if a sync should be triggered due to local bookmark changes
+          // since the last successful sync for this specific service.
+
+          // Condition 1: Local bookmarks have been updated since the last sync.
+          // `lastBookmarksUpdateTime` is the timestamp of the most recent local bookmark modification.
+          // `lastSyncTime` is the timestamp when the last sync for this service started.
+          // A buffer of `SYNC_COMPLETION_BUFFER_MS` (e.g., 3000ms) is added to `lastSyncTime`
+          // to ensure that the comparison accounts for the time taken by the previous sync to complete.
+          // If `lastBookmarksUpdateTime` is greater, it means new changes have occurred after the previous sync concluded.
+          const localChangesSinceLastSync =
+            lastBookmarksUpdateTime > lastSyncTime + SYNC_COMPLETION_BUFFER_MS
+
+          // Condition 2: Sufficient time has passed since the last local bookmark update.
+          // This prevents syncing too frequently if changes are happening in rapid succession.
+          // `currentTime - delayMillis` represents the earliest time a sync should be considered based on the configured delay.
+          const enoughTimeSinceLastUpdate =
+            currentTime - delayMillis > lastBookmarksUpdateTime
+
+          // Condition 3: Sufficient time has passed since the last sync for this service.
+          // This also helps in respecting the configured sync interval/delay, ensuring we don't sync too often
+          // even if local changes are detected.
+          const enoughTimeSinceLastServiceSync =
+            currentTime - delayMillis > lastSyncTime
+          if (
+            localChangesSinceLastSync &&
+            enoughTimeSinceLastUpdate &&
+            enoughTimeSinceLastServiceSync
+          ) {
+            console.log(
+              `[AutoSyncScheduler] Service ${config.id} due for on-changes sync. Last local update: ${new Date(lastBookmarksUpdateTime).toISOString()}, Last service sync: ${new Date(lastSyncTime).toISOString()}`
+            )
+            shouldSync = true
+          } else if (localChangesSinceLastSync) {
+            // console.log(
+            //   `[AutoSyncScheduler] Service ${config.id} not due for on-changes sync. Last local update: ${new Date(lastBookmarksUpdateTime).toISOString()}, Last service sync: ${new Date(lastSyncTime).toISOString()}`
+            // )
+            shouldSync = false
+            continue
+          }
+        }
+
+        // 2. Check based on autoSyncInterval
+        if (
+          !shouldSync &&
+          config.autoSyncInterval &&
+          config.autoSyncInterval > 0
+        ) {
+          const intervalMillis = config.autoSyncInterval * 60 * 1000
+          if (currentTime - intervalMillis > lastSyncTime) {
+            console.log(
+              `[AutoSyncScheduler] Service ${config.id} due for interval sync. Last sync: ${new Date(lastSyncTime).toISOString()}`
+            )
+            shouldSync = true
+          }
         }
       }
 

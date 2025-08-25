@@ -715,7 +715,7 @@ describe('AutoSyncScheduler', () => {
       )
     })
 
-    it('should not re-acquire lock or re-check sync on visibilitychange if already holding lock', async () => {
+    it('should not re-acquire lock but still check sync on visibilitychange if already holding lock', async () => {
       let visibilityChangeCallback: EventListenerOrEventListenerObject =
         emptyFunction
 
@@ -745,11 +745,16 @@ describe('AutoSyncScheduler', () => {
         )
       }
 
+      // Should not try to re-acquire lock since already holding it
       expect(localStorageMock.setItem).not.toHaveBeenCalledWith(
         'utags_auto_sync_lock_owner',
         expect.any(String)
       )
-      expect(addToSyncQueue).not.toHaveBeenCalled()
+      // But should still perform sync check on visibility change
+      expect(addToSyncQueue).toHaveBeenCalledWith(
+        { serviceId: 'service1' },
+        mockSyncManagerInstance
+      )
     })
 
     it('should not bind event listeners multiple times when initAutoSyncScheduler is called repeatedly', () => {
@@ -842,6 +847,235 @@ describe('AutoSyncScheduler', () => {
         'utags_auto_sync_lock_owner',
         expect.any(String)
       )
+    })
+
+    it('should trigger immediate sync on visibilitychange for browserExtension type regardless of sync interval', async () => {
+      let visibilityChangeCallback: EventListenerOrEventListenerObject =
+        emptyFunction
+
+      ;(document.addEventListener as Mock).mockImplementation(
+        (event: string, callback: EventListener) => {
+          if (event === 'visibilitychange') {
+            visibilityChangeCallback = callback
+          }
+        }
+      )
+
+      // Configure a browserExtension service with recent sync (normally wouldn't trigger)
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'browserExt1',
+            type: 'browserExtension',
+            enabled: true,
+            autoSyncEnabled: true,
+            autoSyncInterval: 60, // 60 minutes - long interval
+            lastSyncTimestamp: Date.now() - 5 * 60 * 1000, // Synced just 5 mins ago
+            autoSyncOnChanges: false,
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'browserExt1',
+      })
+      ;(bookmarkStorage.getBookmarksStore as Mock).mockResolvedValue({
+        meta: { updated: Date.now() - 10 * 60 * 1000 }, // Updated 10 mins ago
+      })
+
+      // Start without lock to simulate tab becoming visible and acquiring lock
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Allow initial checkAndScheduleSync to settle
+      await vi.advanceTimersByTimeAsync(0)
+      vi.clearAllMocks()
+
+      // Re-setup the addToSyncQueue mock
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      ;(addToSyncQueue as Mock).mockImplementation(() => {})
+
+      // Mock acquireLock to return true when called during visibilitychange
+      const mockAcquireLock = vi.fn().mockReturnValue(true)
+      const mockCheckHasLock = vi.fn().mockReturnValue(false) // Initially no lock
+
+      // We need to mock the internal functions, but since they're not exported,
+      // we'll simulate the scenario by ensuring no lock is held initially
+      localStorageMock.removeItem('utags_auto_sync_lock_owner')
+      localStorageMock.removeItem('utags_auto_sync_lock_heartbeat')
+      // Simulate tab becoming visible
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'visible',
+        writable: true,
+      })
+
+      if (typeof visibilityChangeCallback === 'function') {
+        await (visibilityChangeCallback as (evt: Event) => Promise<void>)(
+          new Event('visibilitychange')
+        )
+      }
+
+      // After visibilitychange, the tab should acquire lock and trigger sync
+      expect(
+        localStorageMock.getItem('utags_auto_sync_lock_owner')
+      ).toBeTruthy()
+      expect(isAutoSyncSchedulerLockOwner()).toBe(true)
+
+      // Should trigger immediate sync for browserExtension type on visibilitychange
+      expect(addToSyncQueue).toHaveBeenCalledWith(
+        { serviceId: 'browserExt1' },
+        mockSyncManagerInstance
+      )
+    })
+
+    it('should not trigger immediate sync on visibilitychange for non-browserExtension types', async () => {
+      let visibilityChangeCallback: EventListenerOrEventListenerObject =
+        emptyFunction
+
+      ;(document.addEventListener as Mock).mockImplementation(
+        (event: string, callback: EventListener) => {
+          if (event === 'visibilitychange') {
+            visibilityChangeCallback = callback
+          }
+        }
+      )
+
+      // Configure a customApi service with recent sync (shouldn't trigger)
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'customApi1',
+            type: 'customApi',
+            enabled: true,
+            autoSyncEnabled: true,
+            autoSyncInterval: 60, // 60 minutes
+            lastSyncTimestamp: Date.now() - 5 * 60 * 1000, // Synced just 5 mins ago
+            autoSyncOnChanges: false,
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'customApi1',
+      })
+      ;(bookmarkStorage.getBookmarksStore as Mock).mockResolvedValue({
+        meta: { updated: Date.now() - 10 * 60 * 1000 },
+      })
+
+      simulateLockAcquisitionByCurrentInstance()
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Allow initial checkAndScheduleSync to settle
+      await vi.advanceTimersByTimeAsync(0)
+      vi.clearAllMocks()
+
+      // Simulate tab becoming visible
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'visible',
+        writable: true,
+      })
+
+      if (typeof visibilityChangeCallback === 'function') {
+        await (visibilityChangeCallback as (evt: Event) => Promise<void>)(
+          new Event('visibilitychange')
+        )
+      }
+
+      // Should NOT trigger sync because it's not browserExtension type
+      expect(addToSyncQueue).not.toHaveBeenCalled()
+    })
+
+    it('should respect normal sync conditions on visibilitychange for browserExtension when service is disabled', async () => {
+      let visibilityChangeCallback: EventListenerOrEventListenerObject =
+        emptyFunction
+
+      ;(document.addEventListener as Mock).mockImplementation(
+        (event: string, callback: EventListener) => {
+          if (event === 'visibilitychange') {
+            visibilityChangeCallback = callback
+          }
+        }
+      )
+
+      // Configure a disabled browserExtension service
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'browserExt1',
+            type: 'browserExtension',
+            enabled: false, // Disabled
+            autoSyncEnabled: true,
+            autoSyncInterval: 60,
+            lastSyncTimestamp: Date.now() - 5 * 60 * 1000,
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'browserExt1',
+      })
+
+      simulateLockAcquisitionByCurrentInstance()
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Allow initial checkAndScheduleSync to settle
+      await vi.advanceTimersByTimeAsync(0)
+      vi.clearAllMocks()
+
+      // Simulate tab becoming visible
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'visible',
+        writable: true,
+      })
+
+      if (typeof visibilityChangeCallback === 'function') {
+        await (visibilityChangeCallback as (evt: Event) => Promise<void>)(
+          new Event('visibilitychange')
+        )
+      }
+
+      // Should NOT trigger sync because service is disabled
+      expect(addToSyncQueue).not.toHaveBeenCalled()
+    })
+
+    it('should respect normal sync conditions on visibilitychange for browserExtension when autoSyncEnabled is false', async () => {
+      let visibilityChangeCallback: EventListenerOrEventListenerObject =
+        emptyFunction
+
+      ;(document.addEventListener as Mock).mockImplementation(
+        (event: string, callback: EventListener) => {
+          if (event === 'visibilitychange') {
+            visibilityChangeCallback = callback
+          }
+        }
+      )
+
+      // Configure a browserExtension service with autoSyncEnabled false
+      syncConfigStore.set({
+        syncServices: [
+          {
+            id: 'browserExt1',
+            type: 'browserExtension',
+            enabled: true,
+            autoSyncEnabled: false, // Auto sync disabled
+            autoSyncInterval: 60,
+            lastSyncTimestamp: Date.now() - 5 * 60 * 1000,
+          } as SyncServiceConfig,
+        ],
+        activeSyncServiceId: 'browserExt1',
+      })
+
+      simulateLockAcquisitionByCurrentInstance()
+      initAutoSyncScheduler(mockSyncManagerInstance)
+
+      // Allow initial checkAndScheduleSync to settle
+      await vi.advanceTimersByTimeAsync(0)
+      vi.clearAllMocks()
+
+      // Simulate tab becoming visible
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'visible',
+        writable: true,
+      })
+
+      if (typeof visibilityChangeCallback === 'function') {
+        await (visibilityChangeCallback as (evt: Event) => Promise<void>)(
+          new Event('visibilitychange')
+        )
+      }
+
+      // Should NOT trigger sync because autoSyncEnabled is false
+      expect(addToSyncQueue).not.toHaveBeenCalled()
     })
   })
 })
