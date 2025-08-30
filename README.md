@@ -1,5 +1,7 @@
 # UTags Bookmark Manager
 
+> **⚠️ IMPORTANT NOTICE: This project has been merged into the monorepo [https://github.com/utags/utags](https://github.com/utags/utags) and is no longer updated here. Please visit the new repository for the latest updates and development.**
+
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/utags/utags-bookmarks/ci.yml?branch=main)](https://github.com/utags/utags-bookmarks/actions)
 [![UTags Official Site](https://img.shields.io/badge/UTags-Official_Site-brightgreen)](https://utags.link)

@@ -1,5 +1,7 @@
 # UTags 书签管理器
 
+> **⚠️ 重要通知：此项目已合并到 monorepo [https://github.com/utags/utags](https://github.com/utags/utags)，此仓库不再更新。请访问新仓库获取最新更新和开发进展。**
+
 [![开源协议](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![构建状态](https://img.shields.io/github/actions/workflow/status/utags/utags-bookmarks/ci.yml?branch=main)](https://github.com/utags/utags-bookmarks/actions)
 [![UTags 官方网站](https://img.shields.io/badge/UTags-官方站点-brightgreen)](https://utags.link)
